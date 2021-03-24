@@ -1946,12 +1946,26 @@ export class Engine extends ThinEngine {
     }
 
     /**
-     * creates and returns a new video element
+     * Overloaded method to allow using an existing video element by Id
+     *
+     * @param constraints
+     * @param videoElementId
+     */
+    public createVideoElementById(constraints: MediaTrackConstraints, videoElementId: string): any {
+        if (videoElementId) {
+            return document.getElementById(videoElementId);
+        } else {
+            return document.createElement("video");
+        }
+    }
+
+    /**
+     * creates and returns a new video elementMediaTrackConstraints
      * @param constraints video constraints
      * @returns video element
      */
     public createVideoElement(constraints: MediaTrackConstraints): any {
-        return document.createElement("video");
+        return this.createVideoElementById(constraints, "");
     }
 
     /** Pointerlock and fullscreen */

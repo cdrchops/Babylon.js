@@ -54,6 +54,11 @@ export class VideoTexture extends Texture {
      */
     public readonly video: HTMLVideoElement;
 
+    /**
+     * The actual video
+     */
+    public actualVideo: any;
+
     private _onUserActionRequestedObservable: Nullable<Observable<Texture>> = null;
 
     /**
@@ -146,6 +151,8 @@ export class VideoTexture extends Texture {
         else if (videoHasEnoughData) {
             this._createInternalTexture();
         }
+
+        this.actualVideo = this.video;
     }
 
     private _getName(src: string | string[] | HTMLVideoElement): string {
@@ -373,7 +380,7 @@ export class VideoTexture extends Texture {
      * @returns The created video texture as a promise
      */
     public static CreateFromStreamAsync(scene: Scene, stream: MediaStream, constraints: any): Promise<VideoTexture> {
-        var video = scene.getEngine().createVideoElement(constraints);
+        var video = scene.getEngine().createVideoElementById(constraints, "video");
 
         if (scene.getEngine()._badOS) {
             // Yes... I know and I hope to remove it soon...
