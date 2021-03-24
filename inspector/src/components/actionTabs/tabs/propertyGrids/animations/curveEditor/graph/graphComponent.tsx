@@ -33,6 +33,8 @@ IGraphComponentState
     private _viewScale = 1;
     private _offsetX = 0;
     private _offsetY = 0;
+
+    private _inSelectionMode: boolean;
     
     private _graphOffsetX = 30;
 
@@ -41,12 +43,17 @@ IGraphComponentState
     private _minFrame: number;
     private _maxFrame: number;
     private _svgHost: React.RefObject<SVGSVGElement>;
-    private _svgHost2: React.RefObject<SVGSVGElement>;
+    private _svgHost2: React.RefObject<SVGSVGElement>;    
+    private _selectionRectangle: React.RefObject<HTMLDivElement>;
     private _curves: Curve[];
 
     private _pointerIsDown: boolean;
     private _sourcePointerX: number;
     private _sourcePointerY: number;
+
+    
+    private _selectionStartX: number;
+    private _selectionStartY: number;
 
     private _currentAnimation: Nullable<Animation>;
    
@@ -55,10 +62,11 @@ IGraphComponentState
     constructor(props: IGraphComponentProps) {
         super(props);
 
-        this.state = { };
+        this.state = {};
         
         this._svgHost = React.createRef();
         this._svgHost2 = React.createRef();
+        this._selectionRectangle = React.createRef();
 
         this._evaluateKeys();
 
@@ -82,6 +90,10 @@ IGraphComponentState
             this.forceUpdate();
         });
 
+        this.props.context.onRangeUpdated.add(() => {
+            this.forceUpdate();
+        });
+
         this.props.context.onDeleteKeyActiveKeyPoints.add(() => { // Delete keypoint
             if (!this._currentAnimation || !this.props.context.activeKeyPoints) {
                 return;
@@ -89,9 +101,14 @@ IGraphComponentState
 
             let keys = this._currentAnimation.getKeys()
             let newKeys = keys.slice(0);
-            let deletedFrame: Nullable<number> = null;
+            let deletedFrame: Nullable<number> = null;            
 
             for (var keyPoint of this.props.context.activeKeyPoints) {
+                // Cannot delete 0 and last
+                if (keyPoint.props.keyId === 0 || keyPoint.props.keyId === keys.length - 1) {
+                    continue;
+                }
+
                 let key = keys[keyPoint.props.keyId];
 
                 let keyIndex = newKeys.indexOf(key);
@@ -311,7 +328,13 @@ IGraphComponentState
     }
 
     private _invertY(y: number) {
-        return ((this._GraphAbsoluteHeight - y) / this._GraphAbsoluteHeight) * (this._maxValue - this._minValue) + this._minValue;
+        let diff = this._maxValue - this._minValue;
+
+        if (diff === 0) {
+            diff = 1;
+        }
+
+        return ((this._GraphAbsoluteHeight - y) / this._GraphAbsoluteHeight) * diff + this._minValue;
     }
 
     private _buildYAxis() {
@@ -383,12 +406,23 @@ IGraphComponentState
             return;
         }
 
-        this.props.context.onActiveKeyPointChanged.notifyObservers(null);
+        this.props.context.onActiveKeyPointChanged.notifyObservers();
 
         this._offsetX = 20;
         this._offsetY = 20;
 
         let keys = this._currentAnimation.getKeys();
+
+        // Only keep selected keys
+        if (this.props.context.activeKeyPoints && this.props.context.activeKeyPoints.length > 1) {
+            let newKeys = [];
+            for (var keyPoint of this.props.context.activeKeyPoints) {
+                newKeys.push(keys[keyPoint.props.keyId]);
+            }
+
+            keys = newKeys;
+        }
+
         this._minFrame = keys[0].frame;
         this._maxFrame = keys[keys.length - 1].frame;
 
@@ -452,18 +486,53 @@ IGraphComponentState
         evt.currentTarget.setPointerCapture(evt.pointerId);
         this._sourcePointerX = evt.nativeEvent.offsetX;
         this._sourcePointerY = evt.nativeEvent.offsetY;
+
+        this._inSelectionMode = evt.nativeEvent.ctrlKey;
+
+        if (this._inSelectionMode) {
+            this._selectionStartX = this._sourcePointerX + 40;
+            this._selectionStartY = this._sourcePointerY;
+        }
     }
 
     private _onPointerMove(evt: React.PointerEvent<HTMLDivElement>) {
         if (!this._pointerIsDown) {
             return;
         }
+
+        if (this._inSelectionMode) {
+            let style = this._selectionRectangle.current!.style;
+            style.visibility = "visible";
+
+            const localX = evt.nativeEvent.offsetX;
+            const localY = evt.nativeEvent.offsetY;
+
+            if (localX > this._selectionStartX) {
+                style.left = `${this._selectionStartX}px`;
+                style.width = `${(localX - this._selectionStartX)}px`;
+            } else {
+                style.left = `${localX}px`;
+                style.width = `${(this._selectionStartX - localX)}px`;
+            }
+
+            if (localY > this._selectionStartY) {                
+                style.top = `${this._selectionStartY}px`;
+                style.height = `${(localY - this._selectionStartY)}px`;
+            } else {
+                style.top = `${localY}px`;
+                style.height = `${(this._selectionStartY - localY)}px`;
+            }
+            
+            this.props.context.onSelectionRectangleMoved.notifyObservers(this._selectionRectangle.current!.getBoundingClientRect());
+
+            return;
+        }
+
         this._offsetX += (evt.nativeEvent.offsetX - this._sourcePointerX) * this._viewScale;
         this._offsetY += (evt.nativeEvent.offsetY - this._sourcePointerY) * this._viewScale;
         
         this._sourcePointerX = evt.nativeEvent.offsetX;
         this._sourcePointerY = evt.nativeEvent.offsetY;
-
         
         this.props.context.onGraphMoved.notifyObservers(this._offsetX);
 
@@ -473,6 +542,8 @@ IGraphComponentState
     private _onPointerUp(evt: React.PointerEvent<HTMLDivElement>) {
         this._pointerIsDown = false;
         evt.currentTarget.releasePointerCapture(evt.pointerId);
+
+        this._selectionRectangle.current!.style.visibility = "hidden";
     }
 
     private _onWheel(evt: React.WheelEvent) {
@@ -503,6 +574,18 @@ IGraphComponentState
         const viewBoxScalingCurves = `${-this._offsetX} ${-this._offsetY} ${Math.round(scale * this._viewCurveWidth)} ${Math.round(scale * this._viewHeight)}`;
         const viewBoxScalingGrid = `0 ${-this._offsetY} ${Math.round(scale * this._viewWidth)} ${Math.round(scale * this._viewHeight)}`;
 
+        let activeBoxLeft = 0;
+        let activeBoxRight = 0;
+        if (this.props.context.activeAnimation) {
+            let animation = this.props.context.activeAnimation;
+            let keys = animation.getKeys();
+            let minFrame = keys[0].frame;
+            let maxFrame = keys[keys.length - 1].frame;
+        
+            activeBoxLeft = (((this.props.context.fromKey - minFrame) /  (maxFrame - minFrame)) * this._GraphAbsoluteWidth + this._offsetX) / this._viewScale;
+            activeBoxRight = (((this.props.context.toKey - minFrame) /  (maxFrame - minFrame)) * this._GraphAbsoluteWidth + this._offsetX) / this._viewScale;
+        }
+
         return (
             <div 
                 id="graph"                
@@ -511,6 +594,14 @@ IGraphComponentState
                 onPointerMove={evt => this._onPointerMove(evt)}
                 onPointerUp={evt => this._onPointerUp(evt)}
             >
+                {
+                    this.props.context.activeAnimation && 
+                    <div id="dark-rectangle" style={ {
+                        left: activeBoxLeft + "px",
+                        width: (activeBoxRight - activeBoxLeft) + "px"
+                    }}/>
+                }
+                <div id="block-rectangle"/>
                 <svg
                     id="svg-graph-grid"
                     viewBox={viewBoxScalingGrid}
@@ -520,7 +611,6 @@ IGraphComponentState
                         this._buildYAxis()
                     }
                 </svg>
-                <div id="dark-rectangle"/>
                 <svg
                     ref={this._svgHost2}
                     id="svg-graph-curves"
@@ -528,20 +618,11 @@ IGraphComponentState
                     viewBox={viewBoxScalingCurves}
                     >
                     {
-                        this._curves !== undefined && this._curves.length > 0 &&
-                        <CurveComponent context={this.props.context} curve={this._curves[0]} convertX={x => this._convertX(x)} convertY={y => this._convertY(y)}/>
-                    }
-                    {
-                        this._curves !== undefined && this._curves.length > 1 &&
-                        <CurveComponent context={this.props.context} curve={this._curves[1]} convertX={x => this._convertX(x)} convertY={y => this._convertY(y)}/>
-                    }
-                    {
-                        this._curves !== undefined && this._curves.length > 2 &&
-                        <CurveComponent context={this.props.context} curve={this._curves[2]} convertX={x => this._convertX(x)} convertY={y => this._convertY(y)}/>
-                    }
-                    {
-                        this._curves !== undefined && this._curves.length > 3 &&
-                        <CurveComponent context={this.props.context} curve={this._curves[3]} convertX={x => this._convertX(x)} convertY={y => this._convertY(y)}/>
+                        this._curves.map((c, i) => {
+                            return (
+                                <CurveComponent key={i} context={this.props.context} curve={c} convertX={x => this._convertX(x)} convertY={y => this._convertY(y)}/>
+                            )
+                        })
                     }
                     {
                         this._dropKeyFrames(0)
@@ -556,6 +637,10 @@ IGraphComponentState
                         this._dropKeyFrames(3)
                     }
                 </svg>
+                <div 
+                    ref={this._selectionRectangle}
+                    id="selection-rectangle">
+                </div>
             </div>
         );
     }

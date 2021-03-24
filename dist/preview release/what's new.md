@@ -4,11 +4,13 @@
 
 - Infinite Morph Targets: When supported (WebGL2+) you are no more limited to 4 morph targets per mesh ([Deltakosh](https://github.com/deltakosh))
 - Added support for ConditionalBlock for NodeMaterial ([Deltakosh](https://github.com/deltakosh))
+- Improved performance when using the shadow / cascacaded shadow generator ([Popov72](https://github.com/Popov72))
 
 ## Updates
 
 ### General
 
+- Added zoomToMouseLocation on ArcRotateCamera ([lovettchris](https://github.com/lovettchris))
 - Added static CenterToRef for vectors 2/3/4 ([aWeirdo](https://github.com/aWeirdo))
 - Added ability to view images (ktx2, png, jpg) to the sandbox. ([bghgary](https://github.com/bghgary))
 - Added optional smoothed normals for extruded procedural polygons. ([snagy](https://github.com/snagy))
@@ -38,6 +40,7 @@
 - Added support for KHR_xmp_json_ld for glTF loader. ([Sebavan](https://github.com/sebavan/), [bghgary](https://github.com/bghgary))
 - Added a `OptimizeNormals` option to the OBJ loader to smooth lighting ([Popov72](https://github.com/Popov72))
 - Added a `Prefiltered` option to the CubeTextureAssetTask ([MackeyK24](https://github.com/MackeyK24))
+- Added support for more uv sets to glTF loader. ([bghgary](https://github.com/bghgary))
 
 ### Navigation
 
@@ -179,3 +182,4 @@
 - Mesh.createInstance no longer make a unique Geometry for the Mesh so updating one Geometry can affect more meshes than before. Use Mesh.makeUniqueGeometry for old behaviour. ([breakin](https://github.com/breakin))
 - Ammo.js needs to be initialized before creating the plugin with `await Ammo();` since Ammo introduced an async init in their library. ([sebavan](https://github.com/sebavan))
 - Fixed spelling of EventState.initialize() ([seritools](https://github.com/seritools))
+- `SkeletonViewer` is now enabled by default ([Deltakosh](https://github.com/deltakosh))
