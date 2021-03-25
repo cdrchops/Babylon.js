@@ -1948,15 +1948,17 @@ export class Engine extends ThinEngine {
     /**
      * Overloaded method to allow using an existing video element by Id
      *
-     * @param constraints
-     * @param videoElementId
+     * @param constraints video constraints
+     * @param videoElementId ID for video element tag - if doesn't exist then create new video element
+     * @returns video element
      */
     public createVideoElementById(constraints: MediaTrackConstraints, videoElementId: string): any {
         if (videoElementId) {
-            return document.getElementById(videoElementId);
-        } else {
-            return document.createElement("video");
+            // return document.getElementById(videoElementId);
+            return document.getElementsByTagName("video")[0];
         }
+
+        return document.createElement("video");
     }
 
     /**
