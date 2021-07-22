@@ -122,9 +122,11 @@ declare module BABYLON {
         static GetTime(): number;
         /** Get the total game time in seconds */
         static GetGameTime(): number;
+        /** Get the raw delta time in milliseconds */
+        static GetDeltaTime(scene: BABYLON.Scene): number;
         /** Get the current delta time in seconds */
-        static GetDeltaSeconds(scene: BABYLON.Scene): number;
-        /** Get the delta time animation ratio multiplier */
+        static GetDeltaSeconds(scene: BABYLON.Scene, applyAnimationRatio?: boolean): number;
+        /** Get the delta time animation ratio at 60 fps */
         static GetAnimationRatio(scene: BABYLON.Scene): number;
         /** Delays a function call using request animation frames. Returns a handle object */
         static SetTimeout(timeout: number, func: () => void): any;
@@ -281,7 +283,7 @@ declare module BABYLON {
         /** Get ammo.js total memory heap size */
         static GetPhysicsHeapSize(): number;
         /** Confiures ammo.js physcis engine advanced sweeping and collision detection options on the scene. */
-        static ConfigurePhysicsEngine(scene: BABYLON.Scene, deltaTimeStep?: number, subTimeStep?: number, maxWorldSweep?: number, ccdEnabled?: boolean, ccdPenetration?: number, gravityLevel?: BABYLON.Vector3): void;
+        static ConfigurePhysicsEngine(scene: BABYLON.Scene, deltaWorldStep?: boolean, subTimeStep?: number, maxWorldSweep?: number, ccdEnabled?: boolean, ccdPenetration?: number, gravityLevel?: BABYLON.Vector3): void;
         /** Gets the current ammo.js physics world. */
         static GetPhysicsEngine(scene: BABYLON.Scene): BABYLON.IPhysicsEngine;
         /** Gets the current ammo.js physics world. */
@@ -676,9 +678,7 @@ declare module BABYLON {
         /** Get the total game time in seconds */
         getGameTime(): number;
         /** Get the current delta time in seconds */
-        getDeltaSeconds(): number;
-        /** Get the delta time animation ratio multiplier */
-        getAnimationRatio(): number;
+        getDeltaSeconds(applyAnimationRatio?: boolean): number;
         /** Gets the safe transform mesh entity */
         getTransformMesh(): BABYLON.Mesh;
         /** Gets the safe transform abstract mesh entity */
@@ -1417,11 +1417,14 @@ declare module BABYLON {
         private static TmpAmmoNormalC;
         static AddMeshVerts(btTriangleMesh: any, topLevelObject: BABYLON.IPhysicsEnabledObject, object: BABYLON.IPhysicsEnabledObject, scaling?: boolean, normals?: boolean): number;
         static AddHullVerts(btConvexHullShape: any, topLevelObject: BABYLON.IPhysicsEnabledObject, object: BABYLON.IPhysicsEnabledObject, scaling?: boolean): number;
-        static CreateImpostorCustomShape(scene: BABYLON.Scene, impostor: BABYLON.PhysicsImpostor, type: number, showDebugColliders?: boolean, colliderVisibility?: number): any;
+        static CreateImpostorCustomShape(scene: BABYLON.Scene, impostor: BABYLON.PhysicsImpostor, type: number, showDebugColliders?: boolean, colliderVisibility?: number, useTriangleNormals?: boolean): any;
+        static UseTriangleNormals(): boolean;
         static ShowDebugColliders(): boolean;
         static ColliderVisibility(): number;
         static CollisionWireframe(): boolean;
         static GetColliderMaterial(scene: BABYLON.Scene): BABYLON.Material;
+        static CalculateCombinedFriction(friction0: number, friction1: number): number;
+        static CalculateCombinedRestitution(restitution0: number, restitution1: number): number;
         /** TODO */
         static GetDirectTargetAngle(transform: BABYLON.TransformNode, worldSpaceTarget: BABYLON.Vector3): number;
         /** TODO */
