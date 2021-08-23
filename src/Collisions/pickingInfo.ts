@@ -1,14 +1,14 @@
 import { Nullable, FloatArray } from "../types";
 import { Vector3, Vector2, TmpVectors } from "../Maths/math.vector";
 import { AbstractMesh } from "../Meshes/abstractMesh";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { Sprite } from "../Sprites/sprite";
 
 declare type Ray = import("../Culling/ray").Ray;
 
 /**
      * Information about the result of picking within a scene
-     * @see https://doc.babylonjs.com/babylon101/picking_collisions
+     * @see https://doc.babylonjs.com/divingDeeper/mesh/interactions/picking_collisions
      */
 export class PickingInfo {
     /** @hidden */
@@ -46,7 +46,7 @@ export class PickingInfo {
     /** If we are picking a mesh with thin instance, this will give you the picked thin instance */
     public thinInstanceIndex = -1;
     /**
-     * If a mesh was used to do the picking (eg. 6dof controller) this will be populated.
+     * If a mesh was used to do the picking (eg. 6dof controller) as a "near interaction", this will be populated.
      */
     public originMesh: Nullable<AbstractMesh> = null;
     /**

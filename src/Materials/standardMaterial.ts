@@ -7,7 +7,7 @@ import { Nullable } from "../types";
 import { Scene } from "../scene";
 import { Matrix } from "../Maths/math.vector";
 import { Color3 } from '../Maths/math.color';
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { SubMesh } from "../Meshes/subMesh";
 import { AbstractMesh } from "../Meshes/abstractMesh";
 import { Mesh } from "../Meshes/mesh";
@@ -41,6 +41,10 @@ const onCreatedEffectParameters = { effect: null as unknown as Effect, subMesh: 
 export class StandardMaterialDefines extends MaterialDefines implements IImageProcessingConfigurationDefines, IMaterialDetailMapDefines {
     public MAINUV1 = false;
     public MAINUV2 = false;
+    public MAINUV3 = false;
+    public MAINUV4 = false;
+    public MAINUV5 = false;
+    public MAINUV6 = false;
     public DIFFUSE = false;
     public DIFFUSEDIRECTUV = 0;
     public DETAIL = false;
@@ -80,8 +84,13 @@ export class StandardMaterialDefines extends MaterialDefines implements IImagePr
     public EMISSIVEFRESNEL = false;
     public FRESNEL = false;
     public NORMAL = false;
+    public TANGENT = false;
     public UV1 = false;
     public UV2 = false;
+    public UV3 = false;
+    public UV4 = false;
+    public UV5 = false;
+    public UV6 = false;
     public VERTEXCOLOR = false;
     public VERTEXALPHA = false;
     public NUM_BONE_INFLUENCERS = 0;
@@ -723,7 +732,6 @@ export class StandardMaterial extends PushMaterial {
     protected _worldViewProjectionMatrix = Matrix.Zero();
     protected _globalAmbientColor = new Color3(0, 0, 0);
     protected _useLogarithmicDepth: boolean;
-    protected _rebuildInParallel = false;
 
     /**
      * Instantiates a new standard material.
@@ -880,8 +888,9 @@ export class StandardMaterial extends PushMaterial {
         // Textures
         if (defines._areTexturesDirty) {
             defines._needUVs = false;
-            defines.MAINUV1 = false;
-            defines.MAINUV2 = false;
+            for (let i = 1; i <= Constants.MAX_SUPPORTED_UV_SETS; ++i) {
+                defines["MAINUV" + i] = false;
+            }
             if (scene.texturesEnabled) {
                 if (this._diffuseTexture && StandardMaterial.DiffuseTextureEnabled) {
                     if (!this._diffuseTexture.isReadyOrNotBlocking()) {
@@ -1192,12 +1201,14 @@ export class StandardMaterial extends PushMaterial {
                 attribs.push(VertexBuffer.NormalKind);
             }
 
-            if (defines.UV1) {
-                attribs.push(VertexBuffer.UVKind);
+            if (defines.TANGENT) {
+                attribs.push(VertexBuffer.TangentKind);
             }
 
-            if (defines.UV2) {
-                attribs.push(VertexBuffer.UV2Kind);
+            for (let i = 1; i <= Constants.MAX_SUPPORTED_UV_SETS; ++i) {
+                if (defines["UV" + i]) {
+                    attribs.push(`uv${i === 1 ? "" : i}`);
+                }
             }
 
             if (defines.VERTEXCOLOR) {
@@ -1279,7 +1290,6 @@ export class StandardMaterial extends PushMaterial {
                 // Use previous effect while new one is compiling
                 if (this.allowShaderHotSwapping && previousEffect && !effect.isReady()) {
                     effect = previousEffect;
-                    this._rebuildInParallel = true;
                     defines.markAsUnprocessed();
 
                     if (lightDisposed) {
@@ -1288,7 +1298,6 @@ export class StandardMaterial extends PushMaterial {
                         return false;
                     }
                 } else {
-                    this._rebuildInParallel = false;
                     scene.resetCachedMaterial();
                     subMesh.setEffect(effect, defines, this._materialContext);
                     this.buildUniformLayout();
@@ -1344,6 +1353,7 @@ export class StandardMaterial extends PushMaterial {
         ubo.addUniform("bumpMatrix", 16);
         ubo.addUniform("vTangentSpaceParams", 2);
         ubo.addUniform("pointSize", 1);
+        ubo.addUniform("alphaCutOff", 1);
         ubo.addUniform("refractionMatrix", 16);
         ubo.addUniform("vRefractionInfos", 4);
         ubo.addUniform("vRefractionPosition", 3);
@@ -1351,6 +1361,7 @@ export class StandardMaterial extends PushMaterial {
         ubo.addUniform("vSpecularColor", 4);
         ubo.addUniform("vEmissiveColor", 3);
         ubo.addUniform("vDiffuseColor", 4);
+        ubo.addUniform("vAmbientColor", 3);
 
         DetailMapConfiguration.PrepareUniformBuffer(ubo);
 
@@ -1471,7 +1482,7 @@ export class StandardMaterial extends PushMaterial {
                     }
 
                     if (this._hasAlphaChannel()) {
-                        effect.setFloat("alphaCutOff", this.alphaCutOff);
+                        ubo.updateFloat("alphaCutOff", this.alphaCutOff);
                     }
 
                     if (this._reflectionTexture && StandardMaterial.ReflectionTextureEnabled) {
@@ -1540,10 +1551,12 @@ export class StandardMaterial extends PushMaterial {
                 if (defines.SPECULARTERM) {
                     ubo.updateColor4("vSpecularColor", this.specularColor, this.specularPower);
                 }
-                ubo.updateColor3("vEmissiveColor", StandardMaterial.EmissiveTextureEnabled ? this.emissiveColor : Color3.BlackReadOnly);
 
-                // Diffuse
+                ubo.updateColor3("vEmissiveColor", StandardMaterial.EmissiveTextureEnabled ? this.emissiveColor : Color3.BlackReadOnly);
                 ubo.updateColor4("vDiffuseColor", this.diffuseColor, this.alpha);
+
+                scene.ambientColor.multiplyToRef(this.ambientColor, this._globalAmbientColor);
+                ubo.updateColor3("vAmbientColor", this._globalAmbientColor);
             }
 
             // Textures
@@ -1600,17 +1613,13 @@ export class StandardMaterial extends PushMaterial {
             MaterialHelper.BindClipPlane(effect, scene);
 
             // Colors
-            scene.ambientColor.multiplyToRef(this.ambientColor, this._globalAmbientColor);
-
             this.bindEyePosition(effect);
-
-            effect.setColor3("vAmbientColor", this._globalAmbientColor);
         }
 
         if (mustRebind || !this.isFrozen) {
             // Lights
             if (scene.lightsEnabled && !this._disableLighting) {
-                MaterialHelper.BindLights(scene, mesh, effect, defines, this._maxSimultaneousLights, this._rebuildInParallel);
+                MaterialHelper.BindLights(scene, mesh, effect, defines, this._maxSimultaneousLights);
             }
 
             // View
@@ -1824,6 +1833,8 @@ export class StandardMaterial extends PushMaterial {
         result.name = name;
         result.id = name;
 
+        this.stencil.copyTo(result.stencil);
+
         return result;
     }
 
@@ -1832,7 +1843,11 @@ export class StandardMaterial extends PushMaterial {
      * @returns the serialized material object
      */
     public serialize(): any {
-        return SerializationHelper.Serialize(this);
+        const serializationObject = SerializationHelper.Serialize(this);
+
+        serializationObject.stencil = this.stencil.serialize();
+
+        return serializationObject;
     }
 
     /**
@@ -1843,7 +1858,13 @@ export class StandardMaterial extends PushMaterial {
      * @returns a new standard material
      */
     public static Parse(source: any, scene: Scene, rootUrl: string): StandardMaterial {
-        return SerializationHelper.Parse(() => new StandardMaterial(source.name, scene), source, scene, rootUrl);
+        const material = SerializationHelper.Parse(() => new StandardMaterial(source.name, scene), source, scene, rootUrl);
+
+        if (source.stencil) {
+            material.stencil.parse(source.stencil, scene, rootUrl);
+        }
+
+        return material;
     }
 
     // Flags used to enable or disable a type of texture for all Standard Materials

@@ -16,8 +16,8 @@ interface IMaterialsTransmission {
 }
 
 /**
- * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1726)
- * !!! Experimental Extension Subject to Changes !!!
+ * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_volume)
+ * @since 5.0.0
  */
 export class KHR_materials_volume implements IGLTFLoaderExtension {
     /**
@@ -41,10 +41,17 @@ export class KHR_materials_volume implements IGLTFLoaderExtension {
     constructor(loader: GLTFLoader) {
         this._loader = loader;
         this.enabled = this._loader.isExtensionUsed(NAME);
+        if (this.enabled) {
+            // We need to disable instance usage because the attenuation factor depends on the node scale of each individual mesh
+            this._loader._disableInstancedMesh++;
+        }
     }
 
     /** @hidden */
     public dispose() {
+        if (this.enabled) {
+            this._loader._disableInstancedMesh--;
+        }
         (this._loader as any) = null;
     }
 
@@ -76,17 +83,17 @@ export class KHR_materials_volume implements IGLTFLoaderExtension {
         babylonMaterial.subSurface.tintColorAtDistance = attenuationDistance;
         if (extension.attenuationColor !== undefined && extension.attenuationColor.length == 3) {
             babylonMaterial.subSurface.tintColor.copyFromFloats(extension.attenuationColor[0], extension.attenuationColor[1], extension.attenuationColor[2]);
-            babylonMaterial.subSurface.tintColor = babylonMaterial.subSurface.tintColor.toLinearSpace();
         }
 
         babylonMaterial.subSurface.minimumThickness = 0.0;
         babylonMaterial.subSurface.maximumThickness = extension.thicknessFactor;
+        babylonMaterial.subSurface.useThicknessAsDepth = true;
         if (extension.thicknessTexture) {
+            (extension.thicknessTexture as ITextureInfo).nonColorData = true;
             return this._loader.loadTextureInfoAsync(`${context}/thicknessTexture`, extension.thicknessTexture)
                 .then((texture: BaseTexture) => {
                     babylonMaterial.subSurface.thicknessTexture = texture;
-                    babylonMaterial.subSurface.useMaskFromThicknessTextureGltf = true;
-                    babylonMaterial.subSurface.useMaskFromThicknessTexture = false;
+                    babylonMaterial.subSurface.useGltfStyleTextures = true;
                 });
         } else {
             return Promise.resolve();

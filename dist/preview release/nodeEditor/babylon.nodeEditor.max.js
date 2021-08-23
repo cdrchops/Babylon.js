@@ -117,7 +117,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "parse", function() { return parse; });
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "findIconDefinition", function() { return findIconDefinition; });
 /*!
- * Font Awesome Free 5.15.0 by @fontawesome - https://fontawesome.com
+ * Font Awesome Free 5.15.3 by @fontawesome - https://fontawesome.com
  * License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License)
  */
 function _typeof(obj) {
@@ -1214,7 +1214,7 @@ var p = config.measurePerformance && PERFORMANCE && PERFORMANCE.mark && PERFORMA
   mark: noop$1,
   measure: noop$1
 };
-var preamble = "FA \"5.15.0\"";
+var preamble = "FA \"5.15.3\"";
 
 var begin = function begin(name) {
   p.mark("".concat(preamble, " ").concat(name, " begins"));
@@ -1290,35 +1290,6 @@ function toHex(unicode) {
   }
 
   return result;
-}
-function codePointAt(string, index) {
-  /*! https://mths.be/codepointat v0.2.0 by @mathias */
-  var size = string.length;
-  var first = string.charCodeAt(index);
-  var second;
-
-  if (first >= 0xD800 && first <= 0xDBFF && size > index + 1) {
-    second = string.charCodeAt(index + 1);
-
-    if (second >= 0xDC00 && second <= 0xDFFF) {
-      return (first - 0xD800) * 0x400 + second - 0xDC00 + 0x10000;
-    }
-  }
-
-  return first;
-}
-/**
- * Used to check that the character is between the E000..F8FF private unicode
- * range
- */
-
-function isPrivateUnicode(iconName) {
-  if (iconName.length !== 1) {
-    return false;
-  } else {
-    var cp = codePointAt(iconName, 0);
-    return cp >= 57344 && cp <= 63743;
-  }
 }
 
 function defineIcons(prefix, icons) {
@@ -1898,27 +1869,6 @@ var missing = {
 };
 
 var styles$2 = namespace.styles;
-function resolveCustomIconVersion() {
-  var kitConfig = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-  var iconName = arguments.length > 1 ? arguments[1] : undefined;
-
-  if (iconName && isPrivateUnicode(iconName)) {
-    if (kitConfig && kitConfig.iconUploads) {
-      var iconUploads = kitConfig.iconUploads;
-      var descriptiveIconName = Object.keys(iconUploads).find(function (key) {
-        return iconUploads[key] && iconUploads[key].u && iconUploads[key].u === toHex(iconName);
-      });
-
-      if (descriptiveIconName) {
-        return iconUploads[descriptiveIconName].v;
-      }
-    }
-  } else {
-    if (kitConfig && kitConfig.iconUploads && kitConfig.iconUploads[iconName] && kitConfig.iconUploads[iconName].v) {
-      return kitConfig.iconUploads[iconName].v;
-    }
-  }
-}
 function asFoundIcon(icon) {
   var width = icon[0];
   var height = icon[1];
@@ -1980,12 +1930,6 @@ function findIcon(iconName, prefix) {
     if (iconName && prefix && styles$2[prefix] && styles$2[prefix][iconName]) {
       var icon = styles$2[prefix][iconName];
       return resolve(asFoundIcon(icon));
-    }
-    var kitToken = null;
-    var iconVersion = resolveCustomIconVersion(WINDOW.FontAwesomeKitConfig, iconName);
-
-    if (WINDOW.FontAwesomeKitConfig && WINDOW.FontAwesomeKitConfig.token) {
-      kitToken = WINDOW.FontAwesomeKitConfig.token;
     }
 
     if (iconName && prefix && !config.showMissingIcons) {
@@ -9908,9 +9852,12 @@ function log () {
   }
 }
 
-// Normalize icon arguments
 function normalizeIconArgs(icon) {
-  // if the icon is null, there's nothing to do
+  if (_fortawesome_fontawesome_svg_core__WEBPACK_IMPORTED_MODULE_0__["parse"].icon) {
+    return _fortawesome_fontawesome_svg_core__WEBPACK_IMPORTED_MODULE_0__["parse"].icon(icon);
+  } // if the icon is null, there's nothing to do
+
+
   if (icon === null) {
     return null;
   } // if the icon is an object and has a prefix and an icon name, return it
@@ -9957,14 +9904,16 @@ function FontAwesomeIcon(_ref) {
       maskArgs = props.mask,
       symbol = props.symbol,
       className = props.className,
-      title = props.title;
+      title = props.title,
+      titleId = props.titleId;
   var iconLookup = normalizeIconArgs(iconArgs);
   var classes = objectWithKey('classes', [].concat(_toConsumableArray(classList(props)), _toConsumableArray(className.split(' '))));
   var transform = objectWithKey('transform', typeof props.transform === 'string' ? _fortawesome_fontawesome_svg_core__WEBPACK_IMPORTED_MODULE_0__["parse"].transform(props.transform) : props.transform);
   var mask = objectWithKey('mask', normalizeIconArgs(maskArgs));
   var renderedIcon = Object(_fortawesome_fontawesome_svg_core__WEBPACK_IMPORTED_MODULE_0__["icon"])(iconLookup, _objectSpread2({}, classes, {}, transform, {}, mask, {
     symbol: symbol,
-    title: title
+    title: title,
+    titleId: titleId
   }));
 
   if (!renderedIcon) {
@@ -10077,7 +10026,7 @@ module.exports = exports;
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../../../node_modules/css-loader/dist/runtime/api.js */ "../../node_modules/css-loader/dist/runtime/api.js");
 exports = ___CSS_LOADER_API_IMPORT___(false);
 // Module
-exports.push([module.i, "#propertyTab {\n  color: white;\n  background: #333333; }\n  #propertyTab #header {\n    height: 30px;\n    font-size: 16px;\n    color: white;\n    background: #222222;\n    grid-row: 1;\n    text-align: center;\n    display: grid;\n    grid-template-columns: 30px 1fr;\n    -webkit-user-select: none;\n    -moz-user-select: none;\n    -ms-user-select: none;\n    user-select: none; }\n    #propertyTab #header #logo {\n      position: relative;\n      grid-column: 1;\n      width: 24px;\n      height: 24px;\n      left: 0;\n      display: flex;\n      align-self: center;\n      justify-self: center; }\n    #propertyTab #header #title {\n      grid-column: 2;\n      display: grid;\n      align-items: center;\n      text-align: center; }\n  #propertyTab .range {\n    -webkit-appearance: none;\n    width: 120px;\n    height: 6px;\n    background: #d3d3d3;\n    border-radius: 5px;\n    outline: none;\n    opacity: 0.7;\n    -webkit-transition: .2s;\n    transition: opacity .2s; }\n  #propertyTab .range:hover {\n    opacity: 1; }\n  #propertyTab .range::-webkit-slider-thumb {\n    -webkit-appearance: none;\n    appearance: none;\n    width: 14px;\n    height: 14px;\n    border-radius: 50%;\n    background: #337ab7;\n    cursor: pointer; }\n  #propertyTab .range::-moz-range-thumb {\n    width: 14px;\n    height: 14px;\n    border-radius: 50%;\n    background: #337ab7;\n    cursor: pointer; }\n  #propertyTab input[type=\"color\"] {\n    -webkit-appearance: none;\n    border: 1px solid rgba(255, 255, 255, 0.5);\n    padding: 0;\n    width: 30px;\n    height: 20px; }\n  #propertyTab input[type=\"color\"]::-webkit-color-swatch-wrapper {\n    padding: 0; }\n  #propertyTab input[type=\"color\"]::-webkit-color-swatch {\n    border: none; }\n  #propertyTab .sliderLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-rows: 100%;\n    grid-template-columns: 1fr 50px auto; }\n    #propertyTab .sliderLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    #propertyTab .sliderLine .slider {\n      grid-column: 3;\n      grid-row: 1;\n      margin-right: 5px;\n      width: 90%;\n      display: flex;\n      align-items: center; }\n    #propertyTab .sliderLine .floatLine {\n      grid-column: 2;\n      padding-left: 5px; }\n      #propertyTab .sliderLine .floatLine .label {\n        grid-column: 1;\n        display: flex;\n        align-items: center; }\n      #propertyTab .sliderLine .floatLine .short {\n        grid-column: 1;\n        display: flex;\n        align-items: center; }\n        #propertyTab .sliderLine .floatLine .short input {\n          width: 35px; }\n        #propertyTab .sliderLine .floatLine .short input::-webkit-outer-spin-button,\n        #propertyTab .sliderLine .floatLine .short input::-webkit-inner-spin-button {\n          -webkit-appearance: none;\n          margin: 0; }\n        #propertyTab .sliderLine .floatLine .short input[type=number] {\n          -moz-appearance: textfield; }\n  #propertyTab .textInputLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr 120px auto; }\n    #propertyTab .textInputLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    #propertyTab .textInputLine .value {\n      display: flex;\n      align-items: center;\n      grid-column: 2; }\n      #propertyTab .textInputLine .value input {\n        width: calc(100% - 5px); }\n  #propertyTab .textInputArea {\n    padding-left: 5px;\n    height: 50px;\n    display: grid;\n    grid-template-columns: 1fr 120px; }\n    #propertyTab .textInputArea .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    #propertyTab .textInputArea .value {\n      display: flex;\n      align-items: center;\n      grid-column: 2; }\n      #propertyTab .textInputArea .value textarea {\n        width: calc(150% - 5px);\n        margin-left: -50%;\n        height: 40px; }\n  #propertyTab .paneContainer {\n    margin-top: 3px;\n    display: grid;\n    grid-template-rows: 100%;\n    grid-template-columns: 100%; }\n    #propertyTab .paneContainer .paneList {\n      border-left: 3px solid transparent; }\n    #propertyTab .paneContainer:hover .paneList {\n      border-left: 3px solid rgba(51, 122, 183, 0.8); }\n    #propertyTab .paneContainer:hover .paneContainer-content .header .title {\n      border-left: 3px solid #337ab7; }\n    #propertyTab .paneContainer .paneContainer-highlight-border {\n      grid-row: 1;\n      grid-column: 1;\n      opacity: 1;\n      border: 3px solid red;\n      transition: opacity 250ms;\n      pointer-events: none; }\n      #propertyTab .paneContainer .paneContainer-highlight-border.transparent {\n        opacity: 0; }\n    #propertyTab .paneContainer .paneContainer-content {\n      grid-row: 1;\n      grid-column: 1; }\n      #propertyTab .paneContainer .paneContainer-content .header {\n        display: grid;\n        grid-template-columns: 1fr auto;\n        background: #555555;\n        height: 30px;\n        padding-right: 5px;\n        cursor: pointer; }\n        #propertyTab .paneContainer .paneContainer-content .header .title {\n          border-left: 3px solid transparent;\n          padding-left: 5px;\n          grid-column: 1;\n          display: flex;\n          align-items: center; }\n        #propertyTab .paneContainer .paneContainer-content .header .collapse {\n          grid-column: 2;\n          display: flex;\n          align-items: center;\n          justify-items: center;\n          transform-origin: center; }\n          #propertyTab .paneContainer .paneContainer-content .header .collapse.closed {\n            transform: rotate(180deg); }\n      #propertyTab .paneContainer .paneContainer-content .paneList > div:not(:last-child) {\n        border-bottom: 0.5px solid rgba(255, 255, 255, 0.1); }\n      #propertyTab .paneContainer .paneContainer-content .fragment > div:not(:last-child) {\n        border-bottom: 0.5px solid rgba(255, 255, 255, 0.1); }\n  #propertyTab .color-picker {\n    height: calc(100% - 8px);\n    margin: 4px;\n    width: calc(100% - 8px); }\n    #propertyTab .color-picker .color-rect {\n      height: calc(100% - 4px);\n      border: 2px white solid;\n      cursor: pointer;\n      min-height: 18px; }\n    #propertyTab .color-picker .color-picker-cover {\n      position: fixed;\n      top: 0px;\n      right: 0px;\n      bottom: 0px;\n      left: 0px; }\n    #propertyTab .color-picker .color-picker-float {\n      z-index: 2;\n      position: absolute; }\n  #propertyTab .gradient-step {\n    display: grid;\n    grid-template-rows: 100%;\n    grid-template-columns: 20px 30px 40px auto 20px 30px;\n    padding-top: 5px;\n    padding-left: 5px;\n    padding-bottom: 5px; }\n    #propertyTab .gradient-step .step {\n      grid-row: 1;\n      grid-column: 1; }\n    #propertyTab .gradient-step .color {\n      grid-row: 1;\n      grid-column: 2;\n      cursor: pointer; }\n    #propertyTab .gradient-step .step-value {\n      margin-left: 5px;\n      grid-row: 1;\n      grid-column: 3;\n      text-align: right;\n      margin-right: 5px; }\n    #propertyTab .gradient-step .step-slider {\n      grid-row: 1;\n      grid-column: 4;\n      display: grid;\n      justify-content: stretch;\n      align-content: center;\n      margin-right: -5px;\n      padding-left: 12px; }\n      #propertyTab .gradient-step .step-slider input {\n        width: 90%; }\n    #propertyTab .gradient-step .gradient-copy {\n      grid-row: 1;\n      grid-column: 5;\n      display: grid;\n      align-content: center;\n      justify-content: center; }\n      #propertyTab .gradient-step .gradient-copy .img {\n        height: 20px;\n        width: 20px; }\n      #propertyTab .gradient-step .gradient-copy .img:hover {\n        cursor: pointer; }\n    #propertyTab .gradient-step .gradient-delete {\n      grid-row: 1;\n      grid-column: 6;\n      display: grid;\n      align-content: center;\n      justify-content: center; }\n      #propertyTab .gradient-step .gradient-delete .img {\n        height: 20px;\n        width: 20px; }\n      #propertyTab .gradient-step .gradient-delete .img:hover {\n        cursor: pointer; }\n  #propertyTab .floatLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr 120px; }\n    #propertyTab .floatLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    #propertyTab .floatLine .value {\n      grid-column: 2;\n      display: flex;\n      align-items: center; }\n      #propertyTab .floatLine .value input {\n        width: 110px; }\n    #propertyTab .floatLine .short {\n      grid-column: 2;\n      display: flex;\n      align-items: center; }\n      #propertyTab .floatLine .short input {\n        width: 27px; }\n      #propertyTab .floatLine .short input::-webkit-outer-spin-button,\n      #propertyTab .floatLine .short input::-webkit-inner-spin-button {\n        -webkit-appearance: none;\n        margin: 0; }\n      #propertyTab .floatLine .short input[type=number] {\n        -moz-appearance: textfield; }\n  #propertyTab .vector3Line {\n    padding-left: 5px;\n    display: grid; }\n    #propertyTab .vector3Line .firstLine {\n      display: grid;\n      grid-template-columns: 1fr auto 20px;\n      height: 30px; }\n      #propertyTab .vector3Line .firstLine .label {\n        grid-column: 1;\n        display: flex;\n        align-items: center; }\n      #propertyTab .vector3Line .firstLine .vector {\n        grid-column: 2;\n        display: flex;\n        align-items: center;\n        text-align: right;\n        opacity: 0.8; }\n      #propertyTab .vector3Line .firstLine .expand {\n        grid-column: 3;\n        display: grid;\n        align-items: center;\n        justify-items: center;\n        cursor: pointer; }\n    #propertyTab .vector3Line .secondLine {\n      display: grid;\n      padding-right: 5px;\n      border-left: 1px solid #337ab7; }\n      #propertyTab .vector3Line .secondLine .no-right-margin {\n        margin-right: 0; }\n      #propertyTab .vector3Line .secondLine .numeric {\n        display: grid;\n        grid-template-columns: 1fr auto; }\n      #propertyTab .vector3Line .secondLine .numeric-label {\n        text-align: right;\n        grid-column: 1;\n        display: flex;\n        align-items: center;\n        justify-self: right;\n        margin-right: 10px; }\n      #propertyTab .vector3Line .secondLine .numeric-value {\n        width: 120px;\n        grid-column: 2;\n        display: flex;\n        align-items: center;\n        border: 1px solid #337ab7; }\n  #propertyTab .buttonLine {\n    height: 30px;\n    display: grid;\n    align-items: center;\n    justify-items: stretch;\n    padding-bottom: 5px; }\n    #propertyTab .buttonLine input[type=\"file\"] {\n      display: none; }\n    #propertyTab .buttonLine .file-upload {\n      background: #222222;\n      border: 1px solid #337ab7;\n      margin: 5px 10px;\n      color: white;\n      padding: 4px 5px;\n      padding-top: 0px;\n      opacity: 0.9;\n      cursor: pointer;\n      text-align: center; }\n    #propertyTab .buttonLine .file-upload:hover {\n      opacity: 1.0; }\n    #propertyTab .buttonLine .file-upload:active {\n      transform: scale(0.98);\n      transform-origin: 0.5 0.5; }\n    #propertyTab .buttonLine button {\n      background: #222222;\n      border: 1px solid #337ab7;\n      margin: 5px 10px 5px 10px;\n      color: white;\n      padding: 4px 5px;\n      opacity: 0.9; }\n    #propertyTab .buttonLine button:hover {\n      opacity: 1.0; }\n    #propertyTab .buttonLine button:active {\n      background: #282828; }\n    #propertyTab .buttonLine button:focus {\n      border: 1px solid #337ab7;\n      outline: 0px; }\n  #propertyTab .checkBoxLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr auto; }\n    #propertyTab .checkBoxLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    #propertyTab .checkBoxLine .checkBox {\n      grid-column: 2;\n      display: flex;\n      align-items: center; }\n      #propertyTab .checkBoxLine .checkBox .lbl {\n        position: relative;\n        display: block;\n        height: 14px;\n        width: 34px;\n        margin-right: 5px;\n        background: #898989;\n        border-radius: 100px;\n        cursor: pointer;\n        transition: all 0.3s ease; }\n      #propertyTab .checkBoxLine .checkBox .lbl:after {\n        position: absolute;\n        left: 3px;\n        top: 2px;\n        display: block;\n        width: 10px;\n        height: 10px;\n        border-radius: 100px;\n        background: #fff;\n        box-shadow: 0px 3px 3px rgba(0, 0, 0, 0.05);\n        content: '';\n        transition: all 0.15s ease; }\n      #propertyTab .checkBoxLine .checkBox .lbl:active:after {\n        transform: scale(1.15, 0.85); }\n      #propertyTab .checkBoxLine .checkBox .cbx:checked ~ label {\n        background: #337ab7; }\n      #propertyTab .checkBoxLine .checkBox .cbx:checked ~ label:after {\n        left: 20px;\n        background: #164975; }\n      #propertyTab .checkBoxLine .checkBox .cbx:checked ~ label.disabled {\n        background: #164975;\n        cursor: pointer; }\n      #propertyTab .checkBoxLine .checkBox .cbx:checked ~ label.disabled:after {\n        left: 20px;\n        background: #555555;\n        cursor: pointer; }\n      #propertyTab .checkBoxLine .checkBox .cbx ~ label.disabled {\n        background: #555555;\n        cursor: pointer; }\n      #propertyTab .checkBoxLine .checkBox .hidden {\n        display: none; }\n  #propertyTab .listLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr auto; }\n    #propertyTab .listLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    #propertyTab .listLine .options {\n      grid-column: 2;\n      display: flex;\n      align-items: center;\n      margin-right: 5px; }\n      #propertyTab .listLine .options select {\n        width: 115px; }\n  #propertyTab .color3Line {\n    padding-left: 5px;\n    display: grid; }\n    #propertyTab .color3Line .firstLine {\n      height: 30px;\n      display: grid;\n      grid-template-columns: 1fr auto 20px 20px; }\n      #propertyTab .color3Line .firstLine .label {\n        grid-column: 1;\n        display: flex;\n        align-items: center; }\n      #propertyTab .color3Line .firstLine .color3 {\n        grid-column: 2;\n        width: 50px;\n        display: flex;\n        align-items: center; }\n        #propertyTab .color3Line .firstLine .color3 input {\n          margin-right: 5px; }\n      #propertyTab .color3Line .firstLine .copy {\n        grid-column: 3;\n        display: grid;\n        align-items: center;\n        justify-items: center;\n        cursor: pointer; }\n        #propertyTab .color3Line .firstLine .copy img {\n          height: 100%;\n          width: 20px; }\n      #propertyTab .color3Line .firstLine .expand {\n        grid-column: 4;\n        display: grid;\n        align-items: center;\n        justify-items: center;\n        cursor: pointer; }\n        #propertyTab .color3Line .firstLine .expand img {\n          height: 100%;\n          width: 20px; }\n    #propertyTab .color3Line .secondLine {\n      display: grid;\n      padding-right: 5px;\n      border-left: 1px solid #337ab7; }\n      #propertyTab .color3Line .secondLine .numeric {\n        display: grid;\n        grid-template-columns: 1fr auto; }\n      #propertyTab .color3Line .secondLine .numeric-label {\n        text-align: right;\n        grid-column: 1;\n        display: flex;\n        align-items: center;\n        justify-self: right;\n        margin-right: 10px; }\n      #propertyTab .color3Line .secondLine .numeric-value {\n        width: 120px;\n        grid-column: 2;\n        display: flex;\n        align-items: center;\n        border: 1px solid #337ab7; }\n  #propertyTab .textLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr auto; }\n    #propertyTab .textLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    #propertyTab .textLine .link-value {\n      grid-column: 2;\n      white-space: nowrap;\n      text-overflow: ellipsis;\n      overflow: hidden;\n      text-align: end;\n      opacity: 0.8;\n      margin: 5px;\n      margin-top: 6px;\n      max-width: 140px;\n      text-decoration: underline;\n      cursor: pointer; }\n    #propertyTab .textLine .value {\n      grid-column: 2;\n      white-space: nowrap;\n      text-overflow: ellipsis;\n      overflow: hidden;\n      text-align: end;\n      opacity: 0.8;\n      margin: 5px;\n      margin-top: 6px;\n      max-width: 200px;\n      -webkit-user-select: text;\n      -moz-user-select: text;\n      -ms-user-select: text;\n      user-select: text; }\n      #propertyTab .textLine .value.check {\n        color: green; }\n      #propertyTab .textLine .value.uncheck {\n        color: red; }\n", ""]);
+exports.push([module.i, ".right-panel #propertyTab {\n  color: white;\n  background: #333333; }\n  .right-panel #propertyTab #header {\n    height: 30px;\n    font-size: 16px;\n    color: white;\n    background: #222222;\n    grid-row: 1;\n    text-align: center;\n    display: grid;\n    grid-template-columns: 30px 1fr;\n    -webkit-user-select: none;\n    -moz-user-select: none;\n    -ms-user-select: none;\n    user-select: none; }\n    .right-panel #propertyTab #header #logo {\n      position: relative;\n      grid-column: 1;\n      width: 24px;\n      height: 24px;\n      left: 0;\n      display: flex;\n      align-self: center;\n      justify-self: center; }\n    .right-panel #propertyTab #header #title {\n      grid-column: 2;\n      display: grid;\n      align-items: center;\n      text-align: center; }\n  .right-panel #propertyTab .range {\n    -webkit-appearance: none;\n    width: 120px;\n    height: 6px;\n    background: #d3d3d3;\n    border-radius: 5px;\n    outline: none;\n    opacity: 0.7;\n    -webkit-transition: .2s;\n    transition: opacity .2s; }\n  .right-panel #propertyTab .range:hover {\n    opacity: 1; }\n  .right-panel #propertyTab .range::-webkit-slider-thumb {\n    -webkit-appearance: none;\n    appearance: none;\n    width: 14px;\n    height: 14px;\n    border-radius: 50%;\n    background: #337ab7;\n    cursor: pointer; }\n  .right-panel #propertyTab .range::-moz-range-thumb {\n    width: 14px;\n    height: 14px;\n    border-radius: 50%;\n    background: #337ab7;\n    cursor: pointer; }\n  .right-panel #propertyTab input[type=\"color\"] {\n    -webkit-appearance: none;\n    border: 1px solid rgba(255, 255, 255, 0.5);\n    padding: 0;\n    width: 30px;\n    height: 20px; }\n  .right-panel #propertyTab input[type=\"color\"]::-webkit-color-swatch-wrapper {\n    padding: 0; }\n  .right-panel #propertyTab input[type=\"color\"]::-webkit-color-swatch {\n    border: none; }\n  .right-panel #propertyTab .sliderLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-rows: 100%;\n    grid-template-columns: 1fr 50px auto; }\n    .right-panel #propertyTab .sliderLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    .right-panel #propertyTab .sliderLine .slider {\n      grid-column: 3;\n      grid-row: 1;\n      margin-right: 5px;\n      width: 90%;\n      display: flex;\n      align-items: center; }\n    .right-panel #propertyTab .sliderLine .floatLine {\n      grid-column: 2;\n      padding-left: 5px; }\n      .right-panel #propertyTab .sliderLine .floatLine .label {\n        grid-column: 1;\n        display: flex;\n        align-items: center; }\n      .right-panel #propertyTab .sliderLine .floatLine .short {\n        grid-column: 1;\n        display: flex;\n        align-items: center; }\n        .right-panel #propertyTab .sliderLine .floatLine .short input {\n          width: 35px; }\n        .right-panel #propertyTab .sliderLine .floatLine .short input::-webkit-outer-spin-button,\n        .right-panel #propertyTab .sliderLine .floatLine .short input::-webkit-inner-spin-button {\n          -webkit-appearance: none;\n          margin: 0; }\n        .right-panel #propertyTab .sliderLine .floatLine .short input[type=number] {\n          -moz-appearance: textfield; }\n  .right-panel #propertyTab .textInputLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr 120px auto; }\n    .right-panel #propertyTab .textInputLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    .right-panel #propertyTab .textInputLine .value {\n      display: flex;\n      align-items: center;\n      grid-column: 2; }\n      .right-panel #propertyTab .textInputLine .value input {\n        width: calc(100% - 5px); }\n  .right-panel #propertyTab .textInputArea {\n    padding-left: 5px;\n    height: 50px;\n    display: grid;\n    grid-template-columns: 1fr 120px; }\n    .right-panel #propertyTab .textInputArea .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    .right-panel #propertyTab .textInputArea .value {\n      display: flex;\n      align-items: center;\n      grid-column: 2; }\n      .right-panel #propertyTab .textInputArea .value textarea {\n        width: calc(150% - 5px);\n        margin-left: -50%;\n        height: 40px; }\n  .right-panel #propertyTab .paneContainer {\n    margin-top: 3px;\n    display: grid;\n    grid-template-rows: 100%;\n    grid-template-columns: 100%; }\n    .right-panel #propertyTab .paneContainer .paneList {\n      border-left: 3px solid transparent; }\n    .right-panel #propertyTab .paneContainer:hover .paneList {\n      border-left: 3px solid rgba(51, 122, 183, 0.8); }\n    .right-panel #propertyTab .paneContainer:hover .paneContainer-content .header .title {\n      border-left: 3px solid #337ab7; }\n    .right-panel #propertyTab .paneContainer .paneContainer-highlight-border {\n      grid-row: 1;\n      grid-column: 1;\n      opacity: 1;\n      border: 3px solid red;\n      transition: opacity 250ms;\n      pointer-events: none; }\n      .right-panel #propertyTab .paneContainer .paneContainer-highlight-border.transparent {\n        opacity: 0; }\n    .right-panel #propertyTab .paneContainer .paneContainer-content {\n      grid-row: 1;\n      grid-column: 1; }\n      .right-panel #propertyTab .paneContainer .paneContainer-content .header {\n        display: grid;\n        grid-template-columns: 1fr auto;\n        background: #555555;\n        height: 30px;\n        padding-right: 5px;\n        cursor: pointer; }\n        .right-panel #propertyTab .paneContainer .paneContainer-content .header .title {\n          border-left: 3px solid transparent;\n          padding-left: 5px;\n          grid-column: 1;\n          display: flex;\n          align-items: center; }\n        .right-panel #propertyTab .paneContainer .paneContainer-content .header .collapse {\n          grid-column: 2;\n          display: flex;\n          align-items: center;\n          justify-items: center;\n          transform-origin: center; }\n          .right-panel #propertyTab .paneContainer .paneContainer-content .header .collapse.closed {\n            transform: rotate(180deg); }\n      .right-panel #propertyTab .paneContainer .paneContainer-content .paneList > div:not(:last-child) {\n        border-bottom: 0.5px solid rgba(255, 255, 255, 0.1); }\n      .right-panel #propertyTab .paneContainer .paneContainer-content .fragment > div:not(:last-child) {\n        border-bottom: 0.5px solid rgba(255, 255, 255, 0.1); }\n  .right-panel #propertyTab .color-picker {\n    height: calc(100% - 8px);\n    margin: 4px;\n    width: calc(100% - 8px); }\n    .right-panel #propertyTab .color-picker .color-rect {\n      height: calc(100% - 4px);\n      border: 2px white solid;\n      cursor: pointer;\n      min-height: 18px; }\n    .right-panel #propertyTab .color-picker .color-picker-cover {\n      position: fixed;\n      top: 0px;\n      right: 0px;\n      bottom: 0px;\n      left: 0px; }\n    .right-panel #propertyTab .color-picker .color-picker-float {\n      z-index: 2;\n      position: absolute; }\n  .right-panel #propertyTab .gradient-step {\n    display: grid;\n    grid-template-rows: 100%;\n    grid-template-columns: 20px 30px 40px auto 20px 30px;\n    padding-top: 5px;\n    padding-left: 5px;\n    padding-bottom: 5px; }\n    .right-panel #propertyTab .gradient-step .step {\n      grid-row: 1;\n      grid-column: 1; }\n    .right-panel #propertyTab .gradient-step .color {\n      grid-row: 1;\n      grid-column: 2;\n      cursor: pointer; }\n    .right-panel #propertyTab .gradient-step .step-value {\n      margin-left: 5px;\n      grid-row: 1;\n      grid-column: 3;\n      text-align: right;\n      margin-right: 5px; }\n    .right-panel #propertyTab .gradient-step .step-slider {\n      grid-row: 1;\n      grid-column: 4;\n      display: grid;\n      justify-content: stretch;\n      align-content: center;\n      margin-right: -5px;\n      padding-left: 12px; }\n      .right-panel #propertyTab .gradient-step .step-slider input {\n        width: 90%; }\n    .right-panel #propertyTab .gradient-step .gradient-copy {\n      grid-row: 1;\n      grid-column: 5;\n      display: grid;\n      align-content: center;\n      justify-content: center; }\n      .right-panel #propertyTab .gradient-step .gradient-copy .img {\n        height: 20px;\n        width: 20px; }\n      .right-panel #propertyTab .gradient-step .gradient-copy .img:hover {\n        cursor: pointer; }\n    .right-panel #propertyTab .gradient-step .gradient-delete {\n      grid-row: 1;\n      grid-column: 6;\n      display: grid;\n      align-content: center;\n      justify-content: center; }\n      .right-panel #propertyTab .gradient-step .gradient-delete .img {\n        height: 20px;\n        width: 20px; }\n      .right-panel #propertyTab .gradient-step .gradient-delete .img:hover {\n        cursor: pointer; }\n  .right-panel #propertyTab .floatLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr 120px; }\n    .right-panel #propertyTab .floatLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    .right-panel #propertyTab .floatLine .value {\n      grid-column: 2;\n      display: flex;\n      align-items: center; }\n      .right-panel #propertyTab .floatLine .value input {\n        width: 110px; }\n    .right-panel #propertyTab .floatLine .short {\n      grid-column: 2;\n      display: flex;\n      align-items: center; }\n      .right-panel #propertyTab .floatLine .short input {\n        width: 27px; }\n      .right-panel #propertyTab .floatLine .short input::-webkit-outer-spin-button,\n      .right-panel #propertyTab .floatLine .short input::-webkit-inner-spin-button {\n        -webkit-appearance: none;\n        margin: 0; }\n      .right-panel #propertyTab .floatLine .short input[type=number] {\n        -moz-appearance: textfield; }\n  .right-panel #propertyTab .vector3Line {\n    padding-left: 5px;\n    display: grid; }\n    .right-panel #propertyTab .vector3Line .firstLine {\n      display: grid;\n      grid-template-columns: 1fr auto 20px;\n      height: 30px; }\n      .right-panel #propertyTab .vector3Line .firstLine .label {\n        grid-column: 1;\n        display: flex;\n        align-items: center; }\n      .right-panel #propertyTab .vector3Line .firstLine .vector {\n        grid-column: 2;\n        display: flex;\n        align-items: center;\n        text-align: right;\n        opacity: 0.8; }\n      .right-panel #propertyTab .vector3Line .firstLine .expand {\n        grid-column: 3;\n        display: grid;\n        align-items: center;\n        justify-items: center;\n        cursor: pointer; }\n    .right-panel #propertyTab .vector3Line .secondLine {\n      display: grid;\n      padding-right: 5px;\n      border-left: 1px solid #337ab7; }\n      .right-panel #propertyTab .vector3Line .secondLine .no-right-margin {\n        margin-right: 0; }\n      .right-panel #propertyTab .vector3Line .secondLine .numeric {\n        display: grid;\n        grid-template-columns: 1fr auto; }\n      .right-panel #propertyTab .vector3Line .secondLine .numeric-label {\n        text-align: right;\n        grid-column: 1;\n        display: flex;\n        align-items: center;\n        justify-self: right;\n        margin-right: 10px; }\n      .right-panel #propertyTab .vector3Line .secondLine .numeric-value {\n        width: 120px;\n        grid-column: 2;\n        display: flex;\n        align-items: center;\n        border: 1px solid #337ab7; }\n  .right-panel #propertyTab .buttonLine {\n    height: 30px;\n    display: grid;\n    align-items: center;\n    justify-items: stretch;\n    padding-bottom: 5px; }\n    .right-panel #propertyTab .buttonLine.disabled {\n      opacity: 0.3; }\n    .right-panel #propertyTab .buttonLine input[type=\"file\"] {\n      display: none; }\n    .right-panel #propertyTab .buttonLine .file-upload {\n      background: #222222;\n      border: 1px solid #337ab7;\n      margin: 5px 10px;\n      color: white;\n      padding: 4px 5px;\n      padding-top: 0px;\n      opacity: 0.9;\n      cursor: pointer;\n      text-align: center; }\n    .right-panel #propertyTab .buttonLine .file-upload:hover {\n      opacity: 1.0; }\n    .right-panel #propertyTab .buttonLine .file-upload:active {\n      transform: scale(0.98);\n      transform-origin: 0.5 0.5; }\n    .right-panel #propertyTab .buttonLine button {\n      background: #222222;\n      border: 1px solid #337ab7;\n      margin: 5px 10px 5px 10px;\n      color: white;\n      padding: 4px 5px;\n      opacity: 0.9; }\n    .right-panel #propertyTab .buttonLine button:hover {\n      opacity: 1.0; }\n    .right-panel #propertyTab .buttonLine button:active {\n      background: #282828; }\n    .right-panel #propertyTab .buttonLine button:focus {\n      border: 1px solid #337ab7;\n      outline: 0px; }\n  .right-panel #propertyTab .checkBoxLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr auto; }\n    .right-panel #propertyTab .checkBoxLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    .right-panel #propertyTab .checkBoxLine .checkBox {\n      grid-column: 2;\n      display: flex;\n      align-items: center; }\n      .right-panel #propertyTab .checkBoxLine .checkBox .lbl {\n        position: relative;\n        display: block;\n        height: 14px;\n        width: 34px;\n        margin-right: 5px;\n        background: #898989;\n        border-radius: 100px;\n        cursor: pointer;\n        transition: all 0.3s ease; }\n      .right-panel #propertyTab .checkBoxLine .checkBox .lbl:after {\n        position: absolute;\n        left: 3px;\n        top: 2px;\n        display: block;\n        width: 10px;\n        height: 10px;\n        border-radius: 100px;\n        background: #fff;\n        box-shadow: 0px 3px 3px rgba(0, 0, 0, 0.05);\n        content: '';\n        transition: all 0.15s ease; }\n      .right-panel #propertyTab .checkBoxLine .checkBox .lbl:active:after {\n        transform: scale(1.15, 0.85); }\n      .right-panel #propertyTab .checkBoxLine .checkBox .cbx:checked ~ label {\n        background: #337ab7; }\n      .right-panel #propertyTab .checkBoxLine .checkBox .cbx:checked ~ label:after {\n        left: 20px;\n        background: #164975; }\n      .right-panel #propertyTab .checkBoxLine .checkBox .cbx:checked ~ label.disabled {\n        background: #164975;\n        cursor: pointer; }\n      .right-panel #propertyTab .checkBoxLine .checkBox .cbx:checked ~ label.disabled:after {\n        left: 20px;\n        background: #555555;\n        cursor: pointer; }\n      .right-panel #propertyTab .checkBoxLine .checkBox .cbx ~ label.disabled {\n        background: #555555;\n        cursor: pointer; }\n      .right-panel #propertyTab .checkBoxLine .checkBox .hidden {\n        display: none; }\n  .right-panel #propertyTab .listLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr auto; }\n    .right-panel #propertyTab .listLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    .right-panel #propertyTab .listLine .options {\n      grid-column: 2;\n      display: flex;\n      align-items: center;\n      margin-right: 5px; }\n      .right-panel #propertyTab .listLine .options select {\n        width: 115px; }\n  .right-panel #propertyTab .color3Line {\n    padding-left: 5px;\n    display: grid; }\n    .right-panel #propertyTab .color3Line .firstLine {\n      height: 30px;\n      display: grid;\n      grid-template-columns: 1fr auto 20px 20px; }\n      .right-panel #propertyTab .color3Line .firstLine .label {\n        grid-column: 1;\n        display: flex;\n        align-items: center; }\n      .right-panel #propertyTab .color3Line .firstLine .color3 {\n        grid-column: 2;\n        width: 50px;\n        display: flex;\n        align-items: center; }\n        .right-panel #propertyTab .color3Line .firstLine .color3 input {\n          margin-right: 5px; }\n      .right-panel #propertyTab .color3Line .firstLine .copy {\n        grid-column: 3;\n        display: grid;\n        align-items: center;\n        justify-items: center;\n        cursor: pointer; }\n        .right-panel #propertyTab .color3Line .firstLine .copy img {\n          height: 100%;\n          width: 20px; }\n      .right-panel #propertyTab .color3Line .firstLine .expand {\n        grid-column: 4;\n        display: grid;\n        align-items: center;\n        justify-items: center;\n        cursor: pointer; }\n        .right-panel #propertyTab .color3Line .firstLine .expand img {\n          height: 100%;\n          width: 20px; }\n    .right-panel #propertyTab .color3Line .secondLine {\n      display: grid;\n      padding-right: 5px;\n      border-left: 1px solid #337ab7; }\n      .right-panel #propertyTab .color3Line .secondLine .numeric {\n        display: grid;\n        grid-template-columns: 1fr auto; }\n      .right-panel #propertyTab .color3Line .secondLine .numeric-label {\n        text-align: right;\n        grid-column: 1;\n        display: flex;\n        align-items: center;\n        justify-self: right;\n        margin-right: 10px; }\n      .right-panel #propertyTab .color3Line .secondLine .numeric-value {\n        width: 120px;\n        grid-column: 2;\n        display: flex;\n        align-items: center;\n        border: 1px solid #337ab7; }\n  .right-panel #propertyTab .textLine {\n    padding-left: 5px;\n    height: 30px;\n    display: grid;\n    grid-template-columns: 1fr auto; }\n    .right-panel #propertyTab .textLine .label {\n      grid-column: 1;\n      display: flex;\n      align-items: center; }\n    .right-panel #propertyTab .textLine .link-value {\n      grid-column: 2;\n      white-space: nowrap;\n      text-overflow: ellipsis;\n      overflow: hidden;\n      text-align: end;\n      opacity: 0.8;\n      margin: 5px;\n      margin-top: 6px;\n      max-width: 140px;\n      text-decoration: underline;\n      cursor: pointer; }\n    .right-panel #propertyTab .textLine .value {\n      grid-column: 2;\n      white-space: nowrap;\n      text-overflow: ellipsis;\n      overflow: hidden;\n      text-align: end;\n      opacity: 0.8;\n      margin: 5px;\n      margin-top: 6px;\n      max-width: 200px;\n      -webkit-user-select: text;\n      -moz-user-select: text;\n      -ms-user-select: text;\n      user-select: text; }\n      .right-panel #propertyTab .textLine .value.check {\n        color: green; }\n      .right-panel #propertyTab .textLine .value.uncheck {\n        color: red; }\n", ""]);
 // Exports
 module.exports = exports;
 
@@ -10095,7 +10044,7 @@ module.exports = exports;
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../../node_modules/css-loader/dist/runtime/api.js */ "../../node_modules/css-loader/dist/runtime/api.js");
 exports = ___CSS_LOADER_API_IMPORT___(false);
 // Module
-exports.push([module.i, "#graph-canvas {\n  width: 100%;\n  height: 100%;\n  margin: 0;\n  padding: 0;\n  font: 14px \"acumin-pro\";\n  user-select: none;\n  overflow: hidden;\n  cursor: move;\n  background-image: linear-gradient(to right, #4F4E4F 1px, transparent 1px), linear-gradient(to bottom, #4F4E4F 1px, transparent 1px); }\n  #graph-canvas #selection-container {\n    pointer-events: none; }\n    #graph-canvas #selection-container .selection-box {\n      z-index: 10;\n      position: absolute;\n      background: rgba(72, 72, 196, 0.5);\n      border: blue solid 2px; }\n  #graph-canvas .port {\n    border-radius: 20px;\n    width: 20px;\n    height: 20px;\n    align-self: center; }\n    #graph-canvas .port .img {\n      width: 100%; }\n    #graph-canvas .port img.selected {\n      box-shadow: 0 0 0 2px;\n      border-radius: 50%; }\n    #graph-canvas .port:hover, #graph-canvas .port.selected {\n      filter: brightness(2); }\n  #graph-canvas .portLine {\n    height: 24px;\n    display: grid;\n    grid-template-rows: 100%; }\n  #graph-canvas .port-label {\n    align-items: center; }\n  #graph-canvas .inputsContainer {\n    grid-row: 1;\n    grid-column: 1; }\n    #graph-canvas .inputsContainer .portLine {\n      grid-template-columns: 12px calc(100% - 15px); }\n      #graph-canvas .inputsContainer .portLine .port-label {\n        grid-row: 1;\n        grid-column: 2; }\n      #graph-canvas .inputsContainer .portLine .port {\n        grid-row: 1;\n        grid-column: 1;\n        transform: translateX(-12px); }\n  #graph-canvas .outputsContainer {\n    grid-row: 1;\n    grid-column: 2; }\n    #graph-canvas .outputsContainer .portLine {\n      grid-template-columns: calc(100% - 10px) 12px; }\n      #graph-canvas .outputsContainer .portLine .port-label {\n        grid-row: 1;\n        grid-column: 1;\n        text-align: right; }\n      #graph-canvas .outputsContainer .portLine .port {\n        grid-row: 1;\n        grid-column: 2;\n        transform: translateX(2px); }\n  #graph-canvas #graph-container {\n    width: 100%;\n    height: 100%;\n    left: 0;\n    top: 0;\n    transform-origin: left top;\n    display: grid;\n    grid-template-rows: 100%;\n    grid-template-columns: 100%; }\n    #graph-canvas #graph-container #frame-container {\n      overflow: visible;\n      grid-row: 1;\n      grid-column: 1;\n      position: relative;\n      width: 100%;\n      height: 100%; }\n    #graph-canvas #graph-container .frame-box {\n      position: absolute;\n      background: rgba(72, 72, 72, 0.7);\n      display: grid;\n      grid-template-rows: 40px calc(100% - 40px);\n      grid-template-columns: 100%;\n      box-sizing: border-box; }\n      #graph-canvas #graph-container .frame-box.collapsed {\n        height: auto !important;\n        width: 200px !important;\n        z-index: 3; }\n        #graph-canvas #graph-container .frame-box.collapsed .frame-box-header {\n          font-size: 16px;\n          grid-template-columns: calc(100% - 37px) 30px 7px; }\n          #graph-canvas #graph-container .frame-box.collapsed .frame-box-header .frame-box-header-collapse {\n            margin-top: -2px; }\n          #graph-canvas #graph-container .frame-box.collapsed .frame-box-header .frame-box-header-close {\n            display: none; }\n        #graph-canvas #graph-container .frame-box.collapsed .frame-comments.has-comments .frame-comment-span {\n          white-space: nowrap;\n          text-overflow: ellipsis;\n          overflow: hidden; }\n      #graph-canvas #graph-container .frame-box .frame-box-border {\n        grid-row: 1 / span 2;\n        grid-column: 1;\n        width: 100%;\n        height: 100%;\n        border: transparent solid 4px;\n        pointer-events: none;\n        box-sizing: border-box; }\n      #graph-canvas #graph-container .frame-box .frame-box-header {\n        grid-row: 1;\n        grid-column: 1;\n        background: #484848;\n        color: white;\n        font-size: 24px;\n        text-align: center;\n        display: grid;\n        grid-template-rows: 100%;\n        grid-template-columns: calc(100% - 74px) 30px 7px 30px 7px;\n        align-content: center;\n        overflow: hidden; }\n        #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-button {\n          cursor: pointer;\n          align-self: center;\n          transform-origin: 50% 50%;\n          transform: scale(1);\n          stroke: transparent;\n          fill: white;\n          display: grid; }\n          #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-button.down {\n            transform: scale(0.9); }\n        #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-collapse {\n          grid-column: 2;\n          grid-row: 1; }\n        #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-close {\n          grid-column: 4;\n          grid-row: 1; }\n        #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-title {\n          grid-column: 1;\n          grid-row: 1;\n          display: grid;\n          height: 100%;\n          width: 100%;\n          align-self: stretch;\n          align-items: center;\n          margin-top: -2px; }\n      #graph-canvas #graph-container .frame-box .port-container {\n        margin-top: 6px;\n        margin-bottom: 6px;\n        margin-left: 4px;\n        margin-right: 4px;\n        color: white;\n        grid-row: 2;\n        grid-column: 1;\n        display: grid;\n        grid-template-rows: 100%;\n        grid-template-columns: 50% 50%;\n        z-index: 2; }\n      #graph-canvas #graph-container .frame-box .frame-comments.has-comments {\n        display: grid;\n        grid-row: 2;\n        grid-column: 1;\n        padding: 0 10px;\n        font-style: italic;\n        word-wrap: break-word; }\n      #graph-canvas #graph-container .frame-box.selected .frame-box-border {\n        border-color: white; }\n      #graph-canvas #graph-container .frame-box .right-handle {\n        grid-area: 1 / 2 / 3 / 2;\n        width: 4px;\n        background-color: transparent;\n        cursor: ew-resize; }\n        #graph-canvas #graph-container .frame-box .right-handle::after {\n          content: \"\";\n          width: 8px;\n          position: absolute;\n          top: 0;\n          bottom: 0;\n          margin-left: -4px;\n          cursor: ew-resize; }\n        #graph-canvas #graph-container .frame-box .right-handle.collapsed {\n          cursor: pointer; }\n      #graph-canvas #graph-container .frame-box .top-right-corner-handle {\n        background-color: transparent;\n        height: 4px;\n        z-index: 21;\n        cursor: ne-resize;\n        width: 4px;\n        margin-left: -6px; }\n        #graph-canvas #graph-container .frame-box .top-right-corner-handle::after {\n          background-color: transparent;\n          cursor: ne-resize;\n          margin-left: unset;\n          top: -4px;\n          height: 10px;\n          width: 10px; }\n      #graph-canvas #graph-container .frame-box .bottom-right-corner-handle {\n        background-color: transparent;\n        height: 0px;\n        z-index: 21;\n        cursor: nw-resize;\n        grid-area: 4 / 2 / 4 / 2;\n        margin-left: -2px; }\n        #graph-canvas #graph-container .frame-box .bottom-right-corner-handle::after {\n          background-color: transparent;\n          height: 10px;\n          cursor: nw-resize;\n          top: unset;\n          bottom: -4px;\n          width: 10px; }\n      #graph-canvas #graph-container .frame-box .left-handle {\n        grid-area: 1 / 1 / 3 / 1;\n        width: 4px;\n        background-color: transparent;\n        cursor: ew-resize; }\n        #graph-canvas #graph-container .frame-box .left-handle::before {\n          content: \"\";\n          width: 8px;\n          position: absolute;\n          top: 0;\n          bottom: 0;\n          margin-left: -4px; }\n      #graph-canvas #graph-container .frame-box .top-left-corner-handle {\n        background-color: transparent;\n        height: 4px;\n        z-index: 21;\n        cursor: nw-resize;\n        width: 4px;\n        margin-left: -4px; }\n        #graph-canvas #graph-container .frame-box .top-left-corner-handle::before {\n          background-color: transparent;\n          cursor: nw-resize;\n          margin-left: unset;\n          top: -4px;\n          height: 10px;\n          width: 10px; }\n      #graph-canvas #graph-container .frame-box .bottom-left-corner-handle {\n        background-color: transparent;\n        height: 0px;\n        z-index: 21;\n        cursor: sw-resize;\n        grid-area: 4 / 1 / 4 / 1; }\n        #graph-canvas #graph-container .frame-box .bottom-left-corner-handle::before {\n          background-color: transparent;\n          height: 10px;\n          cursor: sw-resize;\n          top: unset;\n          bottom: -4px;\n          width: 10px; }\n      #graph-canvas #graph-container .frame-box .top-handle {\n        grid-area: 1 / 1 / 1 / 1;\n        background-color: transparent;\n        height: 4px;\n        cursor: ns-resize; }\n        #graph-canvas #graph-container .frame-box .top-handle::before {\n          content: \"\";\n          width: 100%;\n          position: absolute;\n          top: -4px;\n          bottom: 100%;\n          right: 0;\n          left: 0;\n          margin-bottom: -8px;\n          cursor: ns-resize;\n          height: 8px; }\n      #graph-canvas #graph-container .frame-box .bottom-handle {\n        grid-area: 3 / 1 / 3 / 1;\n        background-color: transparent;\n        height: 4px;\n        cursor: ns-resize; }\n        #graph-canvas #graph-container .frame-box .bottom-handle::after {\n          content: \"\";\n          width: 100%;\n          position: absolute;\n          top: 100%;\n          bottom: 0;\n          right: 0;\n          left: 0;\n          margin-top: -8px;\n          cursor: ns-resize;\n          height: 12px; }\n      #graph-canvas #graph-container .frame-box.collapsed .top-handle, #graph-canvas #graph-container .frame-box.collapsed .top-right-corner-handle, #graph-canvas #graph-container .frame-box.collapsed .right-handle, #graph-canvas #graph-container .frame-box.collapsed .bottom-right-corner-handle, #graph-canvas #graph-container .frame-box.collapsed .bottom-handle, #graph-canvas #graph-container .frame-box.collapsed .bottom-left-corner-handle, #graph-canvas #graph-container .frame-box.collapsed .left-handle, #graph-canvas #graph-container .frame-box.collapsed .top-left-corner-handle {\n        cursor: default; }\n      #graph-canvas #graph-container .frame-box.collapsed .right-handle::after, #graph-canvas #graph-container .frame-box.collapsed .bottom-handle::after, #graph-canvas #graph-container .frame-box.collapsed .top-right-corner-handle::after, #graph-canvas #graph-container .frame-box.collapsed .bottom-right-corner-handle::after {\n        cursor: default; }\n      #graph-canvas #graph-container .frame-box.collapsed .left-handle::before, #graph-canvas #graph-container .frame-box.collapsed .top-handle::before, #graph-canvas #graph-container .frame-box.collapsed .top-left-corner-handle::before, #graph-canvas #graph-container .frame-box.collapsed .bottom-left-corner-handle::before {\n        cursor: default; }\n    #graph-canvas #graph-container #graph-svg-container {\n      grid-row: 1;\n      grid-column: 1;\n      position: relative;\n      width: 100%;\n      height: 100%;\n      overflow: visible;\n      pointer-events: none;\n      z-index: 2; }\n      #graph-canvas #graph-container #graph-svg-container .link {\n        stroke-width: 4px; }\n        #graph-canvas #graph-container #graph-svg-container .link.selected {\n          stroke: white !important;\n          stroke-dasharray: 10, 2; }\n        #graph-canvas #graph-container #graph-svg-container .link.hidden {\n          display: none; }\n      #graph-canvas #graph-container #graph-svg-container .selection-link {\n        pointer-events: all;\n        stroke-width: 16px;\n        opacity: 0;\n        transition: opacity 75ms;\n        stroke: transparent;\n        cursor: pointer; }\n        #graph-canvas #graph-container #graph-svg-container .selection-link.hidden {\n          display: none; }\n        #graph-canvas #graph-container #graph-svg-container .selection-link:hover, #graph-canvas #graph-container #graph-svg-container .selection-link.selected {\n          stroke: white !important;\n          opacity: 0.4; }\n    #graph-canvas #graph-container #graph-canvas-container {\n      grid-row: 1;\n      grid-column: 1;\n      position: relative;\n      width: 100%;\n      height: 100%; }\n      #graph-canvas #graph-container #graph-canvas-container .visual {\n        z-index: 4;\n        width: 200px;\n        position: absolute;\n        left: 0;\n        top: 0;\n        background: gray;\n        border: 4px solid black;\n        border-radius: 12px;\n        display: grid;\n        grid-template-rows: 30px auto;\n        grid-template-columns: 100%;\n        color: white; }\n        #graph-canvas #graph-container #graph-canvas-container .visual.hidden {\n          display: none; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .comments {\n          position: absolute;\n          top: -50px;\n          width: 200px;\n          height: 45px;\n          overflow: hidden;\n          font-style: italic;\n          opacity: 0.8;\n          display: grid;\n          align-items: flex-end;\n          pointer-events: none; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .selection-border {\n          grid-row: 1 / span 3;\n          grid-column: 1;\n          margin: -4px;\n          transition: border-color 100ms;\n          border: 4px solid black;\n          border-radius: 12px; }\n        #graph-canvas #graph-container #graph-canvas-container .visual.selected .selection-border {\n          border-color: white; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .header {\n          grid-row: 1;\n          grid-column: 1;\n          border: 4px solid black;\n          border-top-right-radius: 7px;\n          border-top-left-radius: 7px;\n          font-size: 16px;\n          text-align: center;\n          margin-top: -1px;\n          margin-left: -1px;\n          margin-right: -1px;\n          white-space: nowrap;\n          text-overflow: ellipsis;\n          overflow: hidden;\n          background: black;\n          color: white; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .header.constant {\n            border-color: #464348;\n            background: #464348; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .header.inspector {\n            border-color: #66491b;\n            background: #66491b; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .connections {\n          grid-row: 2;\n          grid-column: 1;\n          display: grid;\n          grid-template-columns: 50% 50%; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .content {\n          min-height: 20px;\n          grid-row: 3;\n          grid-column: 1; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.input-block {\n            grid-row: 2;\n            min-height: 34px;\n            text-align: center;\n            font-size: 18px;\n            font-weight: bold;\n            margin: 0 10px 5px;\n            display: grid;\n            align-content: center; }\n            #graph-canvas #graph-container #graph-canvas-container .visual .content.input-block.small-font {\n              font-size: 17px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.output-block {\n            min-height: 0px;\n            height: 5px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.clamp-block {\n            grid-row: 2;\n            height: 34px;\n            text-align: center;\n            font-size: 18px;\n            font-weight: bold;\n            margin: 0 10px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.gradient-block {\n            grid-row: 2;\n            height: 34px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.texture-block {\n            grid-row: 3;\n            height: 140px;\n            width: 140px;\n            overflow: hidden;\n            border-bottom-left-radius: 7px;\n            border: black 4px solid;\n            border-left: 0px;\n            border-bottom: 0px; }\n            #graph-canvas #graph-container #graph-canvas-container .visual .content.texture-block img {\n              width: 100%;\n              height: 100%;\n              pointer-events: none; }\n              #graph-canvas #graph-container #graph-canvas-container .visual .content.texture-block img.empty {\n                display: none; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.regular-texture-block {\n            margin-top: -115px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.remap-block {\n            height: 34px;\n            text-align: center;\n            font-size: 18px;\n            font-weight: bold;\n            margin: 0 10px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.trigonometry-block {\n            grid-row: 2;\n            height: 34px;\n            text-align: center;\n            font-size: 18px;\n            font-weight: bold;\n            margin: 0 10px; }\n", ""]);
+exports.push([module.i, "#graph-canvas {\n  width: 100%;\n  height: 100%;\n  margin: 0;\n  padding: 0;\n  font: 14px \"acumin-pro\";\n  user-select: none;\n  overflow: hidden;\n  cursor: move;\n  background-image: linear-gradient(to right, #4F4E4F 1px, transparent 1px), linear-gradient(to bottom, #4F4E4F 1px, transparent 1px); }\n  #graph-canvas #selection-container {\n    pointer-events: none; }\n    #graph-canvas #selection-container .selection-box {\n      z-index: 10;\n      position: absolute;\n      background: rgba(72, 72, 196, 0.5);\n      border: blue solid 2px; }\n  #graph-canvas .port {\n    border-radius: 20px;\n    width: 20px;\n    height: 20px;\n    align-self: center; }\n    #graph-canvas .port .img {\n      width: 100%; }\n    #graph-canvas .port img.selected {\n      box-shadow: 0 0 0 2px;\n      border-radius: 50%; }\n    #graph-canvas .port:hover, #graph-canvas .port.selected {\n      filter: brightness(2); }\n  #graph-canvas .portLine {\n    height: 24px;\n    display: grid;\n    grid-template-rows: 100%; }\n  #graph-canvas .port-label {\n    align-items: center; }\n  #graph-canvas .inputsContainer {\n    grid-row: 1;\n    grid-column: 1; }\n    #graph-canvas .inputsContainer .portLine {\n      grid-template-columns: 12px calc(100% - 15px); }\n      #graph-canvas .inputsContainer .portLine .port-label {\n        grid-row: 1;\n        grid-column: 2; }\n      #graph-canvas .inputsContainer .portLine .port {\n        grid-row: 1;\n        grid-column: 1;\n        transform: translateX(-12px); }\n  #graph-canvas .outputsContainer {\n    grid-row: 1;\n    grid-column: 2; }\n    #graph-canvas .outputsContainer .portLine {\n      grid-template-columns: calc(100% - 10px) 12px; }\n      #graph-canvas .outputsContainer .portLine .port-label {\n        grid-row: 1;\n        grid-column: 1;\n        text-align: right; }\n      #graph-canvas .outputsContainer .portLine .port {\n        grid-row: 1;\n        grid-column: 2;\n        transform: translateX(2px); }\n  #graph-canvas #graph-container {\n    width: 100%;\n    height: 100%;\n    left: 0;\n    top: 0;\n    transform-origin: left top;\n    display: grid;\n    grid-template-rows: 100%;\n    grid-template-columns: 100%; }\n    #graph-canvas #graph-container #frame-container {\n      overflow: visible;\n      grid-row: 1;\n      grid-column: 1;\n      position: relative;\n      width: 100%;\n      height: 100%; }\n    #graph-canvas #graph-container .frame-box {\n      position: absolute;\n      background: rgba(72, 72, 72, 0.7);\n      display: grid;\n      grid-template-rows: 40px calc(100% - 40px);\n      grid-template-columns: 100%;\n      box-sizing: border-box; }\n      #graph-canvas #graph-container .frame-box.collapsed {\n        height: auto !important;\n        width: 200px !important;\n        z-index: 3; }\n        #graph-canvas #graph-container .frame-box.collapsed .frame-box-header {\n          font-size: 16px;\n          grid-template-columns: calc(100% - 37px) 30px 7px; }\n          #graph-canvas #graph-container .frame-box.collapsed .frame-box-header .frame-box-header-collapse {\n            margin-top: -2px; }\n          #graph-canvas #graph-container .frame-box.collapsed .frame-box-header .frame-box-header-close {\n            display: none; }\n        #graph-canvas #graph-container .frame-box.collapsed .frame-comments.has-comments .frame-comment-span {\n          white-space: nowrap;\n          text-overflow: ellipsis;\n          overflow: hidden; }\n      #graph-canvas #graph-container .frame-box .frame-box-border {\n        grid-row: 1 / span 2;\n        grid-column: 1;\n        width: 100%;\n        height: 100%;\n        border: transparent solid 4px;\n        pointer-events: none;\n        box-sizing: border-box; }\n      #graph-canvas #graph-container .frame-box .frame-box-header {\n        grid-row: 1;\n        grid-column: 1;\n        background: #484848;\n        color: white;\n        font-size: 24px;\n        text-align: center;\n        display: grid;\n        grid-template-rows: 100%;\n        grid-template-columns: calc(100% - 74px) 30px 7px 30px 7px;\n        align-content: center;\n        overflow: hidden; }\n        #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-button {\n          cursor: pointer;\n          align-self: center;\n          transform-origin: 50% 50%;\n          transform: scale(1);\n          stroke: transparent;\n          fill: white;\n          display: grid; }\n          #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-button.down {\n            transform: scale(0.9); }\n        #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-collapse {\n          grid-column: 2;\n          grid-row: 1; }\n        #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-close {\n          grid-column: 4;\n          grid-row: 1; }\n        #graph-canvas #graph-container .frame-box .frame-box-header .frame-box-header-title {\n          grid-column: 1;\n          grid-row: 1;\n          display: grid;\n          height: 100%;\n          width: 100%;\n          align-self: stretch;\n          align-items: center;\n          margin-top: -2px; }\n      #graph-canvas #graph-container .frame-box .port-container {\n        margin-top: 6px;\n        margin-bottom: 6px;\n        margin-left: 4px;\n        margin-right: 4px;\n        color: white;\n        grid-row: 2;\n        grid-column: 1;\n        display: grid;\n        grid-template-rows: 100%;\n        grid-template-columns: 50% 50%;\n        z-index: 2; }\n      #graph-canvas #graph-container .frame-box .frame-comments.has-comments {\n        display: grid;\n        grid-row: 2;\n        grid-column: 1;\n        padding: 0 10px;\n        font-style: italic;\n        word-wrap: break-word; }\n      #graph-canvas #graph-container .frame-box.selected .frame-box-border {\n        border-color: white; }\n      #graph-canvas #graph-container .frame-box .right-handle {\n        grid-area: 1 / 2 / 3 / 2;\n        width: 4px;\n        background-color: transparent;\n        cursor: ew-resize; }\n        #graph-canvas #graph-container .frame-box .right-handle::after {\n          content: \"\";\n          width: 8px;\n          position: absolute;\n          top: 0;\n          bottom: 0;\n          margin-left: -4px;\n          cursor: ew-resize; }\n        #graph-canvas #graph-container .frame-box .right-handle.collapsed {\n          cursor: pointer; }\n      #graph-canvas #graph-container .frame-box .top-right-corner-handle {\n        background-color: transparent;\n        height: 4px;\n        z-index: 21;\n        cursor: ne-resize;\n        width: 4px;\n        margin-left: -6px; }\n        #graph-canvas #graph-container .frame-box .top-right-corner-handle::after {\n          background-color: transparent;\n          cursor: ne-resize;\n          margin-left: unset;\n          top: -4px;\n          height: 10px;\n          width: 10px; }\n      #graph-canvas #graph-container .frame-box .bottom-right-corner-handle {\n        background-color: transparent;\n        height: 0px;\n        z-index: 21;\n        cursor: nw-resize;\n        grid-area: 4 / 2 / 4 / 2;\n        margin-left: -2px; }\n        #graph-canvas #graph-container .frame-box .bottom-right-corner-handle::after {\n          background-color: transparent;\n          height: 10px;\n          cursor: nw-resize;\n          top: unset;\n          bottom: -4px;\n          width: 10px; }\n      #graph-canvas #graph-container .frame-box .left-handle {\n        grid-area: 1 / 1 / 3 / 1;\n        width: 4px;\n        background-color: transparent;\n        cursor: ew-resize; }\n        #graph-canvas #graph-container .frame-box .left-handle::before {\n          content: \"\";\n          width: 8px;\n          position: absolute;\n          top: 0;\n          bottom: 0;\n          margin-left: -4px; }\n      #graph-canvas #graph-container .frame-box .top-left-corner-handle {\n        background-color: transparent;\n        height: 4px;\n        z-index: 21;\n        cursor: nw-resize;\n        width: 4px;\n        margin-left: -4px; }\n        #graph-canvas #graph-container .frame-box .top-left-corner-handle::before {\n          background-color: transparent;\n          cursor: nw-resize;\n          margin-left: unset;\n          top: -4px;\n          height: 10px;\n          width: 10px; }\n      #graph-canvas #graph-container .frame-box .bottom-left-corner-handle {\n        background-color: transparent;\n        height: 0px;\n        z-index: 21;\n        cursor: sw-resize;\n        grid-area: 4 / 1 / 4 / 1; }\n        #graph-canvas #graph-container .frame-box .bottom-left-corner-handle::before {\n          background-color: transparent;\n          height: 10px;\n          cursor: sw-resize;\n          top: unset;\n          bottom: -4px;\n          width: 10px; }\n      #graph-canvas #graph-container .frame-box .top-handle {\n        grid-area: 1 / 1 / 1 / 1;\n        background-color: transparent;\n        height: 4px;\n        cursor: ns-resize; }\n        #graph-canvas #graph-container .frame-box .top-handle::before {\n          content: \"\";\n          width: 100%;\n          position: absolute;\n          top: -4px;\n          bottom: 100%;\n          right: 0;\n          left: 0;\n          margin-bottom: -8px;\n          cursor: ns-resize;\n          height: 8px; }\n      #graph-canvas #graph-container .frame-box .bottom-handle {\n        grid-area: 3 / 1 / 3 / 1;\n        background-color: transparent;\n        height: 4px;\n        cursor: ns-resize; }\n        #graph-canvas #graph-container .frame-box .bottom-handle::after {\n          content: \"\";\n          width: 100%;\n          position: absolute;\n          top: 100%;\n          bottom: 0;\n          right: 0;\n          left: 0;\n          margin-top: -8px;\n          cursor: ns-resize;\n          height: 12px; }\n      #graph-canvas #graph-container .frame-box.collapsed .top-handle, #graph-canvas #graph-container .frame-box.collapsed .top-right-corner-handle, #graph-canvas #graph-container .frame-box.collapsed .right-handle, #graph-canvas #graph-container .frame-box.collapsed .bottom-right-corner-handle, #graph-canvas #graph-container .frame-box.collapsed .bottom-handle, #graph-canvas #graph-container .frame-box.collapsed .bottom-left-corner-handle, #graph-canvas #graph-container .frame-box.collapsed .left-handle, #graph-canvas #graph-container .frame-box.collapsed .top-left-corner-handle {\n        cursor: default; }\n      #graph-canvas #graph-container .frame-box.collapsed .right-handle::after, #graph-canvas #graph-container .frame-box.collapsed .bottom-handle::after, #graph-canvas #graph-container .frame-box.collapsed .top-right-corner-handle::after, #graph-canvas #graph-container .frame-box.collapsed .bottom-right-corner-handle::after {\n        cursor: default; }\n      #graph-canvas #graph-container .frame-box.collapsed .left-handle::before, #graph-canvas #graph-container .frame-box.collapsed .top-handle::before, #graph-canvas #graph-container .frame-box.collapsed .top-left-corner-handle::before, #graph-canvas #graph-container .frame-box.collapsed .bottom-left-corner-handle::before {\n        cursor: default; }\n    #graph-canvas #graph-container #graph-svg-container {\n      grid-row: 1;\n      grid-column: 1;\n      position: relative;\n      width: 100%;\n      height: 100%;\n      overflow: visible;\n      pointer-events: none;\n      z-index: 2; }\n      #graph-canvas #graph-container #graph-svg-container .link {\n        stroke-width: 4px; }\n        #graph-canvas #graph-container #graph-svg-container .link.selected {\n          stroke: white !important;\n          stroke-dasharray: 10, 2; }\n        #graph-canvas #graph-container #graph-svg-container .link.hidden {\n          display: none; }\n      #graph-canvas #graph-container #graph-svg-container .selection-link {\n        pointer-events: all;\n        stroke-width: 16px;\n        opacity: 0;\n        transition: opacity 75ms;\n        stroke: transparent;\n        cursor: pointer; }\n        #graph-canvas #graph-container #graph-svg-container .selection-link.hidden {\n          display: none; }\n        #graph-canvas #graph-container #graph-svg-container .selection-link:hover, #graph-canvas #graph-container #graph-svg-container .selection-link.selected {\n          stroke: white !important;\n          opacity: 0.4; }\n    #graph-canvas #graph-container #graph-canvas-container {\n      grid-row: 1;\n      grid-column: 1;\n      position: relative;\n      width: 100%;\n      height: 100%; }\n      #graph-canvas #graph-container #graph-canvas-container .visual {\n        z-index: 4;\n        width: 200px;\n        position: absolute;\n        left: 0;\n        top: 0;\n        background: gray;\n        border: 4px solid black;\n        border-radius: 12px;\n        display: grid;\n        grid-template-rows: 30px auto;\n        grid-template-columns: 100%;\n        color: white; }\n        #graph-canvas #graph-container #graph-canvas-container .visual.hidden {\n          display: none; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .comments {\n          position: absolute;\n          top: -50px;\n          width: 200px;\n          height: 45px;\n          overflow: hidden;\n          font-style: italic;\n          opacity: 0.8;\n          display: grid;\n          align-items: flex-end;\n          pointer-events: none; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .selection-border {\n          grid-row: 1 / span 3;\n          grid-column: 1;\n          margin: -4px;\n          transition: border-color 100ms;\n          border: 4px solid black;\n          border-radius: 12px; }\n        #graph-canvas #graph-container #graph-canvas-container .visual.selected .selection-border {\n          border-color: white; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .header {\n          grid-row: 1;\n          grid-column: 1;\n          border: 4px solid black;\n          border-top-right-radius: 7px;\n          border-top-left-radius: 7px;\n          font-size: 16px;\n          text-align: center;\n          margin-top: -1px;\n          margin-left: -1px;\n          margin-right: -1px;\n          white-space: nowrap;\n          text-overflow: ellipsis;\n          overflow: hidden;\n          background: black;\n          color: white; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .header.constant {\n            border-color: #464348;\n            background: #464348; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .header.inspector {\n            border-color: #66491b;\n            background: #66491b; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .connections {\n          grid-row: 2;\n          grid-column: 1;\n          display: grid;\n          grid-template-columns: 50% 50%; }\n        #graph-canvas #graph-container #graph-canvas-container .visual .content {\n          min-height: 20px;\n          grid-row: 3;\n          grid-column: 1; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.input-block {\n            grid-row: 2;\n            min-height: 34px;\n            text-align: center;\n            font-size: 18px;\n            font-weight: bold;\n            margin: 0 10px 5px;\n            display: grid;\n            align-content: center; }\n            #graph-canvas #graph-container #graph-canvas-container .visual .content.input-block.small-font {\n              font-size: 17px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.output-block {\n            min-height: 0px;\n            height: 5px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.clamp-block {\n            grid-row: 2;\n            height: 34px;\n            text-align: center;\n            font-size: 18px;\n            font-weight: bold;\n            margin: 0 10px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.gradient-block {\n            grid-row: 2;\n            height: 34px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.texture-block {\n            grid-row: 2;\n            height: 140px;\n            width: 140px;\n            overflow: hidden;\n            border-bottom-left-radius: 7px;\n            border: black 4px solid;\n            border-left: 0px;\n            border-bottom: 0px; }\n            #graph-canvas #graph-container #graph-canvas-container .visual .content.texture-block img {\n              width: 100%;\n              height: 100%;\n              pointer-events: none; }\n              #graph-canvas #graph-container #graph-canvas-container .visual .content.texture-block img.empty {\n                display: none; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.regular-texture-block {\n            margin-top: 30px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.reflection-block {\n            grid-row: 3; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.remap-block {\n            height: 34px;\n            text-align: center;\n            font-size: 18px;\n            font-weight: bold;\n            margin: 0 10px; }\n          #graph-canvas #graph-container #graph-canvas-container .visual .content.trigonometry-block {\n            grid-row: 2;\n            height: 34px;\n            text-align: center;\n            font-size: 18px;\n            font-weight: bold;\n            margin: 0 10px; }\n", ""]);
 // Exports
 module.exports = exports;
 
@@ -17827,6 +17776,36 @@ module.exports = baseToString;
 
 /***/ }),
 
+/***/ "../../node_modules/lodash/_baseTrim.js":
+/*!************************************************************!*\
+  !*** C:/Repos/Babylon.js/node_modules/lodash/_baseTrim.js ***!
+  \************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+var trimmedEndIndex = __webpack_require__(/*! ./_trimmedEndIndex */ "../../node_modules/lodash/_trimmedEndIndex.js");
+
+/** Used to match leading whitespace. */
+var reTrimStart = /^\s+/;
+
+/**
+ * The base implementation of `_.trim`.
+ *
+ * @private
+ * @param {string} string The string to trim.
+ * @returns {string} Returns the trimmed string.
+ */
+function baseTrim(string) {
+  return string
+    ? string.slice(0, trimmedEndIndex(string) + 1).replace(reTrimStart, '')
+    : string;
+}
+
+module.exports = baseTrim;
+
+
+/***/ }),
+
 /***/ "../../node_modules/lodash/_baseUnary.js":
 /*!*************************************************************!*\
   !*** C:/Repos/Babylon.js/node_modules/lodash/_baseUnary.js ***!
@@ -21349,6 +21328,36 @@ module.exports = toSource;
 
 /***/ }),
 
+/***/ "../../node_modules/lodash/_trimmedEndIndex.js":
+/*!*******************************************************************!*\
+  !*** C:/Repos/Babylon.js/node_modules/lodash/_trimmedEndIndex.js ***!
+  \*******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports) {
+
+/** Used to match a single whitespace character. */
+var reWhitespace = /\s/;
+
+/**
+ * Used by `_.trim` and `_.trimEnd` to get the index of the last non-whitespace
+ * character of `string`.
+ *
+ * @private
+ * @param {string} string The string to inspect.
+ * @returns {number} Returns the index of the last non-whitespace character.
+ */
+function trimmedEndIndex(string) {
+  var index = string.length;
+
+  while (index-- && reWhitespace.test(string.charAt(index))) {}
+  return index;
+}
+
+module.exports = trimmedEndIndex;
+
+
+/***/ }),
+
 /***/ "../../node_modules/lodash/_unicodeSize.js":
 /*!***************************************************************!*\
   !*** C:/Repos/Babylon.js/node_modules/lodash/_unicodeSize.js ***!
@@ -23979,14 +23988,12 @@ module.exports = toInteger;
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-var isObject = __webpack_require__(/*! ./isObject */ "../../node_modules/lodash/isObject.js"),
+var baseTrim = __webpack_require__(/*! ./_baseTrim */ "../../node_modules/lodash/_baseTrim.js"),
+    isObject = __webpack_require__(/*! ./isObject */ "../../node_modules/lodash/isObject.js"),
     isSymbol = __webpack_require__(/*! ./isSymbol */ "../../node_modules/lodash/isSymbol.js");
 
 /** Used as references for various `Number` constants. */
 var NAN = 0 / 0;
-
-/** Used to match leading and trailing whitespace. */
-var reTrim = /^\s+|\s+$/g;
 
 /** Used to detect bad signed hexadecimal string values. */
 var reIsBadHex = /^[-+]0x[0-9a-f]+$/i;
@@ -24037,7 +24044,7 @@ function toNumber(value) {
   if (typeof value != 'string') {
     return value === 0 ? value : +value;
   }
-  value = value.replace(reTrim, '');
+  value = baseTrim(value);
   var isBinary = reIsBinary.test(value);
   return (isBinary || reIsOctal.test(value))
     ? freeParseInt(value.slice(2), isBinary ? 2 : 8)
@@ -54293,7 +54300,7 @@ function applyToTag(style, options, obj) {
     style.removeAttribute('media');
   }
 
-  if (sourceMap && btoa) {
+  if (sourceMap && typeof btoa !== 'undefined') {
     css += "\n/*# sourceMappingURL=data:application/json;base64,".concat(btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap)))), " */");
   } // For old IE
 
@@ -54927,6 +54934,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
 var BlockTools = /** @class */ (function () {
     function BlockTools() {
     }
@@ -55192,6 +55200,13 @@ var BlockTools = /** @class */ (function () {
                 cameraPosition.setAsSystemValue(babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["NodeMaterialSystemValues"].CameraPosition);
                 return cameraPosition;
             }
+            case "CameraParametersBlock": {
+                var cameraParameters = new babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["InputBlock"]("Camera parameters");
+                cameraParameters.setAsSystemValue(babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["NodeMaterialSystemValues"].CameraParameters);
+                var splitter = new babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["VectorSplitterBlock"]("Vector splitter");
+                cameraParameters.connectTo(splitter);
+                return splitter;
+            }
             case "FogColorBlock": {
                 var FogColor = new babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["InputBlock"]("Fog color");
                 FogColor.setAsSystemValue(babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["NodeMaterialSystemValues"].FogColor);
@@ -55341,6 +55356,8 @@ var BlockTools = /** @class */ (function () {
                 return new babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["FragCoordBlock"]("FragCoord");
             case "ScreenSizeBlock":
                 return new babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["ScreenSizeBlock"]("ScreenSize");
+            case "SceneDepthBlock":
+                return new babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["SceneDepthBlock"]("SceneDepth");
             case "EqualBlock":
                 var equalBlock = new babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["ConditionalBlock"]("Equal");
                 equalBlock.condition = babylonjs_Materials_Node_Blocks_Fragment_discardBlock__WEBPACK_IMPORTED_MODULE_0__["ConditionalBlockConditions"].Equal;
@@ -55693,7 +55710,7 @@ var NodeListComponent = /** @class */ (function (_super) {
             Procedural__Texture: ["ScreenPositionBlock"],
             Range: ["ClampBlock", "RemapBlock", "NormalizeBlock"],
             Round: ["RoundBlock", "CeilingBlock", "FloorBlock"],
-            Scene: ["FogBlock", "CameraPositionBlock", "FogColorBlock", "ImageProcessingBlock", "LightBlock", "LightInformationBlock", "ViewDirectionBlock"],
+            Scene: ["FogBlock", "CameraPositionBlock", "CameraParametersBlock", "FogColorBlock", "ImageProcessingBlock", "LightBlock", "LightInformationBlock", "ViewDirectionBlock", "SceneDepthBlock"],
         };
         switch (this.props.globalState.mode) {
             case babylonjs_Materials_Node_Enums_nodeMaterialModes__WEBPACK_IMPORTED_MODULE_4__["NodeMaterialModes"].Material:
@@ -55722,6 +55739,8 @@ var NodeListComponent = /** @class */ (function (_super) {
                 delete allBlocks["Procedural__Texture"];
                 delete allBlocks["PBR"];
                 allBlocks.Output_Nodes.splice(allBlocks.Output_Nodes.indexOf("VertexOutputBlock"), 1);
+                allBlocks.Scene.splice(allBlocks.Scene.indexOf("FogBlock"), 1);
+                allBlocks.Scene.splice(allBlocks.Scene.indexOf("FogColorBlock"), 1);
                 break;
         }
         // Create node menu
@@ -55772,7 +55791,7 @@ var NodeListComponent = /** @class */ (function (_super) {
         "SubtractBlock": "Subtracts the right input from the left input of the same type",
         "GradientBlock": "Returns the color in the gradient represented by the target value of the input",
         "PosterizeBlock": "Reduces the number of values in each channel to the number in the corresponding channel of steps",
-        "ReplaceColorBlock": "Replaces a reference color in value with the color in replacement blended by distance",
+        "ReplaceColorBlock": "Outputs the replacement color if the distance between value and reference is less than distance, else outputs the value color",
         "ColorMergerBlock": "Combines float input channels into a color",
         "ColorSplitterBlock": "Separates color input channels into individual floats",
         "VectorMergerBlock": "Combines up to four input floats into a vector",
@@ -55820,6 +55839,7 @@ var NodeListComponent = /** @class */ (function (_super) {
         "RoundBlock": "Outputs fractional values rounded to the nearest whole number",
         "ModBlock": "Outputs the value of one parameter modulo another",
         "CameraPositionBlock": "Outputs a Vector3 position of the active scene camera",
+        "CameraParametersBlock": "Outputs a Vector4 containing (-1 for webGL and 1 for webGPU, camera.minZ, camera.maxZ, 1 / camera.maxZ)",
         "FogBlock": "Applies fog to the scene with an increasing opacity based on distance from the camera",
         "FogColorBlock": "The system value for fog color pulled from the scene",
         "ImageProcessingBlock": "Provides access to all of the Babylon image processing properties",
@@ -55878,6 +55898,7 @@ var NodeListComponent = /** @class */ (function (_super) {
         "ParticlePositionWorldBlock": "The world position of the particle",
         "FragCoordBlock": "The gl_FragCoord predefined variable that contains the window relative coordinate (x, y, z, 1/w)",
         "ScreenSizeBlock": "The size (in pixels) of the screen window",
+        "SceneDepthBlock": "The scene depth buffer",
         "MatrixBuilderBlock": "Converts 4 Vector4 into a matrix",
         "EqualBlock": "Return a value if two operands are equals",
         "NotEqualBlock": "Return a value if two operands are not equals",
@@ -56063,6 +56084,7 @@ var PreviewManager = /** @class */ (function () {
         this._onPreviewCommandActivatedObserver = globalState.onPreviewCommandActivated.add(function (forceRefresh) {
             if (forceRefresh) {
                 _this._currentType = -1;
+                _this._scene.disableDepthRenderer();
             }
             _this._refreshPreviewMesh();
         });
@@ -56166,6 +56188,7 @@ var PreviewManager = /** @class */ (function () {
     };
     PreviewManager.prototype._prepareScene = function () {
         var _this = this;
+        var _a, _b;
         this._camera.useFramingBehavior = this._globalState.mode === babylonjs_Materials_Node_nodeMaterial__WEBPACK_IMPORTED_MODULE_0__["NodeMaterialModes"].Material;
         switch (this._globalState.mode) {
             case babylonjs_Materials_Node_nodeMaterial__WEBPACK_IMPORTED_MODULE_0__["NodeMaterialModes"].Material: {
@@ -56199,7 +56222,8 @@ var PreviewManager = /** @class */ (function () {
             case babylonjs_Materials_Node_nodeMaterial__WEBPACK_IMPORTED_MODULE_0__["NodeMaterialModes"].Particle: {
                 this._camera.radius = this._globalState.previewType === _previewType__WEBPACK_IMPORTED_MODULE_1__["PreviewType"].Explosion ? 50 : this._globalState.previewType === _previewType__WEBPACK_IMPORTED_MODULE_1__["PreviewType"].DefaultParticleSystem ? 6 : 20;
                 this._camera.upperRadiusLimit = 5000;
-                this._globalState.particleSystemBlendMode = this._particleSystem.blendMode;
+                this._globalState.particleSystemBlendMode = (_b = (_a = this._particleSystem) === null || _a === void 0 ? void 0 : _a.blendMode) !== null && _b !== void 0 ? _b : babylonjs_Materials_Node_nodeMaterial__WEBPACK_IMPORTED_MODULE_0__["ParticleSystem"].BLENDMODE_STANDARD;
+                ;
                 break;
             }
         }
@@ -56817,7 +56841,7 @@ var InputsPropertyTabComponent = /** @class */ (function (_super) {
     InputsPropertyTabComponent.prototype.processInputBlockUpdate = function (ib) {
         this.props.globalState.onUpdateRequiredObservable.notifyObservers();
         if (ib.isConstant) {
-            this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+            this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
         }
     };
     InputsPropertyTabComponent.prototype.renderInputBlock = function (block) {
@@ -56959,7 +56983,7 @@ var FloatPropertyTabComponent = /** @class */ (function (_super) {
         var _this = this;
         return (react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_floatLineComponent__WEBPACK_IMPORTED_MODULE_2__["FloatLineComponent"], { globalState: this.props.globalState, label: "Value", target: this.props.inputBlock, propertyName: "value", onChange: function () {
                 if (_this.props.inputBlock.isConstant) {
-                    _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                    _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                 }
                 _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
             } }));
@@ -57220,7 +57244,7 @@ var PropertyTabComponent = /** @class */ (function (_super) {
     Object(tslib__WEBPACK_IMPORTED_MODULE_0__["__extends"])(PropertyTabComponent, _super);
     function PropertyTabComponent(props) {
         var _this = _super.call(this, props) || this;
-        _this.state = { currentNode: null, currentFrame: null, currentFrameNodePort: null, currentNodePort: null };
+        _this.state = { currentNode: null, currentFrame: null, currentFrameNodePort: null, currentNodePort: null, uploadInProgress: false };
         _this._modeSelect = react__WEBPACK_IMPORTED_MODULE_1__["createRef"]();
         return _this;
     }
@@ -57253,7 +57277,7 @@ var PropertyTabComponent = /** @class */ (function (_super) {
     PropertyTabComponent.prototype.processInputBlockUpdate = function (ib) {
         this.props.globalState.onUpdateRequiredObservable.notifyObservers();
         if (ib.isConstant) {
-            this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+            this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
         }
     };
     PropertyTabComponent.prototype.renderInputBlock = function (block) {
@@ -57309,11 +57333,14 @@ var PropertyTabComponent = /** @class */ (function (_super) {
     };
     PropertyTabComponent.prototype.customSave = function () {
         var _this = this;
+        this.setState({ uploadInProgress: true });
         this.props.globalState.onLogRequiredObservable.notifyObservers({ message: "Saving your material to Babylon.js snippet server...", isError: false });
         this.props.globalState.customSave.action(_serializationTools__WEBPACK_IMPORTED_MODULE_7__["SerializationTools"].Serialize(this.props.globalState.nodeMaterial, this.props.globalState)).then(function () {
             _this.props.globalState.onLogRequiredObservable.notifyObservers({ message: "Material saved successfully", isError: false });
+            _this.setState({ uploadInProgress: false });
         }).catch(function (err) {
             _this.props.globalState.onLogRequiredObservable.notifyObservers({ message: err, isError: true });
+            _this.setState({ uploadInProgress: false });
         });
     };
     PropertyTabComponent.prototype.saveToSnippetServer = function () {
@@ -57364,12 +57391,12 @@ var PropertyTabComponent = /** @class */ (function (_super) {
         var _this = this;
         var material = this.props.globalState.nodeMaterial;
         var scene = material.getScene();
-        var snippedID = window.prompt("Please enter the snippet ID to use");
-        if (!snippedID) {
+        var snippedId = window.prompt("Please enter the snippet ID to use");
+        if (!snippedId) {
             return;
         }
         this.props.globalState.onSelectionChangedObservable.notifyObservers(null);
-        babylonjs_Misc_tools__WEBPACK_IMPORTED_MODULE_6__["NodeMaterial"].ParseFromSnippetAsync(snippedID, scene, "", material).then(function () {
+        babylonjs_Misc_tools__WEBPACK_IMPORTED_MODULE_6__["NodeMaterial"].ParseFromSnippetAsync(snippedId, scene, "", material).then(function () {
             material.build();
             if (!_this.changeMode(_this.props.globalState.nodeMaterial.mode, true, false)) {
                 _this.props.globalState.onResetRequiredObservable.notifyObservers();
@@ -57508,7 +57535,7 @@ var PropertyTabComponent = /** @class */ (function (_super) {
                             _sharedUiComponents_stringTools__WEBPACK_IMPORTED_MODULE_4__["StringTools"].DownloadAsFile(_this.props.globalState.hostDocument, _this.props.globalState.nodeMaterial.compiledShaders, "shaders.txt");
                         } }),
                     this.props.globalState.customSave &&
-                        react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_buttonLineComponent__WEBPACK_IMPORTED_MODULE_2__["ButtonLineComponent"], { label: this.props.globalState.customSave.label, onClick: function () {
+                        react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_buttonLineComponent__WEBPACK_IMPORTED_MODULE_2__["ButtonLineComponent"], { label: this.props.globalState.customSave.label, isDisabled: this.state.uploadInProgress, onClick: function () {
                                 _this.customSave();
                             } }),
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_fileButtonLineComponent__WEBPACK_IMPORTED_MODULE_5__["FileButtonLineComponent"], { label: "Load Frame", uploadName: 'frame-upload', onClick: function (file) { return _this.loadFrame(file); }, accept: ".json" })),
@@ -57819,6 +57846,9 @@ var InputDisplayManager = /** @class */ (function () {
                 case babylonjs_Materials_Node_Enums_nodeMaterialSystemValues__WEBPACK_IMPORTED_MODULE_0__["NodeMaterialSystemValues"].DeltaTime:
                     value = "Delta time";
                     break;
+                case babylonjs_Materials_Node_Enums_nodeMaterialSystemValues__WEBPACK_IMPORTED_MODULE_0__["NodeMaterialSystemValues"].CameraParameters:
+                    value = "Camera parameters";
+                    break;
             }
         }
         else {
@@ -57993,6 +58023,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
 var TextureDisplayManager = /** @class */ (function () {
     function TextureDisplayManager() {
     }
@@ -58015,6 +58046,9 @@ var TextureDisplayManager = /** @class */ (function () {
             contentArea.classList.add("texture-block");
             if (block instanceof babylonjs_Materials_Node_Blocks_Dual_textureBlock__WEBPACK_IMPORTED_MODULE_0__["TextureBlock"] || block instanceof babylonjs_Materials_Node_Blocks_Dual_textureBlock__WEBPACK_IMPORTED_MODULE_0__["CurrentScreenBlock"] || block instanceof babylonjs_Materials_Node_Blocks_Dual_textureBlock__WEBPACK_IMPORTED_MODULE_0__["ParticleTextureBlock"]) {
                 contentArea.classList.add("regular-texture-block");
+            }
+            if (block instanceof babylonjs_Materials_Node_Blocks_Dual_textureBlock__WEBPACK_IMPORTED_MODULE_0__["ReflectionBlock"]) {
+                contentArea.classList.add("reflection-block");
             }
             this._previewCanvas = contentArea.ownerDocument.createElement("canvas");
             this._previewImage = contentArea.ownerDocument.createElement("img");
@@ -59144,7 +59178,7 @@ var GraphCanvasComponent = /** @class */ (function (_super) {
             link.onDisposedObservable.notifyObservers(link);
             link.onDisposedObservable.clear();
         });
-        this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+        this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
     };
     GraphCanvasComponent.prototype.processEditorData = function (editorData) {
         var frames = this._frames.splice(0);
@@ -60500,7 +60534,9 @@ var GraphFrame = /** @class */ (function () {
     GraphFrame.prototype.serializePortData = function (exposedPorts) {
         if (exposedPorts.length > 0) {
             for (var i = 0; i < exposedPorts.length; ++i) {
-                exposedPorts[i].exposedPortPosition = i;
+                if (exposedPorts[i]) {
+                    exposedPorts[i].exposedPortPosition = i;
+                }
             }
         }
     };
@@ -61462,7 +61498,7 @@ var ConditionalPropertyTabComponent = /** @class */ (function (_super) {
             react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_lineContainerComponent__WEBPACK_IMPORTED_MODULE_2__["LineContainerComponent"], { title: "PROPERTIES" },
                 react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_optionsLineComponent__WEBPACK_IMPORTED_MODULE_3__["OptionsLineComponent"], { label: "Condition", options: conditionOptions, target: conditionBlock, propertyName: "condition", onSelect: function (value) {
                         _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                         _this.forceUpdate();
                     } }))));
     };
@@ -61703,7 +61739,7 @@ var GeneralPropertyTabComponent = /** @class */ (function (_super) {
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_optionsLineComponent__WEBPACK_IMPORTED_MODULE_9__["OptionsLineComponent"], { label: "Target", options: targetOptions, target: this.props.block, propertyName: "target", onSelect: function (value) {
                             _this.forceUpdate();
                             _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                         } }),
                 (!this.props.block._originalTargetIsNeutral) &&
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_textLineComponent__WEBPACK_IMPORTED_MODULE_4__["TextLineComponent"], { label: "Type", value: babylonjs_Materials_Node_nodeMaterialDecorator__WEBPACK_IMPORTED_MODULE_10__["NodeMaterialBlockTargets"][this.props.block.target] }),
@@ -61719,12 +61755,17 @@ var GenericPropertyTabComponent = /** @class */ (function (_super) {
         return _super.call(this, props) || this;
     }
     GenericPropertyTabComponent.prototype.forceRebuild = function (notifiers) {
+        var _a;
         if (!notifiers || notifiers.update) {
             this.props.globalState.onUpdateRequiredObservable.notifyObservers();
         }
         if (!notifiers || notifiers.rebuild) {
-            this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+            this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
         }
+        if (notifiers === null || notifiers === void 0 ? void 0 : notifiers.activatePreviewCommand) {
+            this.props.globalState.onPreviewCommandActivated.notifyObservers(true);
+        }
+        (_a = notifiers === null || notifiers === void 0 ? void 0 : notifiers.callback) === null || _a === void 0 ? void 0 : _a.call(notifiers, this.props.globalState.nodeMaterial.getScene());
     };
     GenericPropertyTabComponent.prototype.render = function () {
         var _this = this;
@@ -61832,7 +61873,7 @@ var GradientPropertyTabComponent = /** @class */ (function (_super) {
     };
     GradientPropertyTabComponent.prototype.forceRebuild = function () {
         this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-        this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+        this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
     };
     GradientPropertyTabComponent.prototype.deleteStep = function (step) {
         var gradientBlock = this.props.block;
@@ -61904,7 +61945,7 @@ var GradientPropertyTabComponent = /** @class */ (function (_super) {
                         }
                         _this.forceUpdate();
                         _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                     } })),
             react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_lineContainerComponent__WEBPACK_IMPORTED_MODULE_2__["LineContainerComponent"], { title: "STEPS" },
                 react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_buttonLineComponent__WEBPACK_IMPORTED_MODULE_5__["ButtonLineComponent"], { label: "Add new step", onClick: function () { return _this.addNewStep(); } }),
@@ -62075,20 +62116,36 @@ var InputPropertyTabComponent = /** @class */ (function (_super) {
                             }, onSelect: function (value) {
                                 inputBlock.value = value ? 1 : 0;
                                 if (inputBlock.isConstant) {
-                                    _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                                    _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                                 }
                                 _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
                             } }),
                     !inputBlock.isBoolean &&
-                        react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_floatLineComponent__WEBPACK_IMPORTED_MODULE_2__["FloatLineComponent"], { globalState: this.props.globalState, label: "Min", target: inputBlock, propertyName: "min", onChange: function () { return _this.forceUpdate(); } }),
+                        react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_floatLineComponent__WEBPACK_IMPORTED_MODULE_2__["FloatLineComponent"], { globalState: this.props.globalState, label: "Min", target: inputBlock, propertyName: "min", onChange: function () {
+                                if (inputBlock.value < inputBlock.min) {
+                                    inputBlock.value = inputBlock.min;
+                                    if (inputBlock.isConstant) {
+                                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
+                                    }
+                                }
+                                _this.forceUpdate();
+                            } }),
                     !inputBlock.isBoolean &&
-                        react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_floatLineComponent__WEBPACK_IMPORTED_MODULE_2__["FloatLineComponent"], { globalState: this.props.globalState, label: "Max", target: inputBlock, propertyName: "max", onChange: function () { return _this.forceUpdate(); } }),
+                        react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_floatLineComponent__WEBPACK_IMPORTED_MODULE_2__["FloatLineComponent"], { globalState: this.props.globalState, label: "Max", target: inputBlock, propertyName: "max", onChange: function () {
+                                if (inputBlock.value > inputBlock.max) {
+                                    inputBlock.value = inputBlock.max;
+                                    if (inputBlock.isConstant) {
+                                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
+                                    }
+                                }
+                                _this.forceUpdate();
+                            } }),
                     !inputBlock.isBoolean && cantDisplaySlider &&
                         react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_components_propertyTab_properties_floatPropertyTabComponent__WEBPACK_IMPORTED_MODULE_3__["FloatPropertyTabComponent"], { globalState: globalState, inputBlock: inputBlock }),
                     !inputBlock.isBoolean && !cantDisplaySlider &&
                         react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_sliderLineComponent__WEBPACK_IMPORTED_MODULE_4__["SliderLineComponent"], { label: "Value", globalState: this.props.globalState, target: inputBlock, propertyName: "value", step: Math.abs(inputBlock.max - inputBlock.min) / 100.0, minimum: Math.min(inputBlock.min, inputBlock.max), maximum: inputBlock.max, onChange: function () {
                                 if (inputBlock.isConstant) {
-                                    _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                                    _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                                 }
                             } })));
             }
@@ -62165,6 +62222,10 @@ var InputPropertyTabComponent = /** @class */ (function (_super) {
                 attributeOptions = [
                     { label: "uv", value: "uv" },
                     { label: "uv2", value: "uv2" },
+                    { label: "uv3", value: "uv3" },
+                    { label: "uv4", value: "uv4" },
+                    { label: "uv5", value: "uv5" },
+                    { label: "uv6", value: "uv6" },
                 ];
                 break;
             case babylonjs_Materials_Node_Enums_nodeMaterialBlockConnectionPointTypes__WEBPACK_IMPORTED_MODULE_12__["NodeMaterialBlockConnectionPointTypes"].Vector3:
@@ -62181,6 +62242,9 @@ var InputPropertyTabComponent = /** @class */ (function (_super) {
                 attributeOptions = [
                     { label: "matricesIndices", value: "matricesIndices" },
                     { label: "matricesWeights", value: "matricesWeights" }
+                ];
+                systemValuesOptions = [
+                    { label: "Camera parameters", value: babylonjs_Materials_Node_Enums_nodeMaterialBlockConnectionPointTypes__WEBPACK_IMPORTED_MODULE_12__["NodeMaterialSystemValues"].CameraParameters }
                 ];
                 break;
         }
@@ -62227,13 +62291,13 @@ var InputPropertyTabComponent = /** @class */ (function (_super) {
                             }
                             _this.forceUpdate();
                             _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                         } }),
                 inputBlock.visibleInInspector &&
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_textInputLineComponent__WEBPACK_IMPORTED_MODULE_14__["TextInputLineComponent"], { globalState: this.props.globalState, label: "Group", propertyName: "groupInInspector", target: this.props.block, onChange: function () {
                             _this.forceUpdate();
                             _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                         } }),
                 react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_optionsLineComponent__WEBPACK_IMPORTED_MODULE_11__["OptionsLineComponent"], { label: "Mode", options: modeOptions, target: inputBlock, noDirectUpdate: true, getSelection: function (block) {
                         if (block.isAttribute) {
@@ -62259,20 +62323,20 @@ var InputPropertyTabComponent = /** @class */ (function (_super) {
                         }
                         _this.forceUpdate();
                         _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                     } }),
                 inputBlock.isAttribute &&
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_optionsLineComponent__WEBPACK_IMPORTED_MODULE_11__["OptionsLineComponent"], { label: "Attribute", valuesAreStrings: true, options: attributeOptions, target: inputBlock, propertyName: "name", onSelect: function (value) {
                             inputBlock.setAsAttribute(value);
                             _this.forceUpdate();
                             _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                         } }),
                 inputBlock.isUniform && animationOptions.length > 0 &&
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_optionsLineComponent__WEBPACK_IMPORTED_MODULE_11__["OptionsLineComponent"], { label: "Animation type", options: animationOptions, target: inputBlock, propertyName: "animationType", onSelect: function (value) {
                             _this.forceUpdate();
                             _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                         } }),
                 inputBlock.isUniform && !inputBlock.isSystemValue && inputBlock.animationType === babylonjs_Materials_Node_Enums_nodeMaterialBlockConnectionPointTypes__WEBPACK_IMPORTED_MODULE_12__["AnimatedInputBlockTypes"].None &&
                     this.renderValue(this.props.globalState),
@@ -62281,7 +62345,7 @@ var InputPropertyTabComponent = /** @class */ (function (_super) {
                             inputBlock.setAsSystemValue(value);
                             _this.forceUpdate();
                             _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                            _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                         } }),
                 inputBlock.isUniform && !inputBlock.isSystemValue && inputBlock.animationType === babylonjs_Materials_Node_Enums_nodeMaterialBlockConnectionPointTypes__WEBPACK_IMPORTED_MODULE_12__["AnimatedInputBlockTypes"].None &&
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_checkBoxLineComponent__WEBPACK_IMPORTED_MODULE_15__["CheckBoxLineComponent"], { label: "Visible on frame", target: this.props.block, propertyName: "visibleOnFrame" }))));
@@ -62332,7 +62396,7 @@ var LightInformationPropertyTabComponent = /** @class */ (function (_super) {
                 react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_optionsLineComponent__WEBPACK_IMPORTED_MODULE_3__["OptionsLineComponent"], { label: "Light", noDirectUpdate: true, valuesAreStrings: true, options: lightOptions, target: lightInformationBlock, propertyName: "name", onSelect: function (name) {
                         lightInformationBlock.light = scene.getLightByName(name);
                         _this.forceUpdate();
-                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                     } }))));
     };
     return LightInformationPropertyTabComponent;
@@ -62387,7 +62451,7 @@ var LightPropertyTabComponent = /** @class */ (function (_super) {
                             lightBlock.light = scene.getLightByName(name);
                         }
                         _this.forceUpdate();
-                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                     } }))));
     };
     return LightPropertyTabComponent;
@@ -62527,7 +62591,7 @@ var TexturePropertyTabComponent = /** @class */ (function (_super) {
     };
     TexturePropertyTabComponent.prototype.updateAfterTextureLoad = function () {
         this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-        this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+        this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
         this.forceUpdate();
     };
     TexturePropertyTabComponent.prototype.removeTexture = function () {
@@ -62678,6 +62742,9 @@ var TexturePropertyTabComponent = /** @class */ (function (_super) {
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_checkBoxLineComponent__WEBPACK_IMPORTED_MODULE_6__["CheckBoxLineComponent"], { label: "Is in gamma space", propertyName: "gammaSpace", target: texture, onValueChanged: function () {
                             _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
                         } }),
+                react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_checkBoxLineComponent__WEBPACK_IMPORTED_MODULE_6__["CheckBoxLineComponent"], { label: "Disable multiplying by level", propertyName: "disableLevelMultiplication", target: this.props.block, onValueChanged: function () {
+                        _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
+                    } }),
                 texture && texture.updateSamplingMode &&
                     react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_optionsLineComponent__WEBPACK_IMPORTED_MODULE_10__["OptionsLineComponent"], { label: "Sampling", options: samplingMode, target: texture, noDirectUpdate: true, propertyName: "samplingMode", onSelect: function (value) {
                             texture.updateSamplingMode(value);
@@ -62793,7 +62860,7 @@ var TransformPropertyTabComponent = /** @class */ (function (_super) {
                         else {
                             transformBlock.complementW = 1;
                         }
-                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                     }, isSelected: function () { return _this.props.block.complementW === 0; } }))));
     };
     return TransformPropertyTabComponent;
@@ -62862,7 +62929,7 @@ var TrigonometryPropertyTabComponent = /** @class */ (function (_super) {
             react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_lineContainerComponent__WEBPACK_IMPORTED_MODULE_2__["LineContainerComponent"], { title: "PROPERTIES" },
                 react__WEBPACK_IMPORTED_MODULE_1__["createElement"](_sharedComponents_optionsLineComponent__WEBPACK_IMPORTED_MODULE_3__["OptionsLineComponent"], { label: "Operation", options: operationOptions, target: trigonometryBlock, propertyName: "operation", onSelect: function (value) {
                         _this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                        _this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
                         _this.forceUpdate();
                     } }))));
     };
@@ -63210,9 +63277,9 @@ var GraphEditor = /** @class */ (function (_super) {
         _this.state = {
             showPreviewPopUp: false
         };
-        _this.props.globalState.onRebuildRequiredObservable.add(function () {
+        _this.props.globalState.onRebuildRequiredObservable.add(function (autoConfigure) {
             if (_this.props.globalState.nodeMaterial) {
-                _this.buildMaterial();
+                _this.buildMaterial(autoConfigure);
             }
         });
         _this.props.globalState.onResetRequiredObservable.add(function () {
@@ -63277,7 +63344,7 @@ var GraphEditor = /** @class */ (function (_super) {
                     _this._graphCanvas.selectedFrame.dispose();
                 }
                 _this.props.globalState.onSelectionChangedObservable.notifyObservers(null);
-                _this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+                _this.props.globalState.onRebuildRequiredObservable.notifyObservers(false);
                 return;
             }
             if (!evt.ctrlKey || _this.props.globalState.blockKeyboardEvents) {
@@ -63500,13 +63567,14 @@ var GraphEditor = /** @class */ (function (_super) {
     GraphEditor.prototype.zoomToFit = function () {
         this._graphCanvas.zoomToFit();
     };
-    GraphEditor.prototype.buildMaterial = function () {
+    GraphEditor.prototype.buildMaterial = function (autoConfigure) {
+        if (autoConfigure === void 0) { autoConfigure = true; }
         if (!this.props.globalState.nodeMaterial) {
             return;
         }
         try {
             this.props.globalState.nodeMaterial.options.emitComments = true;
-            this.props.globalState.nodeMaterial.build(true);
+            this.props.globalState.nodeMaterial.build(true, undefined, autoConfigure);
             this.props.globalState.onLogRequiredObservable.notifyObservers(new _components_log_logComponent__WEBPACK_IMPORTED_MODULE_5__["LogEntry"]("Node material build successful", false));
         }
         catch (err) {
@@ -64030,8 +64098,13 @@ var ButtonLineComponent = /** @class */ (function (_super) {
     }
     ButtonLineComponent.prototype.render = function () {
         var _this = this;
-        return (react__WEBPACK_IMPORTED_MODULE_1__["createElement"]("div", { className: "buttonLine" },
-            react__WEBPACK_IMPORTED_MODULE_1__["createElement"]("button", { onClick: function () { return _this.props.onClick(); } }, this.props.label)));
+        return (react__WEBPACK_IMPORTED_MODULE_1__["createElement"]("div", { className: "buttonLine" + (this.props.isDisabled ? " disabled" : "") },
+            react__WEBPACK_IMPORTED_MODULE_1__["createElement"]("button", { onClick: function () {
+                    if (_this.props.isDisabled) {
+                        return;
+                    }
+                    _this.props.onClick();
+                } }, this.props.label)));
     };
     return ButtonLineComponent;
 }(react__WEBPACK_IMPORTED_MODULE_1__["Component"]));
@@ -64171,7 +64244,8 @@ var Color3LineComponent = /** @class */ (function (_super) {
     };
     Color3LineComponent.prototype.onChange = function (newValue) {
         this._localChange = true;
-        var newColor = babylonjs_Maths_math_color__WEBPACK_IMPORTED_MODULE_2__["Color3"].FromHexString(newValue);
+        var isColor4 = this.props.target[this.props.propertyName].getClassName() === "Color4";
+        var newColor = isColor4 ? babylonjs_Maths_math_color__WEBPACK_IMPORTED_MODULE_2__["Color4"].FromHexString(newValue) : babylonjs_Maths_math_color__WEBPACK_IMPORTED_MODULE_2__["Color3"].FromHexString(newValue);
         if (this.props.onPropertyChangedObservable) {
             this.props.onPropertyChangedObservable.notifyObservers({
                 object: this.props.target,
@@ -64180,12 +64254,7 @@ var Color3LineComponent = /** @class */ (function (_super) {
                 initialValue: this.state.color
             });
         }
-        if (this.props.target[this.props.propertyName].getClassName() === "Color4") {
-            this.props.target[this.props.propertyName] = new babylonjs_Maths_math_color__WEBPACK_IMPORTED_MODULE_2__["Color4"](newColor.r, newColor.g, newColor.b, 1.0);
-        }
-        else {
-            this.props.target[this.props.propertyName] = newColor;
-        }
+        this.props.target[this.props.propertyName] = newColor;
         this.setState({ color: newColor });
         if (this.props.onChange) {
             this.props.onChange();
@@ -64477,7 +64546,7 @@ var ColorPickerLineComponent = /** @class */ (function (_super) {
         var result = nextProps.value.toHexString() !== this.props.value.toHexString()
             || nextState.hex !== this.state.hex
             || nextState.pickerEnabled !== this.state.pickerEnabled;
-        if (result) {
+        if (nextProps.value.toHexString() !== this.props.value.toHexString()) {
             nextState.color = nextProps.value;
             nextState.hex = nextProps.value.toHexString();
         }
@@ -65482,6 +65551,12 @@ var TextInputLineComponent = /** @class */ (function (_super) {
         }
         if (this.props.propertyName) {
             this.props.target[this.props.propertyName] = value;
+            if (this.props.propertyName === "name") {
+                if (this.props.target[this.props.propertyName] !== value) {
+                    // Name was rejected
+                    this.setState({ value: this.props.target[this.props.propertyName] });
+                }
+            }
         }
     };
     TextInputLineComponent.prototype.render = function () {
@@ -66172,6 +66247,10 @@ var ColorPicker = /** @class */ (function (_super) {
         _this._hueRef = react__WEBPACK_IMPORTED_MODULE_1__["createRef"]();
         return _this;
     }
+    ColorPicker.prototype.shouldComponentUpdate = function (nextProps, nextState) {
+        return (nextProps.color.toHexString() !== this.props.color.toHexString() ||
+            nextState.color.toHexString() !== this.props.color.toHexString());
+    };
     ColorPicker.prototype.onSaturationPointerDown = function (evt) {
         this._evaluateSaturation(evt);
         this._isSaturationPointerDown = true;
@@ -66222,7 +66301,7 @@ var ColorPicker = /** @class */ (function (_super) {
             console.log("Hue: " + hue);
         }
         var hsv = this.state.color.toHSV();
-        babylonjs_Maths_math_color__WEBPACK_IMPORTED_MODULE_2__["Color3"].HSVtoRGBToRef(hue, Math.max(hsv.g, 0.0001), Math.max(hsv.b, 0.0001), this.state.color);
+        babylonjs_Maths_math_color__WEBPACK_IMPORTED_MODULE_2__["Color3"].HSVtoRGBToRef(hue, Math.max(hsv.g, 0.01), Math.max(hsv.b, 0.01), this.state.color);
         this.setState({ color: this.state.color });
     };
     ColorPicker.prototype.componentDidUpdate = function () {

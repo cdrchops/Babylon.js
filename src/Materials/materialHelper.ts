@@ -6,7 +6,7 @@ import { Engine } from "../Engines/engine";
 import { EngineStore } from "../Engines/engineStore";
 import { AbstractMesh } from "../Meshes/abstractMesh";
 import { Mesh } from "../Meshes/mesh";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { Light } from "../Lights/light";
 import { Constants } from "../Engines/constants";
 import { PrePassConfiguration } from "../Materials/prePassConfiguration";
@@ -14,12 +14,10 @@ import { PrePassConfiguration } from "../Materials/prePassConfiguration";
 import { UniformBuffer } from "./uniformBuffer";
 import { Effect, IEffectCreationOptions } from "./effect";
 import { BaseTexture } from "../Materials/Textures/baseTexture";
-import { WebVRFreeCamera } from '../Cameras/VR/webVRCamera';
 import { MaterialDefines } from "./materialDefines";
 import { Color3 } from '../Maths/math.color';
 import { EffectFallbacks } from './effectFallbacks';
 import { ThinMaterialHelper } from './thinMaterialHelper';
-import { TmpVectors, Vector4 } from '../Maths/math.vector';
 
 /**
  * "Static Class" containing the most commonly used helper while dealing with material for rendering purpose.
@@ -29,54 +27,6 @@ import { TmpVectors, Vector4 } from '../Maths/math.vector';
  * This works by convention in BabylonJS but is meant to be use only with shader following the in place naming rules and conventions.
  */
 export class MaterialHelper {
-
-    /**
-     * Bind the current view position to an effect.
-     * @param effect The effect to be bound
-     * @param scene The scene the eyes position is used from
-     * @param variableName name of the shader variable that will hold the eye position
-     * @param isVector3 true to indicates that variableName is a Vector3 and not a Vector4
-     * @return the computed eye position
-     */
-    public static BindEyePosition(effect: Nullable<Effect>, scene: Scene, variableName = "vEyePosition", isVector3 = false): Vector4 {
-        const eyePosition =
-            scene._forcedViewPosition ? scene._forcedViewPosition :
-            scene._mirroredCameraPosition ? scene._mirroredCameraPosition :
-            scene.activeCamera!.globalPosition ?? (scene.activeCamera as WebVRFreeCamera).devicePosition;
-
-        const invertNormal = (scene.useRightHandedSystem === (scene._mirroredCameraPosition != null));
-
-        TmpVectors.Vector4[0].set(eyePosition.x, eyePosition.y, eyePosition.z, invertNormal ? -1 : 1);
-
-        if (effect) {
-            if (isVector3) {
-                effect.setFloat3(variableName, TmpVectors.Vector4[0].x, TmpVectors.Vector4[0].y, TmpVectors.Vector4[0].z);
-            } else {
-                effect.setVector4(variableName, TmpVectors.Vector4[0]);
-            }
-        }
-
-        return TmpVectors.Vector4[0];
-    }
-
-    /**
-     * Update the scene ubo before it can be used in rendering processing
-     * @param scene the scene to retrieve the ubo from
-     * @returns the scene UniformBuffer
-     */
-    public static FinalizeSceneUbo(scene: Scene): UniformBuffer {
-        const ubo = scene.getSceneUniformBuffer();
-        const eyePosition = MaterialHelper.BindEyePosition(null, scene);
-        ubo.updateFloat4("vEyePosition",
-            eyePosition.x,
-            eyePosition.y,
-            eyePosition.z,
-            eyePosition.w);
-
-        ubo.update();
-
-        return ubo;
-    }
 
     /**
      * Binds the scene's uniform buffer to the effect.
@@ -99,11 +49,7 @@ export class MaterialHelper {
         defines[key] = true;
         if (texture.getTextureMatrix().isIdentityAs3x2()) {
             defines[key + "DIRECTUV"] = texture.coordinatesIndex + 1;
-            if (texture.coordinatesIndex === 0) {
-                defines["MAINUV1"] = true;
-            } else {
-                defines["MAINUV2"] = true;
-            }
+            defines["MAINUV" + (texture.coordinatesIndex + 1)] = true;
         } else {
             defines[key + "DIRECTUV"] = 0;
         }
@@ -304,12 +250,8 @@ export class MaterialHelper {
             defines["TANGENT"] = true;
         }
 
-        if (defines._needUVs) {
-            defines["UV1"] = mesh.isVerticesDataPresent(VertexBuffer.UVKind);
-            defines["UV2"] = mesh.isVerticesDataPresent(VertexBuffer.UV2Kind);
-        } else {
-            defines["UV1"] = false;
-            defines["UV2"] = false;
+        for (let i = 1; i <= Constants.MAX_SUPPORTED_UV_SETS; ++i) {
+            defines["UV" + i] = defines._needUVs ? mesh.isVerticesDataPresent(`uv${i === 1 ? "" : i}`) : false;
         }
 
         if (useVertexColor) {
@@ -358,41 +300,41 @@ export class MaterialHelper {
         }
 
         const texturesList = [
-        {
-            type: Constants.PREPASS_POSITION_TEXTURE_TYPE,
-            define: "PREPASS_POSITION",
-            index: "PREPASS_POSITION_INDEX",
-        },
-        {
-            type: Constants.PREPASS_VELOCITY_TEXTURE_TYPE,
-            define: "PREPASS_VELOCITY",
-            index: "PREPASS_VELOCITY_INDEX",
-        },
-        {
-            type: Constants.PREPASS_REFLECTIVITY_TEXTURE_TYPE,
-            define: "PREPASS_REFLECTIVITY",
-            index: "PREPASS_REFLECTIVITY_INDEX",
-        },
-        {
-            type: Constants.PREPASS_IRRADIANCE_TEXTURE_TYPE,
-            define: "PREPASS_IRRADIANCE",
-            index: "PREPASS_IRRADIANCE_INDEX",
-        },
-        {
-            type: Constants.PREPASS_ALBEDO_TEXTURE_TYPE,
-            define: "PREPASS_ALBEDO",
-            index: "PREPASS_ALBEDO_INDEX",
-        },
-        {
-            type: Constants.PREPASS_DEPTH_TEXTURE_TYPE,
-            define: "PREPASS_DEPTH",
-            index: "PREPASS_DEPTH_INDEX",
-        },
-        {
-            type: Constants.PREPASS_NORMAL_TEXTURE_TYPE,
-            define: "PREPASS_NORMAL",
-            index: "PREPASS_NORMAL_INDEX",
-        }];
+            {
+                type: Constants.PREPASS_POSITION_TEXTURE_TYPE,
+                define: "PREPASS_POSITION",
+                index: "PREPASS_POSITION_INDEX",
+            },
+            {
+                type: Constants.PREPASS_VELOCITY_TEXTURE_TYPE,
+                define: "PREPASS_VELOCITY",
+                index: "PREPASS_VELOCITY_INDEX",
+            },
+            {
+                type: Constants.PREPASS_REFLECTIVITY_TEXTURE_TYPE,
+                define: "PREPASS_REFLECTIVITY",
+                index: "PREPASS_REFLECTIVITY_INDEX",
+            },
+            {
+                type: Constants.PREPASS_IRRADIANCE_TEXTURE_TYPE,
+                define: "PREPASS_IRRADIANCE",
+                index: "PREPASS_IRRADIANCE_INDEX",
+            },
+            {
+                type: Constants.PREPASS_ALBEDO_TEXTURE_TYPE,
+                define: "PREPASS_ALBEDO",
+                index: "PREPASS_ALBEDO_INDEX",
+            },
+            {
+                type: Constants.PREPASS_DEPTH_TEXTURE_TYPE,
+                define: "PREPASS_DEPTH",
+                index: "PREPASS_DEPTH_INDEX",
+            },
+            {
+                type: Constants.PREPASS_NORMAL_TEXTURE_TYPE,
+                define: "PREPASS_NORMAL",
+                index: "PREPASS_NORMAL_INDEX",
+            }];
 
         if (scene.prePassRenderer && scene.prePassRenderer.enabled && canRenderToMRT) {
             defines.PREPASS = true;
@@ -812,19 +754,26 @@ export class MaterialHelper {
      */
     public static PrepareAttributesForInstances(attribs: string[], defines: MaterialDefines): void {
         if (defines["INSTANCES"] || defines["THIN_INSTANCES"]) {
-            this.PushAttributesForInstances(attribs);
+            this.PushAttributesForInstances(attribs, !!defines["PREPASS_VELOCITY"]);
         }
     }
 
     /**
      * Add the list of attributes required for instances to the attribs array.
      * @param attribs The current list of supported attribs
+     * @param needsPreviousMatrices If the shader needs previous matrices
      */
-    public static PushAttributesForInstances(attribs: string[]): void {
+    public static PushAttributesForInstances(attribs: string[], needsPreviousMatrices: boolean = false): void {
         attribs.push("world0");
         attribs.push("world1");
         attribs.push("world2");
         attribs.push("world3");
+        if (needsPreviousMatrices) {
+            attribs.push("previousWorld0");
+            attribs.push("previousWorld1");
+            attribs.push("previousWorld2");
+            attribs.push("previousWorld3");
+        }
     }
 
     /**
@@ -844,10 +793,10 @@ export class MaterialHelper {
      * @param scene The scene where the light belongs to
      * @param effect The effect we are binding the data to
      * @param useSpecular Defines if specular is supported
-     * @param rebuildInParallel Specifies whether the shader is rebuilding in parallel
+     * @param receiveShadows Defines if the effect (mesh) we bind the light for receives shadows
      */
-    public static BindLight(light: Light, lightIndex: number, scene: Scene, effect: Effect, useSpecular: boolean, rebuildInParallel = false): void {
-        light._bindLight(lightIndex, scene, effect, useSpecular, rebuildInParallel);
+    public static BindLight(light: Light, lightIndex: number, scene: Scene, effect: Effect, useSpecular: boolean, receiveShadows = true): void {
+        light._bindLight(lightIndex, scene, effect, useSpecular, receiveShadows);
     }
 
     /**
@@ -857,15 +806,14 @@ export class MaterialHelper {
      * @param effect The effect we are binding the data to
      * @param defines The generated defines for the effect
      * @param maxSimultaneousLights The maximum number of light that can be bound to the effect
-     * @param rebuildInParallel Specifies whether the shader is rebuilding in parallel
      */
-    public static BindLights(scene: Scene, mesh: AbstractMesh, effect: Effect, defines: any, maxSimultaneousLights = 4, rebuildInParallel = false): void {
+    public static BindLights(scene: Scene, mesh: AbstractMesh, effect: Effect, defines: any, maxSimultaneousLights = 4): void {
         let len = Math.min(mesh.lightSources.length, maxSimultaneousLights);
 
         for (var i = 0; i < len; i++) {
 
             let light = mesh.lightSources[i];
-            this.BindLight(light, i, scene, effect, typeof defines === "boolean" ? defines : defines["SPECULARTERM"], rebuildInParallel);
+            this.BindLight(light, i, scene, effect, typeof defines === "boolean" ? defines : defines["SPECULARTERM"], mesh.receiveShadows);
         }
     }
 

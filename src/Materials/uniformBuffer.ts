@@ -1,9 +1,9 @@
 import { Logger } from "../Misc/logger";
 import { Nullable, FloatArray } from "../types";
-import { IMatrixLike, IVector3Like, IVector4Like, IColor3Like } from "../Maths/math.like";
+import { IMatrixLike, IVector3Like, IVector4Like, IColor3Like, IColor4Like } from "../Maths/math.like";
 import { Effect } from "./effect";
 import { ThinTexture } from "../Materials/Textures/thinTexture";
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { ThinEngine } from "../Engines/thinEngine";
 import { Tools } from "../Misc/tools";
 
@@ -25,7 +25,7 @@ export class UniformBuffer {
 
     private _engine: ThinEngine;
     private _buffer: Nullable<DataBuffer>;
-    private _buffers : Array<DataBuffer>;
+    private _buffers: Array<[DataBuffer, Float32Array | undefined]>;
     private _bufferIndex: number;
     private _createBufferOnWrite: boolean;
     private _data: number[];
@@ -41,9 +41,6 @@ export class UniformBuffer {
     private _currentEffectName: string;
     private _name: string;
     private _currentFrameId: number;
-
-    /** @hidden */
-    public _alreadyBound = false;
 
     // Pool for avoiding memory leaks
     private static _MAX_UNIFORM_SIZE = 256;
@@ -125,7 +122,7 @@ export class UniformBuffer {
      * This is dynamic to allow compat with webgl 1 and 2.
      * You will need to pass the name of the uniform as well as the value.
      */
-    public updateMatrices:  (name: string, mat: Float32Array) => void;
+    public updateMatrices: (name: string, mat: Float32Array) => void;
 
     /**
      * Lambda to Update vec3 of float from a Vector in a uniform buffer.
@@ -156,10 +153,17 @@ export class UniformBuffer {
     public updateColor4: (name: string, color: IColor3Like, alpha: number, suffix?: string) => void;
 
     /**
-     * Lambda to Update a int a uniform buffer.
+     * Lambda to Update vec4 of float from a Color in a uniform buffer.
      * This is dynamic to allow compat with webgl 1 and 2.
      * You will need to pass the name of the uniform as well as the value.
      */
+    public updateDirectColor4: (name: string, color: IColor4Like, suffix?: string) => void;
+
+    /**
+    * Lambda to Update a int a uniform buffer.
+    * This is dynamic to allow compat with webgl 1 and 2.
+    * You will need to pass the name of the uniform as well as the value.
+    */
     public updateInt: (name: string, x: number, suffix?: string) => void;
 
     /**
@@ -234,6 +238,7 @@ export class UniformBuffer {
             this.updateVector4 = this._updateVector4ForEffect;
             this.updateColor3 = this._updateColor3ForEffect;
             this.updateColor4 = this._updateColor4ForEffect;
+            this.updateDirectColor4 = this._updateDirectColor4ForEffect;
             this.updateInt = this._updateIntForEffect;
             this.updateInt2 = this._updateInt2ForEffect;
             this.updateInt3 = this._updateInt3ForEffect;
@@ -256,6 +261,7 @@ export class UniformBuffer {
             this.updateVector4 = this._updateVector4ForUniform;
             this.updateColor3 = this._updateColor3ForUniform;
             this.updateColor4 = this._updateColor4ForUniform;
+            this.updateDirectColor4 = this._updateDirectColor4ForUniform;
             this.updateInt = this._updateIntForUniform;
             this.updateInt2 = this._updateInt2ForUniform;
             this.updateInt3 = this._updateInt3ForUniform;
@@ -368,8 +374,8 @@ export class UniformBuffer {
                 size = size * arraySize;
             }
             else {
-                const perElementPadding =  4 - size;
-                const totalPadding =  perElementPadding * arraySize;
+                const perElementPadding = 4 - size;
+                const totalPadding = perElementPadding * arraySize;
                 size = size * arraySize + totalPadding;
             }
 
@@ -518,7 +524,7 @@ export class UniformBuffer {
         }
 
         if (this._engine._features.trackUbosInFrame) {
-            this._buffers.push(this._buffer);
+            this._buffers.push([this._buffer, this._engine._features.checkUbosContentBeforeUpload ? this._bufferData.slice() : undefined]);
             this._bufferIndex = this._buffers.length - 1;
             this._createBufferOnWrite = false;
         }
@@ -539,6 +545,21 @@ export class UniformBuffer {
         return this._name;
     }
 
+    private _buffersEqual(buf1: Float32Array, buf2: Float32Array): boolean {
+        for (let i = 0; i < buf1.length; ++i) {
+            if (buf1[i] !== buf2[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private _copyBuffer(src: Float32Array, dst: Float32Array): void {
+        for (let i = 0; i < src.length; ++i) {
+            dst[i] = src[i];
+        }
+    }
+
     /**
      * Updates the WebGL Uniform Buffer on the GPU.
      * If the `dynamic` flag is set to true, no cache comparison is done.
@@ -553,6 +574,16 @@ export class UniformBuffer {
         if (!this._dynamic && !this._needSync) {
             this._createBufferOnWrite = this._engine._features.trackUbosInFrame;
             return;
+        }
+
+        if (this._buffers?.[this._bufferIndex][1]) {
+            if (this._buffersEqual(this._bufferData, this._buffers[this._bufferIndex][1]!)) {
+                this._needSync = false;
+                this._createBufferOnWrite = this._engine._features.trackUbosInFrame;
+                return;
+            } else {
+                this._copyBuffer(this._bufferData, this._buffers[this._bufferIndex][1]!);
+            }
         }
 
         this._engine.updateUniformBuffer(this._buffer, this._bufferData);
@@ -571,7 +602,7 @@ export class UniformBuffer {
     private _createNewBuffer() {
         if (this._bufferIndex + 1 < this._buffers.length) {
             this._bufferIndex++;
-            this._buffer = this._buffers[this._bufferIndex];
+            this._buffer = this._buffers[this._bufferIndex][0];
             this._createBufferOnWrite = false;
             this._needSync = true;
         } else {
@@ -589,7 +620,7 @@ export class UniformBuffer {
             if (this._buffers && this._buffers.length > 0) {
                 this._needSync = this._bufferIndex !== 0;
                 this._bufferIndex = 0;
-                this._buffer = this._buffers[this._bufferIndex];
+                this._buffer = this._buffers[this._bufferIndex][0];
             } else {
                 this._bufferIndex = -1;
             }
@@ -874,11 +905,23 @@ export class UniformBuffer {
         this._currentEffect.setColor4(name + suffix, color, alpha);
     }
 
+    private _updateDirectColor4ForEffect(name: string, color: IColor4Like, suffix = "") {
+        this._currentEffect.setDirectColor4(name + suffix, color);
+    }
+
     private _updateColor4ForUniform(name: string, color: IColor3Like, alpha: number) {
         UniformBuffer._tempBuffer[0] = color.r;
         UniformBuffer._tempBuffer[1] = color.g;
         UniformBuffer._tempBuffer[2] = color.b;
         UniformBuffer._tempBuffer[3] = alpha;
+        this.updateUniform(name, UniformBuffer._tempBuffer, 4);
+    }
+
+    private _updateDirectColor4ForUniform(name: string, color: IColor4Like) {
+        UniformBuffer._tempBuffer[0] = color.r;
+        UniformBuffer._tempBuffer[1] = color.g;
+        UniformBuffer._tempBuffer[2] = color.b;
+        UniformBuffer._tempBuffer[3] = color.a;
         this.updateUniform(name, UniformBuffer._tempBuffer, 4);
     }
 
@@ -957,7 +1000,6 @@ export class UniformBuffer {
             return;
         }
 
-        this._alreadyBound = true;
         effect.bindUniformBuffer(this._buffer, name);
     }
 
@@ -979,7 +1021,7 @@ export class UniformBuffer {
 
         if (this._engine._features.trackUbosInFrame && this._buffers) {
             for (let i = 0; i < this._buffers.length; ++i) {
-                const buffer = this._buffers[i];
+                const buffer = this._buffers[i][0];
                 this._engine._releaseBuffer(buffer!);
             }
         } else if (this._buffer && this._engine._releaseBuffer(this._buffer)) {

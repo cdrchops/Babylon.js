@@ -6,7 +6,7 @@ import { MaterialDefines } from "babylonjs/Materials/materialDefines";
 import { MaterialHelper } from "babylonjs/Materials/materialHelper";
 import { PushMaterial } from "babylonjs/Materials/pushMaterial";
 import { MaterialFlags } from "babylonjs/Materials/materialFlags";
-import { VertexBuffer } from "babylonjs/Meshes/buffer";
+import { VertexBuffer } from "babylonjs/Buffers/buffer";
 import { AbstractMesh } from "babylonjs/Meshes/abstractMesh";
 import { SubMesh } from "babylonjs/Meshes/subMesh";
 import { Mesh } from "babylonjs/Meshes/mesh";
@@ -111,7 +111,7 @@ export class GridMaterial extends PushMaterial {
     }
 
     public needAlphaBlendingForMesh(mesh: AbstractMesh): boolean {
-        return this.needAlphaBlending();
+        return mesh.visibility < 1.0 || this.needAlphaBlending();
     }
 
     public isReadyForSubMesh(mesh: AbstractMesh, subMesh: SubMesh, useInstances?: boolean): boolean {
@@ -187,7 +187,7 @@ export class GridMaterial extends PushMaterial {
             subMesh.setEffect(scene.getEngine().createEffect("grid",
                 attribs,
                 ["projection", "mainColor", "lineColor", "gridControl", "gridOffset", "vFogInfos", "vFogColor", "world", "view",
-                    "opacityMatrix", "vOpacityInfos"],
+                    "opacityMatrix", "vOpacityInfos", "visibility"],
                 ["opacitySampler"],
                 join,
                 undefined,
@@ -218,6 +218,8 @@ export class GridMaterial extends PushMaterial {
             return;
         }
         this._activeEffect = effect;
+
+        this._activeEffect.setFloat("visibility", mesh.visibility);
 
         // Matrices
         if (!defines.INSTANCES || defines.THIN_INSTANCE) {

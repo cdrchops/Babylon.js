@@ -125,6 +125,7 @@ export class RayHelper {
 
         Mesh.CreateLines("ray", this._renderPoints, this._scene, true, this._renderLine);
 
+        this._renderLine?.refreshBoundingInfo();
     }
 
     /**
@@ -211,7 +212,7 @@ export class RayHelper {
             return;
         }
 
-        if (this._attachedToMesh._isDisposed) {
+        if (this._attachedToMesh.isDisposed()) {
             this.detachFromMesh();
             return;
         }

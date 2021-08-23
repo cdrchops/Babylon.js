@@ -59,6 +59,8 @@ uniform Material {
     vec4 vMetallicReflectanceFactors;
     vec2 vMetallicReflectanceInfos;
     mat4 metallicReflectanceMatrix;
+    vec2 vReflectanceInfos;
+    mat4 reflectanceMatrix;
 
     vec2 vClearCoatParams;
     vec4 vClearCoatRefractionParams;
@@ -83,12 +85,16 @@ uniform Material {
     mat4 sheenMatrix;
     mat4 sheenRoughnessMatrix;
 
-    vec3 vRefractionMicrosurfaceInfos;
+    vec4 vRefractionMicrosurfaceInfos;
     vec2 vRefractionFilteringInfo;
+    vec2 vTranslucencyIntensityInfos;
     vec4 vRefractionInfos;
     mat4 refractionMatrix;
     vec2 vThicknessInfos;
+    vec2 vRefractionIntensityInfos;
     mat4 thicknessMatrix;
+    mat4 refractionIntensityMatrix;
+    mat4 translucencyIntensityMatrix;
     vec2 vThicknessParam;
     vec3 vDiffusionDistance;
     vec4 vTintColor;

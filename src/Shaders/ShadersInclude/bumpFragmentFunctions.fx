@@ -1,41 +1,9 @@
 #if defined(BUMP)
-	#if BUMPDIRECTUV == 1
-		#define vBumpUV vMainUV1
-	#elif BUMPDIRECTUV == 2
-		#define vBumpUV vMainUV2
-	#else
-		varying vec2 vBumpUV;
-	#endif
-	uniform sampler2D bumpSampler;
-	
-	vec3 perturbNormal(mat3 cotangentFrame, vec2 uv)
-	{
-		return perturbNormal(cotangentFrame, texture2D(bumpSampler, uv).xyz, vBumpInfos.y);
-	}
+    #include<samplerFragmentDeclaration>(_DEFINENAME_,BUMP,_VARYINGNAME_,Bump,_SAMPLERNAME_,bump)
 #endif
 
 #if defined(DETAIL)
-	#if DETAILDIRECTUV == 1
-		#define vDetailUV vMainUV1
-	#elif DETAILDIRECTUV == 2
-		#define vDetailUV vMainUV2
-	#else
-		varying vec2 vDetailUV;
-	#endif
-	uniform sampler2D detailSampler;
-#endif
-
-#if defined(BUMP)
-	vec3 perturbNormal(mat3 cotangentFrame, vec3 color)
-	{
-		return perturbNormal(cotangentFrame, color, vBumpInfos.y);
-	}
-
-	// Thanks to http://www.thetenthplanet.de/archives/1180
-	mat3 cotangent_frame(vec3 normal, vec3 p, vec2 uv)
-	{
-		return cotangent_frame(normal, p, uv, vTangentSpaceParams);
-	}
+    #include<samplerFragmentDeclaration>(_DEFINENAME_,DETAIL,_VARYINGNAME_,Detail,_SAMPLERNAME_,detail)
 #endif
 
 #if defined(BUMP) && defined(PARALLAX)
@@ -63,7 +31,7 @@
 
 		for (int i = 0; i < iMaxSamples; i++)
 		{
-			currSampledHeight = texture2D(bumpSampler, vBumpUV + vCurrOffset).w;
+			currSampledHeight = texture2D(bumpSampler, texCoord + vCurrOffset).w;
 
 			// Test if the view ray has intersected the surface.
 			if (currSampledHeight > currRayHeight)

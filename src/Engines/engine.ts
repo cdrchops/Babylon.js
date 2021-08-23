@@ -15,7 +15,7 @@ import { Constants } from './constants';
 import { IViewportLike, IColor4Like } from '../Maths/math.like';
 import { RenderTargetTexture } from '../Materials/Textures/renderTargetTexture';
 import { PerformanceMonitor } from '../Misc/performanceMonitor';
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { PerfCounter } from '../Misc/perfCounter';
 import { WebGLDataBuffer } from '../Meshes/WebGL/webGLDataBuffer';
 import { Logger } from '../Misc/logger';
@@ -25,8 +25,8 @@ import "./Extensions/engine.readTexture";
 import "./Extensions/engine.dynamicBuffer";
 import { IAudioEngine } from '../Audio/Interfaces/IAudioEngine';
 import { IPointerEvent } from "../Events/deviceInputEvents";
-import { CanvasGenerator } from '../Misc/canvasGenerator';
 
+declare type IDeviceInputSystem = import("../DeviceInput/Interfaces/inputInterfaces").IDeviceInputSystem;
 declare type Material = import("../Materials/material").Material;
 declare type PostProcess = import("../PostProcesses/postProcess").PostProcess;
 
@@ -309,7 +309,7 @@ export class Engine extends ThinEngine {
      * @returns an uint8array containing RGBA values of bufferWidth * bufferHeight size
      */
     public resizeImageBitmap(image: HTMLImageElement | ImageBitmap, bufferWidth: number, bufferHeight: number): Uint8Array {
-        var canvas = CanvasGenerator.CreateCanvas(bufferWidth, bufferHeight);
+        var canvas = this.createCanvas(bufferWidth, bufferHeight);
         var context = canvas.getContext("2d");
 
         if (!context) {
@@ -371,6 +371,9 @@ export class Engine extends ThinEngine {
      */
     public scenes = new Array<Scene>();
 
+    /** @hidden */
+    public _virtualScenes = new Array<Scene>();
+
     /**
      * Event raised when a new scene is created
      */
@@ -385,6 +388,11 @@ export class Engine extends ThinEngine {
      * Gets a boolean indicating if the pointer is currently locked
      */
     public isPointerLock = false;
+
+    /**
+     * Stores instance of DeviceInputSystem
+     */
+    public deviceInputSystem: IDeviceInputSystem;
 
     // Observables
 
@@ -444,7 +452,7 @@ export class Engine extends ThinEngine {
      * Default AudioEngine factory responsible of creating the Audio Engine.
      * By default, this will create a BabylonJS Audio Engine if the workload has been embedded.
      */
-    public static AudioEngineFactory: (hostElement: Nullable<HTMLElement>) => IAudioEngine;
+    public static AudioEngineFactory: (hostElement: Nullable<HTMLElement>, audioContext: Nullable<AudioContext>, audioDestination: Nullable<AudioDestinationNode | MediaStreamAudioDestinationNode>) => IAudioEngine;
 
     /**
      * Default offline support factory responsible of creating a tool used to store data locally.
@@ -574,7 +582,7 @@ export class Engine extends ThinEngine {
 
                 // Create Audio Engine if needed.
                 if (!Engine.audioEngine && options.audioEngine && Engine.AudioEngineFactory) {
-                    Engine.audioEngine = Engine.AudioEngineFactory(this.getRenderingCanvas());
+                    Engine.audioEngine = Engine.AudioEngineFactory(this.getRenderingCanvas(), this.getAudioContext(), this.getAudioDestination());
                 }
             }
 
@@ -649,7 +657,7 @@ export class Engine extends ThinEngine {
 
         // Create Audio Engine if needed.
         if (!Engine.audioEngine && audioEngine && Engine.AudioEngineFactory) {
-            Engine.audioEngine = Engine.AudioEngineFactory(this.getRenderingCanvas());
+            Engine.audioEngine = Engine.AudioEngineFactory(this.getRenderingCanvas(), this.getAudioContext(), this.getAudioDestination());
         }
     }
 
@@ -737,51 +745,6 @@ export class Engine extends ThinEngine {
     }
 
     /** States */
-
-    /**
-     * Set various states to the webGL context
-     * @param culling defines backface culling state
-     * @param zOffset defines the value to apply to zOffset (0 by default)
-     * @param force defines if states must be applied even if cache is up to date
-     * @param reverseSide defines if culling must be reversed (CCW instead of CW and CW instead of CCW)
-     */
-    public setState(culling: boolean, zOffset: number = 0, force?: boolean, reverseSide = false): void {
-        // Culling
-        if (this._depthCullingState.cull !== culling || force) {
-            this._depthCullingState.cull = culling;
-        }
-
-        // Cull face
-        var cullFace = this.cullBackFaces ? this._gl.BACK : this._gl.FRONT;
-        if (this._depthCullingState.cullFace !== cullFace || force) {
-            this._depthCullingState.cullFace = cullFace;
-        }
-
-        // Z offset
-        this.setZOffset(zOffset);
-
-        // Front face
-        var frontFace = reverseSide ? this._gl.CW : this._gl.CCW;
-        if (this._depthCullingState.frontFace !== frontFace || force) {
-            this._depthCullingState.frontFace = frontFace;
-        }
-    }
-
-    /**
-     * Set the z offset to apply to current rendering
-     * @param value defines the offset to apply
-     */
-    public setZOffset(value: number): void {
-        this._depthCullingState.zOffset = value;
-    }
-
-    /**
-     * Gets the current value of the zOffset
-     * @returns the current zOffset state
-     */
-    public getZOffset(): number {
-        return this._depthCullingState.zOffset;
-    }
 
     /**
      * Gets a boolean indicating if depth testing is enabled
@@ -987,28 +950,28 @@ export class Engine extends ThinEngine {
      * Sets the current depth function to GREATER
      */
     public setDepthFunctionToGreater(): void {
-        this._depthCullingState.depthFunc = Constants.GREATER;
+        this.setDepthFunction(Constants.GREATER);
     }
 
     /**
      * Sets the current depth function to GEQUAL
      */
     public setDepthFunctionToGreaterOrEqual(): void {
-        this._depthCullingState.depthFunc = Constants.GEQUAL;
+        this.setDepthFunction(Constants.GEQUAL);
     }
 
     /**
      * Sets the current depth function to LESS
      */
     public setDepthFunctionToLess(): void {
-        this._depthCullingState.depthFunc = Constants.LESS;
+        this.setDepthFunction(Constants.LESS);
     }
 
     /**
      * Sets the current depth function to LEQUAL
      */
     public setDepthFunctionToLessOrEqual(): void {
-        this._depthCullingState.depthFunc = Constants.LEQUAL;
+        this.setDepthFunction(Constants.LEQUAL);
     }
 
     private _cachedStencilBuffer: boolean;
@@ -1100,8 +1063,8 @@ export class Engine extends ThinEngine {
         gl.disable(gl.SCISSOR_TEST);
     }
 
-    protected _reportDrawCall() {
-        this._drawCalls.addCount(1, false);
+    protected _reportDrawCall(numDrawCalls = 1) {
+        this._drawCalls.addCount(numDrawCalls, false);
     }
 
     /**
@@ -1246,6 +1209,12 @@ export class Engine extends ThinEngine {
     protected _rebuildBuffers(): void {
         // Index / Vertex
         for (var scene of this.scenes) {
+            scene.resetCachedMaterial();
+            scene._rebuildGeometries();
+            scene._rebuildTextures();
+        }
+
+        for (var scene of this._virtualScenes) {
             scene.resetCachedMaterial();
             scene._rebuildGeometries();
             scene._rebuildTextures();
@@ -1535,7 +1504,7 @@ export class Engine extends ThinEngine {
         }
 
         this._rescalePostProcess.getEffect().executeWhenCompiled(() => {
-            this._rescalePostProcess.onApply = function(effect) {
+            this._rescalePostProcess.onApply = function (effect) {
                 effect._bindTexture("textureSampler", source);
             };
 
@@ -1754,12 +1723,12 @@ export class Engine extends ThinEngine {
             let check = () => {
                 const res = gl.clientWaitSync(sync, flags, 0);
                 if (res == gl.WAIT_FAILED) {
-                reject();
-                return;
+                    reject();
+                    return;
                 }
                 if (res == gl.TIMEOUT_EXPIRED) {
-                setTimeout(check, interval_ms);
-                return;
+                    setTimeout(check, interval_ms);
+                    return;
                 }
                 resolve();
             };
@@ -1820,6 +1789,10 @@ export class Engine extends ThinEngine {
             this.scenes[0].dispose();
         }
 
+        while (this._virtualScenes.length) {
+            this._virtualScenes[0].dispose();
+        }
+
         // Release audio engine
         if (Engine.Instances.length === 1 && Engine.audioEngine) {
             Engine.audioEngine.dispose();
@@ -1828,6 +1801,11 @@ export class Engine extends ThinEngine {
 
         //WebVR
         this.disableVR();
+
+        // DeviceInputSystem
+        if (this.deviceInputSystem) {
+            this.deviceInputSystem.dispose();
+        }
 
         // Events
         if (DomManagement.IsWindowObjectExist()) {

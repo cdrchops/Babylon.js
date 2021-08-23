@@ -2,7 +2,7 @@ import { serializeAsVector3, serialize, serializeAsMeshReference } from "../Misc
 import { SmartArray } from "../Misc/smartArray";
 import { Logger } from "../Misc/logger";
 import { Vector2, Vector3, Matrix } from "../Maths/math.vector";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { AbstractMesh } from "../Meshes/abstractMesh";
 import { SubMesh } from "../Meshes/subMesh";
 import { Mesh } from "../Meshes/mesh";
@@ -127,13 +127,13 @@ export class VolumetricLightScatteringPostProcess extends PostProcess {
      */
     constructor(name: string, ratio: any, camera: Camera, mesh?: Mesh, samples: number = 100, samplingMode: number = Texture.BILINEAR_SAMPLINGMODE, engine?: Engine, reusable?: boolean, scene?: Scene) {
         super(name, "volumetricLightScattering", ["decay", "exposure", "weight", "meshPositionOnScreen", "density"], ["lightScatteringSampler"], ratio.postProcessRatio || ratio, camera, samplingMode, engine, reusable, "#define NUM_SAMPLES " + samples);
-        scene = <Scene>((camera === null) ? scene : camera.getScene()); // parameter "scene" can be null.
+        scene = camera?.getScene() ?? scene; // parameter "scene" can be null.
 
         engine = scene.getEngine();
         this._viewPort = new Viewport(0, 0, 1, 1).toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
 
         // Configure mesh
-        this.mesh = (<Mesh>((mesh !== null) ? mesh : VolumetricLightScatteringPostProcess.CreateDefaultMesh("VolumetricLightScatteringMesh", scene)));
+        this.mesh = mesh ?? VolumetricLightScatteringPostProcess.CreateDefaultMesh("VolumetricLightScatteringMesh", scene);
         this._volumetricLightScatteringPass = new DrawWrapper(engine);
 
         // Configure
@@ -315,7 +315,7 @@ export class VolumetricLightScatteringPostProcess extends PostProcess {
             var engine = scene.getEngine();
 
             // Culling
-            engine.setState(material.backFaceCulling);
+            engine.setState(material.backFaceCulling, undefined, undefined, undefined, material.cullBackFaces);
 
             // Managing instances
             var batch = renderingMesh._getInstancesRenderList(subMesh._id, !!subMesh.getReplacementMesh());
@@ -339,7 +339,9 @@ export class VolumetricLightScatteringPostProcess extends PostProcess {
                 const effect = drawWrapper.effect!;
 
                 engine.enableEffect(drawWrapper);
-                renderingMesh._bind(subMesh, effect, material.fillMode);
+                if (!hardwareInstancedRendering) {
+                    renderingMesh._bind(subMesh, effect, material.fillMode);
+                }
 
                 if (renderingMesh === this.mesh) {
                     material.bind(effectiveMesh.getWorldMatrix(), renderingMesh);

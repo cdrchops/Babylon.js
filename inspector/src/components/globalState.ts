@@ -55,7 +55,7 @@ export class GlobalState {
     };
 
     public glTFLoaderDefaults: { [key: string]: any } = {
-        animationStartMode: typeof GLTFLoaderAnimationStartMode !== 'undefined' ? GLTFLoaderAnimationStartMode.FIRST : 1 ,
+        animationStartMode: typeof GLTFLoaderAnimationStartMode !== 'undefined' ? GLTFLoaderAnimationStartMode.FIRST : 1,
         capturePerformanceCounters: false,
         compileMaterials: false,
         compileShadowGenerators: false,
@@ -63,7 +63,6 @@ export class GlobalState {
         loggingEnabled: false,
         transparencyAsCoverage: false,
         useClipPlane: false,
-        validate: true,
     };
 
     public glTFLoaderExtensions: { [key: string]: import("babylonjs-loaders/glTF/index").IGLTFLoaderExtension } = {};

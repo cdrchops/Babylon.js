@@ -8,8 +8,17 @@ import { Tools } from '../../Misc/tools';
 import { Plane } from '../../Maths/math.plane';
 import { Vector3, Matrix } from '../../Maths/math.vector';
 import { Epsilon } from "../../Maths/math.constants";
-import { IWheelEvent } from "../../Events/deviceInputEvents";
+import { EventConstants, IWheelEvent } from "../../Events/deviceInputEvents";
 import { Scalar } from "../../Maths/math.scalar";
+
+/**
+ * Firefox uses a different scheme to report scroll distances to other
+ * browsers. Rather than use complicated methods to calculate the exact
+ * multiple we need to apply, let's just cheat and use a constant.
+ * https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
+ * https://stackoverflow.com/questions/20110224/what-is-the-height-of-a-line-in-a-wheel-event-deltamode-dom-delta-line
+ */
+const ffMultiplier = 40;
 
 /**
  * Manage the mouse wheel inputs to control an arc rotate camera.
@@ -31,8 +40,8 @@ export class ArcRotateCameraMouseWheelInput implements ICameraInput<ArcRotateCam
      * Gets or Set the boolean value that controls whether or not the mouse wheel
      * zooms to the location of the mouse pointer or not.  The default is false.
      */
-     @serialize()
-     public zoomToMouseLocation = false;
+    @serialize()
+    public zoomToMouseLocation = false;
 
     /**
      * wheelDeltaPercentage will be used instead of wheelPrecision if different from 0.
@@ -41,11 +50,16 @@ export class ArcRotateCameraMouseWheelInput implements ICameraInput<ArcRotateCam
     @serialize()
     public wheelDeltaPercentage = 0;
 
+    /**
+     * If set, this function will be used to set the radius delta that will be added to the current camera radius
+     */
+    public customComputeDeltaFromMouseWheel: Nullable<(wheelDelta: number, input: ArcRotateCameraMouseWheelInput, event: IWheelEvent) => number> = null;
+
     private _wheel: Nullable<(p: PointerInfo, s: EventState) => void>;
     private _observer: Nullable<Observer<PointerInfo>>;
-    private _hitPlane: Plane;
+    private _hitPlane: Nullable<Plane>;
 
-    private computeDeltaFromMouseWheelLegacyEvent(mouseWheelDelta: number, radius: number) {
+    protected computeDeltaFromMouseWheelLegacyEvent(mouseWheelDelta: number, radius: number) {
         var delta = 0;
         var wheelDelta = (mouseWheelDelta * 0.01 * this.wheelDeltaPercentage) * radius;
         if (mouseWheelDelta > 0) {
@@ -72,29 +86,38 @@ export class ArcRotateCameraMouseWheelInput implements ICameraInput<ArcRotateCam
             let mouseWheelLegacyEvent = event as any;
             let wheelDelta = 0;
 
-            if (mouseWheelLegacyEvent.wheelDelta) {
+            const platformScale = event.deltaMode === EventConstants.DOM_DELTA_LINE ? ffMultiplier : 1;  // If this happens to be set to DOM_DELTA_LINE, adjust accordingly
+            if (event.deltaY !== undefined) {
+                wheelDelta = -(event.deltaY * platformScale);
+            }
+            else if ((<any>event).wheelDeltaY !== undefined) {
+                wheelDelta = -((<any>event).wheelDeltaY * platformScale);
+            }
+            else {
                 wheelDelta = mouseWheelLegacyEvent.wheelDelta;
-            } else {
-                wheelDelta = -(event.deltaY || event.detail) * 60;
             }
 
-            if (this.wheelDeltaPercentage) {
-                delta = this.computeDeltaFromMouseWheelLegacyEvent(wheelDelta, this.camera.radius);
-
-                // If zooming in, estimate the target radius and use that to compute the delta for inertia
-                // this will stop multiple scroll events zooming in from adding too much inertia
-                if (delta > 0) {
-                    var estimatedTargetRadius = this.camera.radius;
-                    var targetInertia = this.camera.inertialRadiusOffset + delta;
-                    for (var i = 0; i < 20 && Math.abs(targetInertia) > 0.001; i++) {
-                        estimatedTargetRadius -= targetInertia;
-                        targetInertia *= this.camera.inertia;
-                    }
-                    estimatedTargetRadius = Scalar.Clamp(estimatedTargetRadius, 0, Number.MAX_VALUE);
-                    delta = this.computeDeltaFromMouseWheelLegacyEvent(wheelDelta, estimatedTargetRadius);
-                }
+            if (this.customComputeDeltaFromMouseWheel) {
+                delta = this.customComputeDeltaFromMouseWheel(wheelDelta, this, event);
             } else {
-                delta = wheelDelta / (this.wheelPrecision * 40);
+                if (this.wheelDeltaPercentage) {
+                    delta = this.computeDeltaFromMouseWheelLegacyEvent(wheelDelta, this.camera.radius);
+
+                    // If zooming in, estimate the target radius and use that to compute the delta for inertia
+                    // this will stop multiple scroll events zooming in from adding too much inertia
+                    if (delta > 0) {
+                        var estimatedTargetRadius = this.camera.radius;
+                        var targetInertia = this.camera.inertialRadiusOffset + delta;
+                        for (var i = 0; i < 20 && Math.abs(targetInertia) > 0.001; i++) {
+                            estimatedTargetRadius -= targetInertia;
+                            targetInertia *= this.camera.inertia;
+                        }
+                        estimatedTargetRadius = Scalar.Clamp(estimatedTargetRadius, 0, Number.MAX_VALUE);
+                        delta = this.computeDeltaFromMouseWheelLegacyEvent(wheelDelta, estimatedTargetRadius);
+                    }
+                } else {
+                    delta = wheelDelta / (this.wheelPrecision * 40);
+                }
             }
 
             if (delta) {
@@ -115,7 +138,7 @@ export class ArcRotateCameraMouseWheelInput implements ICameraInput<ArcRotateCam
         this._observer = this.camera.getScene().onPointerObservable.add(this._wheel, PointerEventTypes.POINTERWHEEL);
 
         if (this.zoomToMouseLocation) {
-            this._inertialPanning = Vector3.Zero();
+            this._inertialPanning.setAll(0);
         }
     }
 
@@ -184,24 +207,24 @@ export class ArcRotateCameraMouseWheelInput implements ICameraInput<ArcRotateCam
     }
 
     // Get position on the hit plane
-    private _getPosition() : Vector3 {
+    private _getPosition(): Vector3 {
         var camera = this.camera;
         var scene = camera.getScene();
-        var direction = camera.target.subtract(camera.position);
-        direction.normalize();
 
         // since the _hitPlane is always updated to be orthogonal to the camera position vector
         // we don't have to worry about this ray shooting off to infinity. This ray creates
         // a vector defining where we want to zoom to.
         var ray = scene.createPickingRay(scene.pointerX, scene.pointerY, Matrix.Identity(), camera, false);
-        const distance = ray.intersectsPlane(this._hitPlane);
-        var dist = distance ?? 0;
+        let distance = 0;
+        if (this._hitPlane) {
+            distance = ray.intersectsPlane(this._hitPlane) ?? 0;
+        }
 
         // not using this ray again, so modifying its vectors here is fine
-        return ray.origin.addInPlace(ray.direction.scaleInPlace(dist));
+        return ray.origin.addInPlace(ray.direction.scaleInPlace(distance));
     }
 
-    private _inertialPanning : Vector3;
+    private _inertialPanning: Vector3 = Vector3.Zero();
 
     private _zoomToMouse(delta: number) {
         var camera = this.camera;

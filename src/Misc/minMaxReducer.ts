@@ -7,6 +7,7 @@ import { Effect } from "../Materials/effect";
 import { PostProcess } from "../PostProcesses/postProcess";
 import { PostProcessManager } from "../PostProcesses/postProcessManager";
 import { Observable } from "./observable";
+import { ThinEngine } from "../Engines/thinEngine";
 
 import "../Shaders/minmaxRedux.fragment";
 
@@ -29,6 +30,7 @@ export class MinMaxReducer {
     protected _postProcessManager: PostProcessManager;
     protected _onAfterUnbindObserver: Nullable<Observer<RenderTargetTexture>>;
     protected _forceFullscreenViewport = true;
+    protected _onContextRestoredObserver: Nullable<Observer<ThinEngine>>;
 
     /**
      * Creates a min/max reducer
@@ -37,6 +39,10 @@ export class MinMaxReducer {
     constructor(camera: Camera) {
         this._camera = camera;
         this._postProcessManager = new PostProcessManager(camera.getScene());
+
+        this._onContextRestoredObserver = camera.getEngine().onContextRestoredObservable.add(() => {
+            this._postProcessManager._rebuild();
+        });
     }
 
     /**
@@ -148,7 +154,7 @@ export class MinMaxReducer {
             if (w == 1 && h == 1) {
                 let func = (w: number, h: number, reduction: PostProcess) => {
                     let buffer = new Float32Array(4 * w * h),
-                        minmax = { min: 0, max: 0};
+                        minmax = { min: 0, max: 0 };
                     return () => {
                         scene.getEngine()._readTexturePixels(reduction.inputTexture, w, h, -1, 0, buffer, false);
                         minmax.min = buffer[0];
@@ -196,11 +202,11 @@ export class MinMaxReducer {
 
         this._onAfterUnbindObserver = this._sourceTexture.onAfterUnbindObservable.add(() => {
             const engine = this._camera.getScene().getEngine();
-            engine._debugPushGroup(`min max reduction`, 1);
+            engine._debugPushGroup?.(`min max reduction`, 1);
             this._reductionSteps![0].activate(this._camera);
             this._postProcessManager.directRender(this._reductionSteps!, this._reductionSteps![0].inputTexture, this._forceFullscreenViewport);
             engine.unBindFramebuffer(this._reductionSteps![0].inputTexture, false);
-            engine._debugPopGroup(1);
+            engine._debugPopGroup?.(1);
         });
 
         this._activated = true;
@@ -226,6 +232,11 @@ export class MinMaxReducer {
     public dispose(disposeAll = true): void {
         if (disposeAll) {
             this.onAfterReductionPerformed.clear();
+
+            if (this._onContextRestoredObserver) {
+                this._camera.getEngine().onContextRestoredObservable.remove(this._onContextRestoredObserver);
+                this._onContextRestoredObserver = null;
+            }
         }
 
         this.deactivate();

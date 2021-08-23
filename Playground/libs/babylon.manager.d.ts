@@ -10,48 +10,32 @@ declare module BABYLON {
         static get Copyright(): string;
         /** Set the allow user input flag */
         static EnableUserInput: boolean;
+        /** Enable the main page render loop */
+        static RenderLoopReady: boolean;
         /** Pauses the main page render loop */
         static PauseRenderLoop: boolean;
         /** Set the preload auto update progress flag */
         static AutoUpdateProgress: boolean;
+        /** Set the capsule collider shape type */
+        static PhysicsCapsuleShape: number;
+        /** Set the support srgb buffers flag */
+        static SupportSRGBBuffers: boolean;
+        /** Set the virtual joystick enabled flag */
+        static VirtualJoystickEnabled: boolean;
+        /** Is content running in a frame window */
+        static IsFrameWindow(): boolean;
         /** Gets the running status of the default audio context */
         static HasAudioContext(): boolean;
         /** Returns a Promise that resolves after the specfied time */
         static WaitForSeconds: (seconds: number) => Promise<void>;
-        /** Register handler that is triggered when the fonts have been loaded (engine.html) */
-        static OnFontsReadyObservable: Observable<Engine>;
+        /** Post a safe message to top parent window */
+        static PostWindowMessage(msg: any, targetOrigin: string, transfer?: Transferable[]): void;
         /** Register handler that is triggered when then engine has been resized (engine.html) */
         static OnEngineResizeObservable: Observable<Engine>;
         /** Register handler that is triggered when the scene has been loaded (engine.html) */
         static OnLoadCompleteObservable: Observable<Engine>;
-        /** Registers an handler for window state show scene loader function (engine.html) */
-        static RegisterOnShowSceneLoader(func: (show: boolean) => void): void;
-        /** Registers an handler for window socket disconnect event (engine.html) */
-        static RegisterOnUpdateSceneLoader(func: (status: string, details: string, state: number) => void): void;
-        /** Registers an handler for window state show scene loader function (engine.html) */
-        static RegisterOnTickSceneLoader(func: (percent: number) => void): void;
-        /** Loads a babylon scene file using the page loader window hooks (engine.html) */
+        /** Loads a babylon gltf scene file (engine.html) */
         static LoadSceneFile(sceneFile: string, queryString?: string): void;
-        /** Shows the top page scene loader (engine.html) */
-        static ShowParentLoader(show: boolean): void;
-        /** Get the system render quality setting. */
-        static GetRenderQuality(): BABYLON.RenderQuality;
-        /** Set the system render quality setting. */
-        static SetRenderQuality(quality: BABYLON.RenderQuality): void;
-        /** Get an item from top window local storage. */
-        static GetLocalStorageItem(key: string): string;
-        /** Set an item to top window local storage. */
-        static SetLocalStorageItem(key: string, value: string): void;
-        /** Get an item from top window session storage. */
-        static GetSessionStorageItem(key: string): string;
-        /** Set an item to top window session storage. */
-        static SetSessionStorageItem(key: string, value: string): void;
-        /** Store data object in the window state cache */
-        static SetWindowState(name: string, data: any): void;
-        /** Retrieve data object from the window state cache */
-        static GetWindowState<T>(name: string): T;
-        /** Post a safe message to top or local window */
-        static PostWindowMessage(msg: any, targetOrigin: string, transfer?: Transferable[]): void;
         private static SceneParsingEnabled;
         /** Enable scene loader parsing plugin */
         static EnableSceneParsing(enabled: boolean): void;
@@ -64,6 +48,18 @@ declare module BABYLON {
         static GetAmbientSkybox(scene: BABYLON.Scene): BABYLON.AbstractMesh;
         /** Get the scene default intenisty factor */
         static GetIntensityFactor(): number;
+        /** Get the system render quality local storage setting. */
+        static GetRenderQuality(): BABYLON.RenderQuality;
+        /** Set the system render quality local storage setting. */
+        static SetRenderQuality(quality: BABYLON.RenderQuality): void;
+        /** Get the system virtual reality local storage setting. */
+        static GetVirtualRealityEnabled(): boolean;
+        /** Set the system virtual reality local storage setting. */
+        static SetVirtualRealityEnabled(enabled: boolean): void;
+        /** Store data object of function on the local window state. */
+        static SetWindowState(name: string, data: any): void;
+        /** Retrieve data object or function from the local window state. */
+        static GetWindowState<T>(name: string): T;
         /** Are scene manager debugging services available. */
         static IsDebugMode(): boolean;
         /** Send log data directly to the console. */
@@ -122,11 +118,9 @@ declare module BABYLON {
         static GetTime(): number;
         /** Get the total game time in seconds */
         static GetGameTime(): number;
-        /** Get the raw delta time in milliseconds */
-        static GetDeltaTime(scene: BABYLON.Scene): number;
         /** Get the current delta time in seconds */
-        static GetDeltaSeconds(scene: BABYLON.Scene, applyAnimationRatio?: boolean): number;
-        /** Get the delta time animation ratio at 60 fps */
+        static GetDeltaSeconds(scene: BABYLON.Scene): number;
+        /** Get the delta time animation ratio for 60 fps */
         static GetAnimationRatio(scene: BABYLON.Scene): number;
         /** Delays a function call using request animation frames. Returns a handle object */
         static SetTimeout(timeout: number, func: () => void): any;
@@ -233,7 +227,7 @@ declare module BABYLON {
         /** Get all materials with name. (Uses starts with text searching) */
         static GetAllMaterialsWithName(scene: BABYLON.Scene, name: string): BABYLON.Material[];
         /** Instantiate the specified prefab asset hierarchy into the scene. (Cloned Hierarchy) */
-        static InstantiatePrefab(container: BABYLON.AssetContainer, prefabName: string, newName: string, makeNewMaterials?: boolean, cloneAnimations?: boolean, assetsManager?: BABYLON.AssetsManager): BABYLON.TransformNode;
+        static InstantiatePrefab(container: BABYLON.AssetContainer, prefabName: string, newName: string, makeNewMaterials?: boolean, cloneAnimations?: boolean): BABYLON.TransformNode;
         /** Clones the specified transform node asset into the scene. (Transform Node) */
         static CloneTransformNode(container: BABYLON.AssetContainer, nodeName: string, cloneName: string): BABYLON.TransformNode;
         /** Clones the specified abstract mesh asset into the scene. (Abtract Mesh) */
@@ -314,6 +308,8 @@ declare module BABYLON {
         static CreatePhysicsBoxShape(halfextents: BABYLON.Vector3): any;
         /** Creates a ammo.js physics sphere collision shape */
         static CreatePhysicsSphereShape(radius: number): any;
+        /** Creates a ammo.js physics sphere collision shape */
+        static CreatePhysicsCylinderShape(radius: number, halfheight: number): any;
         /** Creates a ammo.js physics capsule collision shape */
         static CreatePhysicsCapsuleShape(radius: number, height: number): any;
         /** Creates a ammo.js physics compound collision shape */
@@ -325,7 +321,7 @@ declare module BABYLON {
         private static NavigationMesh;
         private static CrowdInterface;
         private static PluginInstance;
-        /** Register handler that is triggered when the audio clip is ready */
+        /** Register handler that is triggered when the navigation mesh is ready */
         static OnNavMeshReadyObservable: Observable<Mesh>;
         /** Get recast total memory heap size */
         static GetRecastHeapSize(): number;
@@ -364,9 +360,9 @@ declare module BABYLON {
             pointerLock?: boolean;
             preventDefault?: boolean;
             useCapture?: boolean;
-            enableVirtualJoystick?: boolean;
-            disableRightStick?: boolean;
         }): void;
+        static SetLeftJoystickBuffer(leftStickX: number, leftStickY: number, invertY?: boolean): void;
+        static SetRightJoystickBuffer(rightStickX: number, rightStickY: number, invertY?: boolean): void;
         /** Disables user input state in the scene. */
         static DisableUserInput(scene: BABYLON.Scene, useCapture?: boolean): void;
         /** Toggle full screen scene mode. */
@@ -399,14 +395,6 @@ declare module BABYLON {
         static OnPointerPress(button: number, callback: () => void): void;
         /** Get the specified pointer input by button. */
         static GetPointerInput(button: number): boolean;
-        /** Get left virtual joystick. */
-        static GetLeftJoystick(): BABYLON.VirtualJoystick;
-        /** Get right virtual joystick. */
-        static GetRightJoystick(): BABYLON.VirtualJoystick;
-        /** Get joystick button pressed. */
-        static GetJoystickPress(button: number): boolean;
-        /** Dispose virtual joystick setup. */
-        static DisposeVirtualJoysticks(): void;
         /** Set on gamepad button up event handler. */
         static OnGamepadButtonUp(callback: (button: number) => void, player?: BABYLON.PlayerNumber): void;
         /** Set on gamepad button down event handler. */
@@ -488,9 +476,6 @@ declare module BABYLON {
         private static keyButtonPress;
         private static keyButtonDown;
         private static keyButtonUp;
-        private static leftJoystick;
-        private static rightJoystick;
-        private static virtualJoystick;
         private static previousPosition;
         private static preventDefault;
         private static rightHanded;
@@ -545,7 +530,6 @@ declare module BABYLON {
         private static inputPointerDownHandler;
         private static inputPointerUpHandler;
         private static inputPointerMoveHandler;
-        private static inputVirtualJoysticks;
         private static inputOneButtonDownHandler;
         private static inputOneButtonUpHandler;
         private static inputOneXboxDPadDownHandler;
@@ -621,7 +605,7 @@ declare module BABYLON {
         /** Parse the scene component metadata. Note: Internal use only */
         parseSceneComponents(entity: BABYLON.TransformNode): void;
         /** Post process pending scene components. Note: Internal use only */
-        postProcessSceneComponents(preloadList: Array<BABYLON.ScriptComponent>): void;
+        postProcessSceneComponents(preloadList: Array<BABYLON.ScriptComponent>, readyList: Array<BABYLON.ScriptComponent>): void;
         private static DoParseSceneComponents;
         private static DoProcessPendingScripts;
         private static DoProcessPendingShadows;
@@ -678,7 +662,9 @@ declare module BABYLON {
         /** Get the total game time in seconds */
         getGameTime(): number;
         /** Get the current delta time in seconds */
-        getDeltaSeconds(applyAnimationRatio?: boolean): number;
+        getDeltaSeconds(): number;
+        /** Get the delta time animation ratio for 60 fps */
+        getAnimationRatio(): number;
         /** Gets the safe transform mesh entity */
         getTransformMesh(): BABYLON.Mesh;
         /** Gets the safe transform abstract mesh entity */
@@ -732,6 +718,7 @@ declare module BABYLON {
         registerTriggerVolume(volume: BABYLON.AbstractMesh): void;
         unregisterTriggerVolume(volume: BABYLON.AbstractMesh): void;
         private registerComponentInstance;
+        private delayComponentInstance;
         private destroyComponentInstance;
         private static RegisterInstance;
         private static UpdateInstance;
@@ -802,7 +789,6 @@ declare module BABYLON {
         protected materialShaderChunks: BABYLON.UniversalAlbedoChunks;
         protected updateShaderChunks(): void;
         constructor(name: string, scene: Scene);
-        getClassName(): string;
         getShaderName(): string;
         getShaderChunk(): string;
         getShaderDefines(): BABYLON.PBRMaterialDefines;
@@ -826,7 +812,29 @@ declare module BABYLON {
         protected customShaderChunkResolve(): void;
         private _buildCustomShader;
         private _createShaderChunks;
+        private dumpEffect;
         private _attachAfterBind;
+    }
+    /**
+     * Babylon universal node material pro class
+     * @class UniversalNodeMaterial
+     */
+    class UniversalNodeMaterial extends BABYLON.NodeMaterial {
+        private _textures;
+        private _vectors4;
+        private _floats;
+        protected compile(): void;
+        constructor(name: string, scene?: BABYLON.Scene, options?: Partial<BABYLON.INodeMaterialOptions>);
+        getTexture(name: string): BABYLON.Texture;
+        getVector4(name: string): BABYLON.Vector4;
+        getFloat(name: string): number;
+        setTexture(name: string, texture: BABYLON.Texture, initialize?: boolean): BABYLON.UniversalNodeMaterial;
+        setVector4(name: string, value: BABYLON.Vector4, initialize?: boolean): BABYLON.UniversalNodeMaterial;
+        setFloat(name: string, value: number, initialize?: boolean): BABYLON.UniversalNodeMaterial;
+        dispose(forceDisposeEffect?: boolean, forceDisposeTextures?: boolean): void;
+        clone(cloneName: string): BABYLON.UniversalNodeMaterial;
+        serialize(): any;
+        static Parse(source: any, scene: BABYLON.Scene, rootUrl: string): BABYLON.UniversalNodeMaterial;
     }
     /**
      * Babylon universal terrain material pro class
@@ -834,7 +842,6 @@ declare module BABYLON {
      */
     class UniversalTerrainMaterial extends BABYLON.UniversalAlbedoMaterial {
         constructor(name: string, scene: BABYLON.Scene);
-        getClassName(): string;
         getShaderName(): string;
         getShaderChunk(): string;
         protected updateShaderChunks(): void;
@@ -904,10 +911,6 @@ declare module BABYLON {
         Xbox360 = 1,
         DualShock = 2,
         PoseController = 3
-    }
-    enum JoystickButton {
-        Left = 0,
-        Right = 1
     }
     enum Xbox360Trigger {
         Left = 0,
@@ -1089,16 +1092,12 @@ declare module BABYLON {
         static GamepadRStickYInverted: boolean;
         static GamepadLStickSensibility: number;
         static GamepadRStickSensibility: number;
-        static JoystickRightHandleColor: string;
-        static JoystickLeftSensibility: number;
-        static JoystickRightSensibility: number;
-        static JoystickDeadStickValue: number;
         static PointerAngularSensibility: number;
         static PointerWheelDeadZone: number;
         static PointerMouseDeadZone: number;
         static PointerMouseInverted: boolean;
-        static UseArrowKeyRotation: boolean;
         static UseCanvasElement: boolean;
+        static UseArrowKeyRotation: boolean;
     }
     /**
      * Unity Export Interfaces
@@ -1181,11 +1180,13 @@ declare module BABYLON {
         type: string;
         filename: string;
         base64: string;
+        json: boolean;
     }
     interface IUnityDefaultAsset {
         type: string;
         filename: string;
         base64: string;
+        json: boolean;
     }
     interface IUnityVector2 {
         x: number;
@@ -1252,6 +1253,28 @@ declare module BABYLON {
         private CreateNewInstance;
     }
     /**
+     * Touch Joystick Classes (https://www.cssscript.com/touch-joystick-controller/)
+     * @class TouchJoystickHandler - All rights reserved (c) 2020 Mackey Kinard
+     */
+    class TouchJoystickHandler {
+        private active;
+        private touchId;
+        private dragStart;
+        private maxDistance;
+        private deadZone;
+        private xvalue;
+        private yvalue;
+        private stick;
+        getValueX(): number;
+        getValueY(): number;
+        getStickElement(): HTMLElement;
+        constructor(stickid: string, maxdistance: number, deadzone: number);
+        dispose(): void;
+        protected handleDown(event: any): void;
+        protected handleMove(event: any): void;
+        protected handleUp(event: any): void;
+    }
+    /**
      * Physics Raycast Classes
      * @class RaycastHitResult - All rights reserved (c) 2020 Mackey Kinard
      */
@@ -1310,11 +1333,11 @@ declare module BABYLON {
         private static LoadingState;
         static OnPreloaderProgress: (remainingCount: number, totalCount: number, lastFinishedTask: BABYLON.AbstractAssetTask) => void;
         static OnPreloaderComplete: (tasks: BABYLON.AbstractAssetTask[]) => void;
-        static IsLastSceneExecuteReady: boolean;
-        static OnLastSceneExecuteReady: BABYLON.Observable<BABYLON.Scene>;
         static IsLayerMasked(mask: number, layer: number): boolean;
         static GetLoadingState(): number;
         static Approximately(a: number, b: number): boolean;
+        static GetVertexDataFromMesh(mesh: BABYLON.Mesh): BABYLON.VertexData;
+        static UpdateAbstractMeshMaterial(mesh: BABYLON.AbstractMesh, material: BABYLON.Material, materialIndex: number): void;
         static MoveTowardsVector2(current: BABYLON.Vector2, target: BABYLON.Vector2, maxDelta: number): BABYLON.Vector2;
         static MoveTowardsVector2ToRef(current: BABYLON.Vector2, target: BABYLON.Vector2, maxDelta: number, result: BABYLON.Vector2): void;
         static MoveTowardsVector3(current: BABYLON.Vector3, target: BABYLON.Vector3, maxDelta: number): BABYLON.Vector3;
@@ -1340,6 +1363,8 @@ declare module BABYLON {
         static LerpUnclamp(a: number, b: number, t: number): number;
         /** Returns the angle in degrees between the from and to vectors. */
         static GetAngle(from: BABYLON.Vector3, to: BABYLON.Vector3): number;
+        /** Returns the angle in radians between the from and to vectors. */
+        static GetAngleRadians(from: BABYLON.Vector3, to: BABYLON.Vector3): number;
         /** TODO */
         static ClampAngle(angle: number, min: number, max: number): number;
         /** Gradually changes a number towards a desired goal over time. (Note: Uses currentVelocity.x as output variable) */
@@ -1396,8 +1421,30 @@ declare module BABYLON {
         static ValidateTransformRotation(transform: BABYLON.TransformNode): void;
         /** Validate and switch Euler rotation to Quaternion rotation. */
         static ValidateTransformQuaternion(transform: BABYLON.TransformNode): void;
-        /** Get the smoothed keyboard input value  */
+        /** Get the smoothed keyboard input value. */
         static GetKeyboardInputValue(scene: BABYLON.Scene, currentValue: number, targetValue: number): number;
+        /** Generate a randome number. */
+        static GenerateRandonNumber(min: number, max: number, decimals?: number): number;
+        /** Projects a vector onto another vector */
+        static ProjectVector(vector: BABYLON.Vector3, onnormal: BABYLON.Vector3): BABYLON.Vector3;
+        /** Projects a vector onto another vector and sets result */
+        static ProjectVectorToRef(vector: BABYLON.Vector3, onnormal: BABYLON.Vector3, result: BABYLON.Vector3): void;
+        /** Projects a vector onto a plane defined by a normal orthogonal to the plane */
+        static ProjectVectorOnPlane(vector: BABYLON.Vector3, planenormal: BABYLON.Vector3): BABYLON.Vector3;
+        /** Projects a vector onto a plane defined by a normal orthogonal to the plane and sets result */
+        static ProjectVectorOnPlaneToRef(vector: BABYLON.Vector3, planenormal: BABYLON.Vector3, result: BABYLON.Vector3): void;
+        /** Checks if two vectors v1 and v2 are equal within a precision of p */
+        static AreVectorsEqual(v1: BABYLON.Vector3, v2: BABYLON.Vector3, p: number): boolean;
+        /** Returns the slope (in degrees) of a vector in the vertical plane */
+        static GetVerticalSlopeAngle(v: BABYLON.Vector3, max?: number): number;
+        /** Get an item from window local storage. */
+        static GetLocalStorageItem(key: string): string;
+        /** Set an item to window local storage. */
+        static SetLocalStorageItem(key: string, value: string): void;
+        /** Get an item from window session storage. */
+        static GetSessionStorageItem(key: string): string;
+        /** Set an item to window session storage. */
+        static SetSessionStorageItem(key: string, value: string): void;
         /** TODO */
         static DownloadEnvironment(cubemap: BABYLON.CubeTexture, success?: () => void, failure?: () => void): void;
         static HasOwnProperty(object: any, property: string): boolean;
@@ -1415,12 +1462,14 @@ declare module BABYLON {
         private static TmpAmmoNormalA;
         private static TmpAmmoNormalB;
         private static TmpAmmoNormalC;
-        static AddMeshVerts(btTriangleMesh: any, topLevelObject: BABYLON.IPhysicsEnabledObject, object: BABYLON.IPhysicsEnabledObject, scaling?: boolean, normals?: boolean): number;
-        static AddHullVerts(btConvexHullShape: any, topLevelObject: BABYLON.IPhysicsEnabledObject, object: BABYLON.IPhysicsEnabledObject, scaling?: boolean): number;
-        static CreateImpostorCustomShape(scene: BABYLON.Scene, impostor: BABYLON.PhysicsImpostor, type: number, showDebugColliders?: boolean, colliderVisibility?: number, useTriangleNormals?: boolean): any;
+        private static FindMeshCollider;
+        static AddMeshVerts(btTriangleMesh: any, topLevelObject: BABYLON.IPhysicsEnabledObject, object: BABYLON.IPhysicsEnabledObject, normals?: boolean): number;
+        static AddHullVerts(btConvexHullShape: any, topLevelObject: BABYLON.IPhysicsEnabledObject, object: BABYLON.IPhysicsEnabledObject): number;
+        static CreateImpostorCustomShape(scene: BABYLON.Scene, impostor: BABYLON.PhysicsImpostor, type: number, showDebugColliders?: boolean, colliderVisibility?: number, colliderRenderGroup?: number, useTriangleNormals?: boolean): any;
         static UseTriangleNormals(): boolean;
         static ShowDebugColliders(): boolean;
         static ColliderVisibility(): number;
+        static ColliderRenderGroup(): number;
         static CollisionWireframe(): boolean;
         static GetColliderMaterial(scene: BABYLON.Scene): BABYLON.Material;
         static CalculateCombinedFriction(friction0: number, friction1: number): number;
@@ -1468,9 +1517,9 @@ declare module BABYLON {
         /** TODO */
         static ParseChildTransform(parent: BABYLON.TransformNode, source: BABYLON.IUnityTransform, defaultValue?: BABYLON.TransformNode): BABYLON.TransformNode;
         /** Gets the transform node abosulte position */
-        static GetAbsolutePosition(transform: BABYLON.TransformNode, offsetPosition?: BABYLON.Vector3, computeMatrix?: boolean): BABYLON.Vector3;
+        static GetAbsolutePosition(transform: BABYLON.TransformNode | BABYLON.Camera, offsetPosition?: BABYLON.Vector3, computeMatrix?: boolean): BABYLON.Vector3;
         /** Gets the transform node abosulte position */
-        static GetAbsolutePositionToRef(transform: BABYLON.TransformNode, result: BABYLON.Vector3, offsetPosition?: BABYLON.Vector3, computeMatrix?: boolean): void;
+        static GetAbsolutePositionToRef(transform: BABYLON.TransformNode | BABYLON.Camera, result: BABYLON.Vector3, offsetPosition?: BABYLON.Vector3, computeMatrix?: boolean): void;
         /** Transforms position from local space to world space. (Using TransformCoordinates) */
         static TransformPoint(owner: BABYLON.TransformNode | BABYLON.Camera, position: BABYLON.Vector3, computeMatrix?: boolean): BABYLON.Vector3;
         /** Inverse transforms position from world space to local space. (Using TransformCoordinates) */
@@ -1531,8 +1580,10 @@ declare module BABYLON {
         static GetLastKeyFrameIndex(animation: BABYLON.Animation): number;
         /** Private internal frame interpolation helper */
         private static InterpolateAnimation;
+        /** Update loop blend root motion metadata settings */
+        static UpdateLoopBlendPositionSettings(animationTrack: BABYLON.AnimationGroup, loopBlendPositionY: boolean, loopBlendPositionXZ: boolean): void;
         /** Initialize default shader material properties */
-        static InitializeShaderMaterial(material: BABYLON.ShaderMaterial, binding?: boolean): void;
+        static InitializeShaderMaterial(material: BABYLON.ShaderMaterial, binding?: boolean, clipPlanes?: BABYLON.Nullable<boolean>): void;
         /** Transforms position from world space into screen space. */
         static WorldToScreenPoint(scene: BABYLON.Scene, position: BABYLON.Vector3, camera?: BABYLON.Camera): BABYLON.Vector3;
         /** Transforms a point from screen space into world space. */
@@ -1549,7 +1600,7 @@ declare module BABYLON {
         /** Get all loaded scene transform nodes. */
         static GetSceneTransforms(scene: BABYLON.Scene): BABYLON.TransformNode[];
         /** Parse scene component metadata. */
-        static PostParseSceneComponents(scene: BABYLON.Scene, transforms: BABYLON.TransformNode[], preloadList: Array<BABYLON.ScriptComponent>): void;
+        static PostParseSceneComponents(scene: BABYLON.Scene, transforms: BABYLON.TransformNode[], preloadList: Array<BABYLON.ScriptComponent>, readyList: Array<BABYLON.ScriptComponent>): void;
         /**
          * Gets the specified asset container mesh.
          * @param container defines the asset container
@@ -1602,6 +1653,8 @@ declare module BABYLON {
         /** TODO */
         static ValidateTransformGuid(node: TransformNode): void;
         /** TODO */
+        static AddShadowCastersToLight(light: BABYLON.IShadowLight, transforms: BABYLON.TransformNode[], includeChildren?: boolean): void;
+        /** TODO */
         static RegisterInstancedMeshBuffers(mesh: BABYLON.Mesh): void;
         /** TODO */
         static CloneValue(source: any, destinationObject: any): any;
@@ -1640,14 +1693,15 @@ declare class CVTOOLS_unity_metadata implements BABYLON.GLTF2.IGLTFLoaderExtensi
     readonly name = "CVTOOLS_unity_metadata";
     /** Defines whether this extension is enabled. */
     enabled: boolean;
-    private static LastLoaderScene;
-    private static LastBabylonScene;
-    private static LastAssetsManager;
     private _loader;
+    private _babylonScene;
+    private _loaderScene;
+    private _assetsManager;
     private _parserList;
     private _masterList;
     private _detailList;
     private _shaderList;
+    private _readyList;
     private _preloadList;
     private _materialMap;
     private _lightmapMap;
@@ -1711,6 +1765,7 @@ declare class CVTOOLS_unity_metadata implements BABYLON.GLTF2.IGLTFLoaderExtensi
     private postProcessSceneProperties;
     private _preloadRawMaterialsAsync;
     private _parseMultiMaterialAsync;
+    private _parseNodeMaterialPropertiesAsync;
     private _parseShaderMaterialPropertiesAsync;
     private _parseDiffuseMaterialPropertiesAsync;
     private _parseCommonConstantProperties;

@@ -8,7 +8,7 @@ import { MaterialDefines } from "babylonjs/Materials/materialDefines";
 import { MaterialHelper } from "babylonjs/Materials/materialHelper";
 import { IEffectCreationOptions } from "babylonjs/Materials/effect";
 import { PushMaterial } from "babylonjs/Materials/pushMaterial";
-import { VertexBuffer } from "babylonjs/Meshes/buffer";
+import { VertexBuffer } from "babylonjs/Buffers/buffer";
 import { AbstractMesh } from "babylonjs/Meshes/abstractMesh";
 import { SubMesh } from "babylonjs/Meshes/subMesh";
 import { Mesh } from "babylonjs/Meshes/mesh";
@@ -36,6 +36,7 @@ class FluentButtonMaterialDefines extends MaterialDefines {
 
 /**
  * Class used to render square buttons with fluent desgin
+ * @since 5.0.0
  */
 export class FluentButtonMaterial extends PushMaterial {
     /**
@@ -430,7 +431,7 @@ export class FluentButtonMaterial extends PushMaterial {
                     onCompiled: this.onCompiled,
                     onError: this.onError,
                     indexParameters: { maxSimultaneousLights: 4 }
-                }, engine), defines);
+                }, engine), defines, this._materialContext);
         }
         if (!subMesh.effect || !subMesh.effect.isReady()) {
             return false;

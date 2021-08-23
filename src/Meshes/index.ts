@@ -1,5 +1,4 @@
 export * from "./abstractMesh";
-export * from "./buffer";
 export * from "./Compression/index";
 export * from "./csg";
 export * from "./geometry";
@@ -14,10 +13,10 @@ export * from "./meshSimplification";
 export * from "./meshSimplificationSceneComponent";
 export * from "./polygonMesh";
 export * from "./subMesh";
+export * from "./subMesh.project";
 export * from "./meshLODLevel";
 export * from "./transformNode";
 export * from "./Builders/index";
-export * from "./dataBuffer";
 export * from "./WebGL/webGLDataBuffer";
 export * from "./WebGPU/webgpuDataBuffer";
 import "./thinInstanceMesh";

@@ -1,4 +1,4 @@
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { SubMesh } from "../Meshes/subMesh";
 import { _InstancesBatch, Mesh } from "../Meshes/mesh";
 import { Scene } from "../scene";
@@ -28,7 +28,7 @@ declare module "../scene" {
  * Gets the outline renderer associated with the scene
  * @returns a OutlineRenderer
  */
-Scene.prototype.getOutlineRenderer = function(): OutlineRenderer {
+Scene.prototype.getOutlineRenderer = function (): OutlineRenderer {
     if (!this._outlineRenderer) {
         this._outlineRenderer = new OutlineRenderer(this);
     }
@@ -56,10 +56,10 @@ declare module "../Meshes/abstractMesh" {
 }
 
 Object.defineProperty(Mesh.prototype, "renderOutline", {
-    get: function(this: Mesh) {
+    get: function (this: Mesh) {
         return this._renderOutline;
     },
-    set: function(this: Mesh, value: boolean) {
+    set: function (this: Mesh, value: boolean) {
         if (value) {
             // Lazy Load the component.
             this.getScene().getOutlineRenderer();
@@ -71,10 +71,10 @@ Object.defineProperty(Mesh.prototype, "renderOutline", {
 });
 
 Object.defineProperty(Mesh.prototype, "renderOverlay", {
-    get: function(this: Mesh) {
+    get: function (this: Mesh) {
         return this._renderOverlay;
     },
-    set: function(this: Mesh, value: boolean) {
+    set: function (this: Mesh, value: boolean) {
         if (value) {
             // Lazy Load the component.
             this.getScene().getOutlineRenderer();
@@ -202,7 +202,9 @@ export class OutlineRenderer implements ISceneComponent {
         // Morph targets
         MaterialHelper.BindMorphTargetParameters(renderingMesh, effect);
 
-        renderingMesh._bind(subMesh, effect, material.fillMode);
+        if (!hardwareInstancedRendering) {
+            renderingMesh._bind(subMesh, effect, material.fillMode);
+        }
 
         // Alpha test
         if (material && material.needAlphaTesting()) {
@@ -305,7 +307,7 @@ export class OutlineRenderer implements ISceneComponent {
             effect = this.scene.getEngine().createEffect("outline",
                 attribs,
                 ["world", "mBones", "viewProjection", "diffuseMatrix", "offset", "color", "logarithmicDepthConstant",
-                "morphTargetInfluences", "morphTargetTextureInfo", "morphTargetTextureIndices"],
+                    "morphTargetInfluences", "morphTargetTextureInfo", "morphTargetTextureIndices"],
                 ["diffuseSampler", "morphTargets"], join,
                 undefined, undefined, undefined,
                 { maxSimultaneousMorphTargets: numMorphInfluencers });
@@ -332,6 +334,7 @@ export class OutlineRenderer implements ISceneComponent {
                 this._engine.setStencilFunction(Constants.ALWAYS);
                 this._engine.setStencilMask(OutlineRenderer._StencilReference);
                 this._engine.setStencilFunctionReference(OutlineRenderer._StencilReference);
+                this._engine.stencilStateComposer.useStencilGlobalOnly = true;
                 this.render(subMesh, batch, /* This sets offset to 0 */ true);
 
                 this._engine.setColorWrite(true);
@@ -344,6 +347,7 @@ export class OutlineRenderer implements ISceneComponent {
             this._engine.setDepthWrite(this._savedDepthWrite);
 
             if (material && material.needAlphaBlendingForMesh(mesh)) {
+                this._engine.stencilStateComposer.useStencilGlobalOnly = false;
                 this._engine.restoreStencilState();
             }
         }

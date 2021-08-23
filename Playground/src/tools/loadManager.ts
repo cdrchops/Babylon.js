@@ -15,7 +15,7 @@ export class LoadManager {
             let prevHash = location.hash;
             location.hash = id;
 
-            if(location.hash === prevHash){
+            if (location.hash === prevHash) {
                 this._loadPlayground(id);
             }
         });
@@ -80,7 +80,7 @@ export class LoadManager {
                         } else {
                             // If we're loading JS content and it's TS page
                             if (this.globalState.language === "TS") {
-                                Utilities.SwitchLanguage("JS", this.globalState);
+                                Utilities.SwitchLanguage("JS", this.globalState, true);
                             }
                         }
 

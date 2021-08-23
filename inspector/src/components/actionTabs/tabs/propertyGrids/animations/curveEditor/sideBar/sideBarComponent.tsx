@@ -2,10 +2,14 @@ import * as React from "react";
 import { GlobalState } from "../../../../../../globalState";
 import { ActionButtonComponent } from "../controls/actionButtonComponent";
 import { Context } from "../context";
+import { Animation } from "babylonjs/Animations/animation";
 import { AnimationListComponent } from "./animationListComponent";
 import { TextInputComponent } from "../controls/textInputComponent";
 import { SaveAnimationComponent } from "./saveAnimationComponent";
 import { LoadAnimationComponent } from "./loadAnimationComponent";
+import { AddAnimationComponent } from "./addAnimationComponent";
+import { EditAnimationComponent } from "./editAnimationComponent";
+import { TargetedAnimation } from "babylonjs/Animations/animationGroup";
 
 require("../scss/sideBar.scss");
 
@@ -45,7 +49,19 @@ ISideBarComponentState
                 this.props.context.onActiveAnimationChanged.notifyObservers();
             }
 
-            let index = this.props.context.animations!.indexOf(animationToDelete);
+            let index = -1;
+            if (this.props.context.useTargetAnimations) {
+                let targetedAnimations = this.props.context.animations as TargetedAnimation[];
+
+                for (var i = 0; i < targetedAnimations.length; i++) {
+                    if (targetedAnimations[i].animation === animationToDelete) {
+                        index = i;
+                        break;
+                    }
+                }
+            } else {
+                index = (this.props.context.animations as Animation[])!.indexOf(animationToDelete);
+            }
 
             if (index > -1) {
                 this.props.context.animations!.splice(index, 1);
@@ -54,7 +70,7 @@ ISideBarComponentState
             }
         });
 
-        this.props.context.onSwitchToEditMode.add(() => this.setState({mode: Mode.Edit}));
+        this.props.context.onAnimationsLoaded.add(() => this.setState({mode: Mode.Edit}));
     }
 
     private _onAddAnimation() {
@@ -90,19 +106,35 @@ ISideBarComponentState
     }
 
     public render() {
+        let fps = "60";
+
+        if (this.props.context.animations && this.props.context.animations.length) {
+            if (this.props.context.useTargetAnimations) {
+                fps = (this.props.context.animations[0] as TargetedAnimation).animation.framePerSecond.toString()
+            } else {
+                fps = (this.props.context.animations[0] as Animation).framePerSecond.toString()
+            }
+        }
+
         return (
             <div id="sideBar">
-                <div id="menu-bar">
-                    <ActionButtonComponent 
-                        tooltip="Add new animation"
-                        isActive={this.state.mode === Mode.Add}
-                        id="add-animation" globalState={this.props.globalState} context={this.props.context} 
-                        icon={addIcon} onClick={() => this._onAddAnimation()}/>
-                    <ActionButtonComponent 
-                        tooltip="Load animations"
-                        isActive={this.state.mode === Mode.Load}
-                        id="load-animation" globalState={this.props.globalState} context={this.props.context} 
-                        icon={loadIcon} onClick={() => this._onLoadAnimation()}/>
+                <div id="menu-bar" className={(this.props.context.useTargetAnimations ? "small" : "")}>
+                    {
+                        !this.props.context.useTargetAnimations &&
+                        <ActionButtonComponent 
+                            tooltip="Add new animation"
+                            isActive={this.state.mode === Mode.Add}
+                            id="add-animation" globalState={this.props.globalState} context={this.props.context} 
+                            icon={addIcon} onClick={() => this._onAddAnimation()}/>
+                    }
+                    {
+                        !this.props.context.useTargetAnimations &&
+                        <ActionButtonComponent 
+                            tooltip="Load animations"
+                            isActive={this.state.mode === Mode.Load}
+                            id="load-animation" globalState={this.props.globalState} context={this.props.context} 
+                            icon={loadIcon} onClick={() => this._onLoadAnimation()}/>
+                    }
                     <ActionButtonComponent 
                         tooltip="save current animations"
                         isActive={this.state.mode === Mode.Save}
@@ -115,17 +147,28 @@ ISideBarComponentState
                         icon={editIcon} onClick={() => this._onEditAnimation()}/>   
 
                     <TextInputComponent 
-                        value={this.props.context.animations && this.props.context.animations.length ? this.props.context.animations[0].framePerSecond.toString() : "60"}
+                        value={fps}
                         complement=" fps"
                         isNumber={true}
-                        onValueAsNumberChanged={value => this.props.context.animations?.forEach(anim => anim.framePerSecond = value)}
+                        onValueAsNumberChanged={value => {
+                            this.props.context.animations?.forEach((anim: Animation | TargetedAnimation) => {
+                                if (this.props.context.useTargetAnimations) {
+                                    (anim as TargetedAnimation).animation.framePerSecond = value;
+                                } else {
+                                    (anim as Animation).framePerSecond = value;
+                                }
+                            });
+                        }}
                         tooltip="Framerate"
                         id="framerate-animation"
                         globalState={this.props.globalState} context={this.props.context} />                    
                 </div>
                 {
                     this.state.mode === Mode.Edit &&
-                    <AnimationListComponent globalState={this.props.globalState} context={this.props.context} />
+                    <>                        
+                        <AnimationListComponent globalState={this.props.globalState} context={this.props.context} />
+                        <EditAnimationComponent globalState={this.props.globalState} context={this.props.context} />
+                    </>
                 }
                 {
                     this.state.mode === Mode.Save &&
@@ -134,6 +177,10 @@ ISideBarComponentState
                 {
                     this.state.mode === Mode.Load &&
                     <LoadAnimationComponent globalState={this.props.globalState} context={this.props.context} />
+                }               
+                {
+                    this.state.mode === Mode.Add &&
+                    <AddAnimationComponent globalState={this.props.globalState} context={this.props.context} />
                 }
             </div>
         );

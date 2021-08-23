@@ -8,8 +8,7 @@ import { IKHRTextureBasisU } from 'babylonjs-gltf2interface';
 const NAME = "KHR_texture_basisu";
 
 /**
- * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1751)
- * !!! Experimental Extension Subject to Changes !!!
+ * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_texture_basisu)
  */
 export class KHR_texture_basisu implements IGLTFLoaderExtension {
     /** The name of this extension. */
@@ -38,7 +37,7 @@ export class KHR_texture_basisu implements IGLTFLoaderExtension {
             const image = ArrayItem.Get(`${extensionContext}/source`, this._loader.gltf.images, extension.source);
             return this._loader._createTextureAsync(context, sampler, image, (babylonTexture) => {
                 assign(babylonTexture);
-            }, texture._textureInfo.nonColorData ? { useRGBAIfASTCBC7NotAvailableWhenUASTC: true } : undefined);
+            }, texture._textureInfo.nonColorData ? { useRGBAIfASTCBC7NotAvailableWhenUASTC: true } : undefined, !texture._textureInfo.nonColorData);
         });
     }
 }

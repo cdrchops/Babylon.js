@@ -8,7 +8,7 @@ import { IEffectCreationOptions } from "babylonjs/Materials/effect";
 import { MaterialDefines } from "babylonjs/Materials/materialDefines";
 import { MaterialHelper } from "babylonjs/Materials/materialHelper";
 import { PushMaterial } from "babylonjs/Materials/pushMaterial";
-import { VertexBuffer } from "babylonjs/Meshes/buffer";
+import { VertexBuffer } from "babylonjs/Buffers/buffer";
 import { AbstractMesh } from "babylonjs/Meshes/abstractMesh";
 import { SubMesh } from "babylonjs/Meshes/subMesh";
 import { Mesh } from "babylonjs/Meshes/mesh";
@@ -244,7 +244,7 @@ export class ShadowOnlyMaterial extends PushMaterial {
             this._activeEffect.setFloat("alpha", this.alpha);
             this._activeEffect.setColor3("shadowColor", this.shadowColor);
 
-            MaterialHelper.BindEyePosition(effect, scene);
+            scene.bindEyePosition(effect);
         }
 
         // Lights

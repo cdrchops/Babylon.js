@@ -3,8 +3,8 @@ import { FactorGradient, ColorGradient, Color3Gradient, GradientHelper } from ".
 import { Observable, Observer } from "../Misc/observable";
 import { Vector3, Matrix, TmpVectors, Vector4 } from "../Maths/math.vector";
 import { Scalar } from "../Maths/math.scalar";
-import { VertexBuffer } from "../Meshes/buffer";
-import { Buffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
+import { Buffer } from "../Buffers/buffer";
 import { Effect } from "../Materials/effect";
 import { ImageProcessingConfiguration } from "../Materials/imageProcessingConfiguration";
 import { RawTexture } from "../Materials/Textures/rawTexture";
@@ -23,7 +23,7 @@ import { DrawWrapper } from "../Materials/drawWrapper";
 
 import "../Shaders/particles.fragment";
 import "../Shaders/particles.vertex";
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { Color4, Color3, TmpColors } from '../Maths/math.color';
 import { ISize } from '../Maths/math.size';
 import { BaseTexture } from '../Materials/Textures/baseTexture';
@@ -112,8 +112,7 @@ export class ParticleSystem extends BaseParticleSystem implements IDisposable, I
     private _spriteBuffer: Nullable<Buffer>;
     private _indexBuffer: Nullable<DataBuffer>;
     private _drawWrapper: DrawWrapper;
-    private _customWrappers: { [blendMode: number] : Nullable<DrawWrapper> };
-    private _cachedDefines: string;
+    private _customWrappers: { [blendMode: number]: Nullable<DrawWrapper> };
     private _scaledColorStep = new Color4(0, 0, 0, 0);
     private _colorDiff = new Color4(0, 0, 0, 0);
     private _scaledDirection = Vector3.Zero();
@@ -296,7 +295,7 @@ export class ParticleSystem extends BaseParticleSystem implements IDisposable, I
             this._scene.particleSystems.push(this);
         } else {
             this._engine = (sceneOrEngine as ThinEngine);
-            this.defaultProjectionMatrix = Matrix.PerspectiveFovLH(0.8, 1, 0.1, 100);
+            this.defaultProjectionMatrix = Matrix.PerspectiveFovLH(0.8, 1, 0.1, 100, this._engine.isNDCHalfZRange);
         }
 
         if (this._engine.getCaps().vertexArrayObject) {
@@ -1746,8 +1745,8 @@ export class ParticleSystem extends BaseParticleSystem implements IDisposable, I
 
         // Effect
         var join = defines.join("\n");
-        if (this._cachedDefines !== join) {
-            this._cachedDefines = join;
+        if (this._drawWrapper.defines !== join) {
+            this._drawWrapper.defines = join;
 
             var attributesNamesOrOptions: Array<string> = [];
             var effectCreationOption: Array<string> = [];
@@ -1878,11 +1877,15 @@ export class ParticleSystem extends BaseParticleSystem implements IDisposable, I
      * Rebuilds the particle system.
      */
     public rebuild(): void {
+        if (this._engine.getCaps().vertexArrayObject) {
+            this._vertexArrayObject = null;
+        }
+
         this._createIndexBuffer();
 
-        if (this._vertexBuffer) {
-            this._vertexBuffer._rebuild();
-        }
+        this._spriteBuffer?._rebuild();
+
+        this._vertexBuffer?._rebuild();
 
         for (var key in this._vertexBuffers) {
             this._vertexBuffers[key]._rebuild();
@@ -2541,7 +2544,7 @@ export class ParticleSystem extends BaseParticleSystem implements IDisposable, I
             particleSystem.emitter = Vector3.Zero();
         }
         else if (parsedParticleSystem.emitterId && scene) {
-            particleSystem.emitter = scene.getLastMeshByID(parsedParticleSystem.emitterId);
+            particleSystem.emitter = scene.getLastMeshById(parsedParticleSystem.emitterId);
         } else {
             particleSystem.emitter = Vector3.FromArray(parsedParticleSystem.emitter);
         }
@@ -2728,7 +2731,7 @@ export class ParticleSystem extends BaseParticleSystem implements IDisposable, I
                 case "MeshParticleEmitter":
                     emitterType = new MeshParticleEmitter();
                     break;
-                    case "BoxEmitter":
+                case "BoxEmitter":
                 case "BoxParticleEmitter":
                 default:
                     emitterType = new BoxParticleEmitter();

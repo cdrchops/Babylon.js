@@ -4,14 +4,14 @@ import { Scene } from "../scene";
 import { Vector2 } from "../Maths/math.vector";
 import { Color4 } from '../Maths/math.color';
 import { EngineStore } from "../Engines/engineStore";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { Material } from "../Materials/material";
 import { Texture } from "../Materials/Textures/texture";
 import { SceneComponentConstants } from "../sceneComponent";
 import { LayerSceneComponent } from "./layerSceneComponent";
 import { Constants } from "../Engines/constants";
 import { RenderTargetTexture } from "../Materials/Textures/renderTargetTexture";
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { DrawWrapper } from "../Materials/drawWrapper";
 
 import "../Shaders/layer.fragment";
@@ -75,6 +75,11 @@ export class Layer {
      * renders in the main frame buffer of the canvas.
      */
     public renderOnlyInRenderTargetTextures = false;
+
+    /**
+     * Define if the layer is enabled (ie. should be displayed). Default: true
+     */
+    public isEnabled = true;
 
     private _scene: Scene;
     private _vertexBuffers: { [key: string]: Nullable<VertexBuffer> } = {};
@@ -213,6 +218,9 @@ export class Layer {
      * Renders the layer in the scene.
      */
     public render(): void {
+        if (!this.isEnabled) {
+            return;
+        }
 
         var engine = this._scene.getEngine();
 

@@ -141,7 +141,7 @@ uniform mat4 view;
 // SubSurface
 #ifdef SUBSURFACE
     #ifdef SS_REFRACTION
-        uniform vec3 vRefractionMicrosurfaceInfos;
+        uniform vec4 vRefractionMicrosurfaceInfos;
         uniform vec4 vRefractionInfos;
         uniform mat4 refractionMatrix;
         #ifdef REALTIME_FILTERING
@@ -152,6 +152,16 @@ uniform mat4 view;
     #ifdef SS_THICKNESSANDMASK_TEXTURE
         uniform vec2 vThicknessInfos;
         uniform mat4 thicknessMatrix;
+    #endif
+
+    #ifdef SS_REFRACTIONINTENSITY_TEXTURE
+        uniform vec2 vRefractionIntensityInfos;
+        uniform mat4 refractionIntensityMatrix;
+    #endif
+
+    #ifdef SS_TRANSLUCENCYINTENSITY_TEXTURE
+        uniform vec2 vTranslucencyIntensityInfos;
+        uniform mat4 translucencyIntensityMatrix;
     #endif
 
     uniform vec2 vThicknessParam;

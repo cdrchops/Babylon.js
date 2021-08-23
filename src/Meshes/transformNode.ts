@@ -65,6 +65,7 @@ export class TransformNode extends Node {
     protected _scaling = Vector3.One();
     protected _isDirty = false;
     private _transformToBoneReferal: Nullable<TransformNode> = null;
+    private _currentParentWhenAttachingToBone: Nullable<Node>;
     private _isAbsoluteSynced = false;
 
     @serialize("billboardMode")
@@ -424,8 +425,8 @@ export class TransformNode extends Node {
      * @param onNewNodeCreated defines an option callback to call when a clone or an instance is created
      * @returns an instance (or a clone) of the current node with its hiearchy
      */
-    public instantiateHierarchy(newParent: Nullable<TransformNode> = null, options?: { doNotInstantiate: boolean}, onNewNodeCreated?: (source: TransformNode, clone: TransformNode) => void): Nullable<TransformNode> {
-        let clone = this.clone("Clone of " +  (this.name || this.id), newParent || this.parent, true);
+    public instantiateHierarchy(newParent: Nullable<TransformNode> = null, options?: { doNotInstantiate: boolean }, onNewNodeCreated?: (source: TransformNode, clone: TransformNode) => void): Nullable<TransformNode> {
+        let clone = this.clone("Clone of " + (this.name || this.id), newParent || this.parent, true);
 
         if (clone) {
             if (onNewNodeCreated) {
@@ -443,11 +444,21 @@ export class TransformNode extends Node {
     /**
      * Prevents the World matrix to be computed any longer
      * @param newWorldMatrix defines an optional matrix to use as world matrix
+     * @param decompose defines whether to decompose the given newWorldMatrix or directly assign
      * @returns the TransformNode.
      */
-    public freezeWorldMatrix(newWorldMatrix: Nullable<Matrix> = null): TransformNode {
+    public freezeWorldMatrix(newWorldMatrix: Nullable<Matrix> = null, decompose = false): TransformNode {
         if (newWorldMatrix) {
-            this._worldMatrix = newWorldMatrix;
+            if (decompose) {
+                this._rotation.setAll(0);
+                this._rotationQuaternion = this._rotationQuaternion || Quaternion.Identity();
+                newWorldMatrix.decompose(this._scaling, this._rotationQuaternion, this._position);
+                this.computeWorldMatrix(true);
+            } else {
+                this._worldMatrix = newWorldMatrix;
+                this._absolutePosition.copyFromFloats(this._worldMatrix.m[12], this._worldMatrix.m[13], this._worldMatrix.m[14]);
+                this._afterComputeWorldMatrix();
+            }
         } else {
             this._isWorldMatrixFrozen = false;  // no guarantee world is not already frozen, switch off temporarily
             this.computeWorldMatrix(true);
@@ -789,6 +800,7 @@ export class TransformNode extends Node {
      * @returns this object
      */
     public attachToBone(bone: Bone, affectedTransformNode: TransformNode): TransformNode {
+        this._currentParentWhenAttachingToBone = this.parent;
         this._transformToBoneReferal = affectedTransformNode;
         this.parent = bone;
 
@@ -802,10 +814,14 @@ export class TransformNode extends Node {
 
     /**
      * Detach the transform node if its associated with a bone
+     * @param resetToPreviousParent Indicates if the parent that was in effect when attachToBone was called should be set back or if we should set parent to null instead (defaults to the latter)
      * @returns this object
      */
-    public detachFromBone(): TransformNode {
+    public detachFromBone(resetToPreviousParent = false): TransformNode {
         if (!this.parent) {
+            if (resetToPreviousParent) {
+                this.parent = this._currentParentWhenAttachingToBone;
+            }
             return this;
         }
 
@@ -813,7 +829,11 @@ export class TransformNode extends Node {
             this.scalingDeterminant *= -1;
         }
         this._transformToBoneReferal = null;
-        this.parent = null;
+        if (resetToPreviousParent) {
+            this.parent = this._currentParentWhenAttachingToBone;
+        } else {
+            this.parent = null;
+        }
         return this;
     }
 
@@ -1102,37 +1122,37 @@ export class TransformNode extends Node {
         // Billboarding based on camera orientation (testing PG:http://www.babylonjs-playground.com/#UJEIL#13)
         if (useBillboardPath && camera && this.billboardMode && !useBillboardPosition) {
             let storedTranslation = TmpVectors.Vector3[0];
-                this._worldMatrix.getTranslationToRef(storedTranslation); // Save translation
+            this._worldMatrix.getTranslationToRef(storedTranslation); // Save translation
 
-                // Cancel camera rotation
-                TmpVectors.Matrix[1].copyFrom(camera.getViewMatrix());
-                TmpVectors.Matrix[1].setTranslationFromFloats(0, 0, 0);
-                TmpVectors.Matrix[1].invertToRef(TmpVectors.Matrix[0]);
+            // Cancel camera rotation
+            TmpVectors.Matrix[1].copyFrom(camera.getViewMatrix());
+            TmpVectors.Matrix[1].setTranslationFromFloats(0, 0, 0);
+            TmpVectors.Matrix[1].invertToRef(TmpVectors.Matrix[0]);
 
-                if ((this.billboardMode & TransformNode.BILLBOARDMODE_ALL) !== TransformNode.BILLBOARDMODE_ALL) {
-                    TmpVectors.Matrix[0].decompose(undefined, TmpVectors.Quaternion[0], undefined);
-                    let eulerAngles = TmpVectors.Vector3[1];
-                    TmpVectors.Quaternion[0].toEulerAnglesToRef(eulerAngles);
+            if ((this.billboardMode & TransformNode.BILLBOARDMODE_ALL) !== TransformNode.BILLBOARDMODE_ALL) {
+                TmpVectors.Matrix[0].decompose(undefined, TmpVectors.Quaternion[0], undefined);
+                let eulerAngles = TmpVectors.Vector3[1];
+                TmpVectors.Quaternion[0].toEulerAnglesToRef(eulerAngles);
 
-                    if ((this.billboardMode & TransformNode.BILLBOARDMODE_X) !== TransformNode.BILLBOARDMODE_X) {
-                        eulerAngles.x = 0;
-                    }
-
-                    if ((this.billboardMode & TransformNode.BILLBOARDMODE_Y) !== TransformNode.BILLBOARDMODE_Y) {
-                        eulerAngles.y = 0;
-                    }
-
-                    if ((this.billboardMode & TransformNode.BILLBOARDMODE_Z) !== TransformNode.BILLBOARDMODE_Z) {
-                        eulerAngles.z = 0;
-                    }
-
-                    Matrix.RotationYawPitchRollToRef(eulerAngles.y, eulerAngles.x, eulerAngles.z, TmpVectors.Matrix[0]);
+                if ((this.billboardMode & TransformNode.BILLBOARDMODE_X) !== TransformNode.BILLBOARDMODE_X) {
+                    eulerAngles.x = 0;
                 }
-                this._worldMatrix.setTranslationFromFloats(0, 0, 0);
-                this._worldMatrix.multiplyToRef(TmpVectors.Matrix[0], this._worldMatrix);
 
-                // Restore translation
-                this._worldMatrix.setTranslation(TmpVectors.Vector3[0]);
+                if ((this.billboardMode & TransformNode.BILLBOARDMODE_Y) !== TransformNode.BILLBOARDMODE_Y) {
+                    eulerAngles.y = 0;
+                }
+
+                if ((this.billboardMode & TransformNode.BILLBOARDMODE_Z) !== TransformNode.BILLBOARDMODE_Z) {
+                    eulerAngles.z = 0;
+                }
+
+                Matrix.RotationYawPitchRollToRef(eulerAngles.y, eulerAngles.x, eulerAngles.z, TmpVectors.Matrix[0]);
+            }
+            this._worldMatrix.setTranslationFromFloats(0, 0, 0);
+            this._worldMatrix.multiplyToRef(TmpVectors.Matrix[0], this._worldMatrix);
+
+            // Restore translation
+            this._worldMatrix.setTranslation(TmpVectors.Vector3[0]);
         }
 
         // Normal matrix
@@ -1171,8 +1191,7 @@ export class TransformNode extends Node {
      * Resets this nodeTransform's local matrix to Matrix.Identity().
      * @param independentOfChildren indicates if all child nodeTransform's world-space transform should be preserved.
      */
-    public resetLocalMatrix(independentOfChildren : boolean = true): void
-    {
+    public resetLocalMatrix(independentOfChildren: boolean = true): void {
         this.computeWorldMatrix();
         if (independentOfChildren) {
             let children = this.getChildren();
@@ -1185,7 +1204,7 @@ export class TransformNode extends Node {
                     let tmpRotationQuaternion = TmpVectors.Quaternion[0];
                     bakedMatrix.decompose(child.scaling, tmpRotationQuaternion, child.position);
                     if (child.rotationQuaternion) {
-                        child.rotationQuaternion = tmpRotationQuaternion;
+                        child.rotationQuaternion.copyFrom(tmpRotationQuaternion);
                     } else {
                         tmpRotationQuaternion.toEulerAnglesToRef(child.rotation);
                     }
@@ -1259,7 +1278,7 @@ export class TransformNode extends Node {
      * @param doNotCloneChildren Do not clone children hierarchy
      * @returns the new transform node
      */
-    public clone(name: string, newParent: Nullable<Node>, doNotCloneChildren?: boolean) : Nullable<TransformNode> {
+    public clone(name: string, newParent: Nullable<Node>, doNotCloneChildren?: boolean): Nullable<TransformNode> {
         var result = SerializationHelper.Clone(() => new TransformNode(name, this.getScene()), this);
 
         result.name = name;
@@ -1362,6 +1381,14 @@ export class TransformNode extends Node {
 
         // Remove from scene
         this.getScene().removeTransformNode(this);
+
+        if (this._parentContainer) {
+            const index = this._parentContainer.transformNodes.indexOf(this);
+            if (index > -1) {
+                this._parentContainer.transformNodes.splice(index, 1);
+            }
+            this._parentContainer = null;
+        }
 
         this.onAfterWorldMatrixUpdateObservable.clear();
 

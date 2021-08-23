@@ -1,6 +1,6 @@
 import { DracoCompression } from "babylonjs/Meshes/Compression/dracoCompression";
 import { Nullable } from "babylonjs/types";
-import { VertexBuffer } from "babylonjs/Meshes/buffer";
+import { VertexBuffer } from "babylonjs/Buffers/buffer";
 import { Geometry } from "babylonjs/Meshes/geometry";
 import { Mesh } from "babylonjs/Meshes/mesh";
 
@@ -83,6 +83,10 @@ export class KHR_draco_mesh_compression implements IGLTFLoaderExtension {
             loadAttribute("TANGENT", VertexBuffer.TangentKind);
             loadAttribute("TEXCOORD_0", VertexBuffer.UVKind);
             loadAttribute("TEXCOORD_1", VertexBuffer.UV2Kind);
+            loadAttribute("TEXCOORD_2", VertexBuffer.UV3Kind);
+            loadAttribute("TEXCOORD_3", VertexBuffer.UV4Kind);
+            loadAttribute("TEXCOORD_4", VertexBuffer.UV5Kind);
+            loadAttribute("TEXCOORD_5", VertexBuffer.UV6Kind);
             loadAttribute("JOINTS_0", VertexBuffer.MatricesIndicesKind);
             loadAttribute("WEIGHTS_0", VertexBuffer.MatricesWeightsKind);
             loadAttribute("COLOR_0", VertexBuffer.ColorKind);

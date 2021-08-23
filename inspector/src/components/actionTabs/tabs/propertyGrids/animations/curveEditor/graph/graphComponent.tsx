@@ -6,9 +6,11 @@ import { Curve } from "./curve";
 import { KeyPointComponent } from "./keyPoint";
 import { CurveComponent } from "./curveComponent";
 import { Nullable } from "babylonjs/types";
-import { Vector2 } from "babylonjs/Maths/math.vector";
 import { Observer } from "babylonjs/Misc/observable";
 import { IAnimationKey } from "babylonjs/Animations/animationKey";
+import { Quaternion, Vector2, Vector3 } from "babylonjs/Maths/math.vector";
+import { Color3, Color4 } from "babylonjs/Maths/math.color";
+import { Scalar } from "babylonjs/Maths/math.scalar";
 
 interface IGraphComponentProps {
     globalState: GlobalState;
@@ -50,7 +52,6 @@ IGraphComponentState
     private _pointerIsDown: boolean;
     private _sourcePointerX: number;
     private _sourcePointerY: number;
-
     
     private _selectionStartX: number;
     private _selectionStartY: number;
@@ -80,8 +81,8 @@ IGraphComponentState
             }
 
             this._currentAnimation = this.props.context.activeAnimation;
-            this._computeSizes();
             this._evaluateKeys();
+            this._computeSizes();
             this.forceUpdate();
         });
 
@@ -94,12 +95,13 @@ IGraphComponentState
             this.forceUpdate();
         });
 
-        this.props.context.onDeleteKeyActiveKeyPoints.add(() => { // Delete keypoint
+        // Delete keypoint
+        this.props.context.onDeleteKeyActiveKeyPoints.add(() => { 
             if (!this._currentAnimation || !this.props.context.activeKeyPoints) {
                 return;
             }
 
-            let keys = this._currentAnimation.getKeys()
+            let keys = this._currentAnimation.getKeys();
             let newKeys = keys.slice(0);
             let deletedFrame: Nullable<number> = null;            
 
@@ -132,6 +134,82 @@ IGraphComponentState
 
             this.props.context.onActiveAnimationChanged.notifyObservers();
         });
+
+        // New keypoint
+        this.props.context.onNewKeyPointRequired.add(() => {
+            if (!this._currentAnimation) {
+                return;
+            }
+
+            let keys = this._currentAnimation.getKeys();
+
+            const currentFrame = this.props.context.activeFrame;
+
+            let indexToAdd = -1;
+            for (var key of keys) {
+                if (key.frame < currentFrame) {
+                    indexToAdd++;
+                } else {
+                    break;
+                }
+            }
+
+            const value = this._currentAnimation.evaluate(currentFrame);
+            const leftKey = keys[indexToAdd];
+            const rightKey = keys[indexToAdd + 1];
+            
+            let newKey: IAnimationKey = {
+                frame: currentFrame,
+                value: value
+            }
+
+            if (leftKey.outTangent !== undefined && rightKey.inTangent !== undefined) {
+                let derivative: Nullable<any> = null;
+                const invFrameDelta = 1.0 / (rightKey.frame - leftKey.frame);
+                const cutTime = (currentFrame - leftKey.frame) * invFrameDelta;
+
+                switch (this._currentAnimation.dataType) {
+                    case Animation.ANIMATIONTYPE_FLOAT: {
+                        derivative = Scalar.Hermite1stDerivative(leftKey.value * invFrameDelta, leftKey.outTangent, rightKey.value * invFrameDelta, rightKey.inTangent, cutTime);
+                        break;
+                    }
+                    case Animation.ANIMATIONTYPE_VECTOR2: {
+                        derivative = Vector2.Hermite1stDerivative(leftKey.value.scale(invFrameDelta), leftKey.outTangent, rightKey.value.scale(invFrameDelta), rightKey.inTangent, cutTime);
+                        break;
+                    }
+                    case Animation.ANIMATIONTYPE_VECTOR3: {
+                        derivative = Vector3.Hermite1stDerivative(leftKey.value.scale(invFrameDelta), leftKey.outTangent, rightKey.value.scale(invFrameDelta), rightKey.inTangent, cutTime);
+                        break;
+                    }
+                    case Animation.ANIMATIONTYPE_QUATERNION:{
+                        derivative = Quaternion.Hermite1stDerivative(leftKey.value.scale(invFrameDelta), leftKey.outTangent, rightKey.value.scale(invFrameDelta), rightKey.inTangent, cutTime);
+                        break;
+                    }
+                    case Animation.ANIMATIONTYPE_COLOR3:
+                        derivative = Color3.Hermite1stDerivative(leftKey.value.scale(invFrameDelta), leftKey.outTangent, rightKey.value.scale(invFrameDelta), rightKey.inTangent, cutTime);
+                        break;
+                    case Animation.ANIMATIONTYPE_COLOR4:
+                        derivative = Color4.Hermite1stDerivative(leftKey.value.scale(invFrameDelta), leftKey.outTangent, rightKey.value.scale(invFrameDelta), rightKey.inTangent, cutTime);
+                        break;
+                }
+
+                if (derivative !== null) {
+                    newKey.inTangent = derivative;
+                    newKey.outTangent = derivative.clone ? derivative.clone() : derivative;
+                }
+            }
+
+            
+            keys.splice(indexToAdd + 1, 0, newKey);
+
+            this._currentAnimation.setKeys(keys);
+            this._evaluateKeys(false, false);
+
+            this.props.context.activeKeyPoints = [];            
+            this.props.context.onActiveKeyPointChanged.notifyObservers();
+            this.props.context.onActiveAnimationChanged.notifyObservers();        
+            this.forceUpdate();    
+        });
     }
 
     componentWillUnmount() {
@@ -151,7 +229,19 @@ IGraphComponentState
         this.forceUpdate();
     }
 
-    private _evaluateKeys() {
+    private _setDefaultInTangent(keyId: number) {
+        for (var curve of this._curves) {
+            curve.storeDefaultInTangent(keyId);
+        }
+    }
+
+    private _setDefaultOutTangent(keyId: number) {
+        for (var curve of this._curves) {
+            curve.storeDefaultOutTangent!(keyId);
+        }
+    }
+
+    private _evaluateKeys(frame = true, range = true) {
         if (!this.props.context.activeAnimation) {
             this._curves = [];
             return;
@@ -165,130 +255,284 @@ IGraphComponentState
         switch (animation.dataType) {
             case Animation.ANIMATIONTYPE_FLOAT:
                 this._curves.push(new Curve("#DB3E3E", animation)); 
-            break;
+                break;
             case Animation.ANIMATIONTYPE_VECTOR2:
-                this._curves.push(new Curve("#DB3E3E", animation, "x")); 
-                this._curves.push(new Curve("#51E22D", animation, "y")); 
+                this._curves.push(new Curve("#DB3E3E", animation, "x", () => Vector2.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#51E22D", animation, "y", () => Vector2.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId)));
+                break; 
             case Animation.ANIMATIONTYPE_VECTOR3:
-                this._curves.push(new Curve("#DB3E3E", animation, "x")); 
-                this._curves.push(new Curve("#51E22D", animation, "y")); 
-                this._curves.push(new Curve("#00A3FF", animation, "z")); 
+                this._curves.push(new Curve("#DB3E3E", animation, "x", () => Vector3.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#51E22D", animation, "y", () => Vector3.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#00A3FF", animation, "z", () => Vector3.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
                 break;
             case Animation.ANIMATIONTYPE_COLOR3:
-                this._curves.push(new Curve("#DB3E3E", animation, "r")); 
-                this._curves.push(new Curve("#51E22D", animation, "g")); 
-                this._curves.push(new Curve("#00A3FF", animation, "b")); 
+                this._curves.push(new Curve("#DB3E3E", animation, "r", () => Color3.Black(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#51E22D", animation, "g", () => Color3.Black(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#00A3FF", animation, "b", () => Color3.Black(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
                 break;
             case Animation.ANIMATIONTYPE_QUATERNION:
-                this._curves.push(new Curve("#DB3E3E", animation, "x")); 
-                this._curves.push(new Curve("#51E22D", animation, "y")); 
-                this._curves.push(new Curve("#00A3FF", animation, "z")); 
-                this._curves.push(new Curve("#8700FF", animation, "w")); 
+                this._curves.push(new Curve("#DB3E3E", animation, "x", () => Quaternion.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#51E22D", animation, "y", () => Quaternion.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#00A3FF", animation, "z", () => Quaternion.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#8700FF", animation, "w", () => Quaternion.Zero(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
                 break;
             case Animation.ANIMATIONTYPE_COLOR4:
-                this._curves.push(new Curve("#DB3E3E", animation, "r")); 
-                this._curves.push(new Curve("#51E22D", animation, "g")); 
-                this._curves.push(new Curve("#00A3FF", animation, "b")); 
-                this._curves.push(new Curve("#8700FF", animation, "a")); 
+                this._curves.push(new Curve("#DB3E3E", animation, "r", () => new Color4(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#51E22D", animation, "g", () => new Color4(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#00A3FF", animation, "b", () => new Color4(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
+                this._curves.push(new Curve("#8700FF", animation, "a", () => new Color4(), keyId => this._setDefaultInTangent(keyId), keyId => this._setDefaultOutTangent(keyId))); 
                 break;
         }
 
         let values = this._extractValuesFromKeys(keys, animation.dataType, true);
 
-        this._minValue = values.min;
-        this._maxValue = values.max;
+        if (range) {
+            this._minValue = values.min;
+            this._maxValue = values.max;
 
-        this._minFrame = keys[0].frame;
-        this._maxFrame = keys[keys.length - 1].frame;
+            this._minFrame = keys[0].frame;
+            this._maxFrame = keys[keys.length - 1].frame;
+        }
 
-        this._frame();
+        if (frame) {
+            this._frame();
+        }
     }
 
-    private _extractValuesFromKeys(keys: IAnimationKey[], dataType: number, pushToCurves: boolean) {
+    private _extractValuesFromKeys(keys: IAnimationKey[], dataType: number, pushToCurves: boolean, propertyFilter?: string) {
         let minValue = Number.MAX_VALUE;
         let maxValue = -Number.MAX_VALUE;
 
         for (var key of keys) {
+            let lockedTangent = true;
+            if (key.lockedTangent !== undefined) {
+                lockedTangent = key.lockedTangent;
+            }
+
             switch (dataType) {
                 case Animation.ANIMATIONTYPE_FLOAT:
                     minValue = Math.min(minValue, key.value);
                     maxValue = Math.max(maxValue, key.value);
 
                     if (pushToCurves) {
-                        this._curves[0].keys.push(new Vector2(key.frame, key.value));
+                        this._curves[0].keys.push({
+                            frame: key.frame, 
+                            value: key.value,
+                            inTangent: key.inTangent,
+                            outTangent: key.outTangent,
+                            lockedTangent: lockedTangent
+                        });
                     }
                     break;
                 case Animation.ANIMATIONTYPE_VECTOR2:
-                    minValue = Math.min(minValue, key.value.x);
-                    minValue = Math.min(minValue, key.value.y);
-                    maxValue = Math.max(maxValue, key.value.x);
-                    maxValue = Math.max(maxValue, key.value.y);
+                    if (!propertyFilter || propertyFilter === "x") {
+                        minValue = Math.min(minValue, key.value.x);
+                        maxValue = Math.max(maxValue, key.value.x);
+                    }
+                    if (!propertyFilter || propertyFilter === "y") {
+                        minValue = Math.min(minValue, key.value.y);
+                        maxValue = Math.max(maxValue, key.value.y);
+                    }
 
                     if (pushToCurves) {
-                        this._curves[0].keys.push(new Vector2(key.frame, key.value.x));
-                        this._curves[1].keys.push(new Vector2(key.frame, key.value.y));
+                        this._curves[0].keys.push({
+                            frame: key.frame, 
+                            value: key.value.x,
+                            inTangent: key.inTangent?.x,
+                            outTangent: key.outTangent?.x,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[1].keys.push({
+                            frame: key.frame, 
+                            value: key.value.y,
+                            inTangent: key.inTangent?.y,
+                            outTangent: key.outTangent?.y,
+                            lockedTangent: lockedTangent
+                        });
                     }
                     break;
                 case Animation.ANIMATIONTYPE_VECTOR3:
-                    minValue = Math.min(minValue, key.value.x);
-                    minValue = Math.min(minValue, key.value.y);
-                    minValue = Math.min(minValue, key.value.z);
-                    maxValue = Math.max(maxValue, key.value.x);
-                    maxValue = Math.max(maxValue, key.value.y);
-                    maxValue = Math.max(maxValue, key.value.z);
+                    if (!propertyFilter || propertyFilter === "x") {
+                        minValue = Math.min(minValue, key.value.x);
+                        maxValue = Math.max(maxValue, key.value.x);
+                    }
+
+                    if (!propertyFilter || propertyFilter === "y") {
+                        minValue = Math.min(minValue, key.value.y);
+                        maxValue = Math.max(maxValue, key.value.y);
+                    }
+    
+                    if (!propertyFilter || propertyFilter === "z") {
+                        minValue = Math.min(minValue, key.value.z);
+                        maxValue = Math.max(maxValue, key.value.z);
+                    }
                     
                     if (pushToCurves) {
-                        this._curves[0].keys.push(new Vector2(key.frame, key.value.x));
-                        this._curves[1].keys.push(new Vector2(key.frame, key.value.y));
-                        this._curves[2].keys.push(new Vector2(key.frame, key.value.z));
+                        this._curves[0].keys.push({
+                            frame: key.frame, 
+                            value: key.value.x,
+                            inTangent: key.inTangent?.x,
+                            outTangent: key.outTangent?.x,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[1].keys.push({
+                            frame: key.frame, 
+                            value: key.value.y,
+                            inTangent: key.inTangent?.y,
+                            outTangent: key.outTangent?.y,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[2].keys.push({
+                            frame: key.frame, 
+                            value: key.value.z,
+                            inTangent: key.inTangent?.z,
+                            outTangent: key.outTangent?.z,
+                            lockedTangent: lockedTangent
+                        });
                     }
                     break;
                 case Animation.ANIMATIONTYPE_COLOR3:
-                    minValue = Math.min(minValue, key.value.r);
-                    minValue = Math.min(minValue, key.value.g);
-                    minValue = Math.min(minValue, key.value.b);
-                    maxValue = Math.max(maxValue, key.value.r);
-                    maxValue = Math.max(maxValue, key.value.g);
-                    maxValue = Math.max(maxValue, key.value.b);
+                    if (!propertyFilter || propertyFilter === "r") {
+                        minValue = Math.min(minValue, key.value.r);
+                        maxValue = Math.max(maxValue, key.value.r);
+                    }
+
+                    if (!propertyFilter || propertyFilter === "g") {
+                        minValue = Math.min(minValue, key.value.g);
+                        maxValue = Math.max(maxValue, key.value.g);
+                    }
+
+                    if (!propertyFilter || propertyFilter === "b") {
+                        minValue = Math.min(minValue, key.value.b);
+                        maxValue = Math.max(maxValue, key.value.b);
+                    }
 
                     if (pushToCurves) {
-                        this._curves[0].keys.push(new Vector2(key.frame, key.value.r));
-                        this._curves[1].keys.push(new Vector2(key.frame, key.value.g));
-                        this._curves[2].keys.push(new Vector2(key.frame, key.value.b));
+                        this._curves[0].keys.push({
+                            frame: key.frame, 
+                            value: key.value.r,
+                            inTangent: key.inTangent?.r,
+                            outTangent: key.outTangent?.r,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[1].keys.push({
+                            frame: key.frame, 
+                            value: key.value.g,
+                            inTangent: key.inTangent?.g,
+                            outTangent: key.outTangent?.g,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[2].keys.push({
+                            frame: key.frame, 
+                            value: key.value.b,
+                            inTangent: key.inTangent?.b,
+                            outTangent: key.outTangent?.b,
+                            lockedTangent: lockedTangent
+                        });
                     }
                     break;                    
                 case Animation.ANIMATIONTYPE_QUATERNION:
-                    minValue = Math.min(minValue, key.value.x);
-                    minValue = Math.min(minValue, key.value.y);
-                    minValue = Math.min(minValue, key.value.z);
-                    minValue = Math.min(minValue, key.value.w);
-                    maxValue = Math.max(maxValue, key.value.x);
-                    maxValue = Math.max(maxValue, key.value.y);
-                    maxValue = Math.max(maxValue, key.value.z);
-                    maxValue = Math.max(maxValue, key.value.w);
+                    if (!propertyFilter || propertyFilter === "x") {
+                        minValue = Math.min(minValue, key.value.x);
+                        maxValue = Math.max(maxValue, key.value.x);
+                    }
+
+                    if (!propertyFilter || propertyFilter === "y") {
+                        minValue = Math.min(minValue, key.value.y);
+                        maxValue = Math.max(maxValue, key.value.y);
+                    }
+    
+                    if (!propertyFilter || propertyFilter === "z") {
+                        minValue = Math.min(minValue, key.value.z);
+                        maxValue = Math.max(maxValue, key.value.z);
+                    }
+
+                    if (!propertyFilter || propertyFilter === "w") {
+                        minValue = Math.min(minValue, key.value.w);
+                        maxValue = Math.max(maxValue, key.value.w);
+                    }                    
                     
                     if (pushToCurves) {
-                        this._curves[0].keys.push(new Vector2(key.frame, key.value.x));
-                        this._curves[1].keys.push(new Vector2(key.frame, key.value.y));
-                        this._curves[2].keys.push(new Vector2(key.frame, key.value.z));  
-                        this._curves[3].keys.push(new Vector2(key.frame, key.value.w));     
+                        this._curves[0].keys.push({
+                            frame: key.frame, 
+                            value: key.value.x,
+                            inTangent: key.inTangent?.x,
+                            outTangent: key.outTangent?.x,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[1].keys.push({
+                            frame: key.frame, 
+                            value: key.value.y,
+                            inTangent: key.inTangent?.y,
+                            outTangent: key.outTangent?.y,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[2].keys.push({
+                            frame: key.frame, 
+                            value: key.value.z,
+                            inTangent: key.inTangent?.z,
+                            outTangent: key.outTangent?.z,
+                            lockedTangent: lockedTangent
+                        });   
+                        this._curves[3].keys.push({
+                            frame: key.frame, 
+                            value: key.value.w,
+                            inTangent: key.inTangent?.w,
+                            outTangent: key.outTangent?.w,
+                            lockedTangent: lockedTangent
+                        }); 
                     }                   
                     break;
                 case Animation.ANIMATIONTYPE_COLOR4:
-                    minValue = Math.min(minValue, key.value.r);
-                    minValue = Math.min(minValue, key.value.g);
-                    minValue = Math.min(minValue, key.value.b);
-                    minValue = Math.min(minValue, key.value.a);
-                    maxValue = Math.max(maxValue, key.value.r);
-                    maxValue = Math.max(maxValue, key.value.g);
-                    maxValue = Math.max(maxValue, key.value.b);
-                    maxValue = Math.max(maxValue, key.value.a);
+                    if (!propertyFilter || propertyFilter === "r") {
+                        minValue = Math.min(minValue, key.value.r);
+                        maxValue = Math.max(maxValue, key.value.r);
+                    }
+
+                    if (!propertyFilter || propertyFilter === "g") {
+                        minValue = Math.min(minValue, key.value.g);
+                        maxValue = Math.max(maxValue, key.value.g);
+                    }
+
+                    if (!propertyFilter || propertyFilter === "b") {
+                        minValue = Math.min(minValue, key.value.b);
+                        maxValue = Math.max(maxValue, key.value.b);
+                    }
+
+                    if (!propertyFilter || propertyFilter === "a") {
+                        minValue = Math.min(minValue, key.value.a);
+                        maxValue = Math.max(maxValue, key.value.a);
+                    }                    
                     
                     if (pushToCurves) {
-                        this._curves[0].keys.push(new Vector2(key.frame, key.value.r));
-                        this._curves[1].keys.push(new Vector2(key.frame, key.value.g));
-                        this._curves[2].keys.push(new Vector2(key.frame, key.value.b));  
-                        this._curves[3].keys.push(new Vector2(key.frame, key.value.a));                        
+                        this._curves[0].keys.push({
+                            frame: key.frame, 
+                            value: key.value.r,
+                            inTangent: key.inTangent?.r,
+                            outTangent: key.outTangent?.r,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[1].keys.push({
+                            frame: key.frame, 
+                            value: key.value.g,
+                            inTangent: key.inTangent?.g,
+                            outTangent: key.outTangent?.g,
+                            lockedTangent: lockedTangent
+                        });
+                        this._curves[2].keys.push({
+                            frame: key.frame, 
+                            value: key.value.b,
+                            inTangent: key.inTangent?.b,
+                            outTangent: key.outTangent?.b,
+                            lockedTangent: lockedTangent
+                        });   
+                        this._curves[3].keys.push({
+                            frame: key.frame, 
+                            value: key.value.a,
+                            inTangent: key.inTangent?.a,
+                            outTangent: key.outTangent?.a,
+                            lockedTangent: lockedTangent
+                        });                  
                     }
                     break;                    
             }
@@ -406,8 +650,6 @@ IGraphComponentState
             return;
         }
 
-        this.props.context.onActiveKeyPointChanged.notifyObservers();
-
         this._offsetX = 20;
         this._offsetY = 20;
 
@@ -425,10 +667,24 @@ IGraphComponentState
 
         this._minFrame = keys[0].frame;
         this._maxFrame = keys[keys.length - 1].frame;
+        let propertyFilter: string | undefined = undefined;
 
-        let values = this._extractValuesFromKeys(keys, this._currentAnimation.dataType, false);
+        if (this.props.context.activeColor) {
+            const activeCurve = this._curves.filter(c => c.color === this.props.context.activeColor)[0];
+
+            if (activeCurve) {
+                propertyFilter = activeCurve.property;
+            } else {
+                this.props.context.activeColor = null;
+            }
+        }
+
+        let values = this._extractValuesFromKeys(keys, this._currentAnimation.dataType, false, propertyFilter);
         this._minValue = values.min;
         this._maxValue = values.max;
+
+        this.props.context.referenceMinFrame = this._minFrame;
+        this.props.context.referenceMaxFrame = this._maxFrame;
 
         const frameConvert = Math.abs(this._convertX(this._maxFrame ) - this._convertX(this._minFrame)) + this._offsetX * 2;
         const valueConvert = this._minValue !== this._maxValue ? Math.abs(this._convertY(this._minValue) - this._convertY(this._maxValue)) + this._offsetY * 2 : 1;
@@ -453,15 +709,15 @@ IGraphComponentState
         let curve = this._curves[curveId];
 
         return curve.keys.map((key, i) => {
-            let x = this._convertX(key.x);
-            let y = this._convertY(key.y);
+            let x = this._convertX(key.frame);
+            let y = this._convertY(key.value);
 
             return (
                <KeyPointComponent 
                     x={x} y={y} context={this.props.context} 
                     scale={this._viewScale} 
-                    getPreviousX={() => i > 0 ? this._convertX(curve.keys[i - 1].x) : null}
-                    getNextX={() => i < curve.keys.length - 1 ? this._convertX(curve.keys[i + 1].x) : null}
+                    getPreviousX={() => i > 0 ? this._convertX(curve.keys[i - 1].frame) : null}
+                    getNextX={() => i < curve.keys.length - 1 ? this._convertX(curve.keys[i + 1].frame) : null}
                     channel={curve.color}
                     keyId={i}
                     curve={curve}
@@ -577,10 +833,8 @@ IGraphComponentState
         let activeBoxLeft = 0;
         let activeBoxRight = 0;
         if (this.props.context.activeAnimation) {
-            let animation = this.props.context.activeAnimation;
-            let keys = animation.getKeys();
-            let minFrame = keys[0].frame;
-            let maxFrame = keys[keys.length - 1].frame;
+            let minFrame = this.props.context.referenceMinFrame;
+            let maxFrame = this.props.context.referenceMaxFrame;
         
             activeBoxLeft = (((this.props.context.fromKey - minFrame) /  (maxFrame - minFrame)) * this._GraphAbsoluteWidth + this._offsetX) / this._viewScale;
             activeBoxRight = (((this.props.context.toKey - minFrame) /  (maxFrame - minFrame)) * this._GraphAbsoluteWidth + this._offsetX) / this._viewScale;

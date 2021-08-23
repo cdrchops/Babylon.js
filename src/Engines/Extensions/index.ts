@@ -1,5 +1,6 @@
 export * from "./engine.alpha";
-export * from "./engine.occlusionQuery";
+export * from "./engine.debugging";
+export * from "./engine.query";
 export * from "./engine.transformFeedback";
 export * from "./engine.multiview";
 export * from "./engine.rawTexture";
@@ -14,6 +15,8 @@ export * from "./engine.uniformBuffer";
 export * from "./engine.dynamicBuffer";
 export * from "./engine.views";
 export * from "./engine.readTexture";
+export * from "./engine.computeShader";
+export * from "./engine.storageBuffer";
 
 // must import first since nothing references the exports
 import "./engine.textureSelector";

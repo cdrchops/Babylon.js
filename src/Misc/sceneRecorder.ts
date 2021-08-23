@@ -13,6 +13,7 @@ import { MorphTargetManager } from '../Morph/morphTargetManager';
 import { ShadowGenerator } from '../Lights/Shadows/shadowGenerator';
 import { PostProcess } from '../PostProcesses/postProcess';
 import { Texture } from "../Materials/Textures/texture";
+import { SerializationHelper } from './decorators';
 
 /**
  * Class used to record delta files between 2 scene states
@@ -28,7 +29,9 @@ export class SceneRecorder {
     public track(scene: Scene) {
         this._trackedScene = scene;
 
+        SerializationHelper.AllowLoadingUniqueId = true;
         this._savedJSON = SceneSerializer.Serialize(scene);
+        SerializationHelper.AllowLoadingUniqueId = false;
     }
 
     /**
@@ -43,7 +46,9 @@ export class SceneRecorder {
         const currentForceSerializeBuffers = Texture.ForceSerializeBuffers;
         Texture.ForceSerializeBuffers = false;
 
+        SerializationHelper.AllowLoadingUniqueId = true;
         let newJSON = SceneSerializer.Serialize(this._trackedScene);
+        SerializationHelper.AllowLoadingUniqueId = false;
         let deltaJSON: any = {};
 
         for (var node in newJSON) {
@@ -144,6 +149,12 @@ export class SceneRecorder {
                 diffFound = (JSON.stringify(originalValue) !== JSON.stringify(currentValue));
             } else if (!isNaN(originalValue) || Object.prototype.toString.call(originalValue) == '[object String]') {
                 diffFound = (originalValue !== currentValue);
+            } else if (typeof originalValue === "object" && typeof currentValue === "object") {
+                let newObject = {};
+                if (!this._compareObjects(originalValue, currentValue, newObject)) {
+                    deltaJSON[prop] = newObject;
+                    aDifferenceWasFound = true;
+                }
             }
 
             if (diffFound) {
@@ -209,31 +220,31 @@ export class SceneRecorder {
             if (Array.isArray(property) || prop === "shadowGenerators") { // Restore array
                 switch (prop) {
                     case "cameras":
-                        this._ApplyDeltaForEntity(source, scene, scene.getCameraByID.bind(scene), (data) => Camera.Parse(data, scene));
+                        this._ApplyDeltaForEntity(source, scene, scene.getCameraById.bind(scene), (data) => Camera.Parse(data, scene));
                         break;
                     case "lights":
-                        this._ApplyDeltaForEntity(source, scene, scene.getLightByID.bind(scene), (data) => Light.Parse(data, scene));
+                        this._ApplyDeltaForEntity(source, scene, scene.getLightById.bind(scene), (data) => Light.Parse(data, scene));
                         break;
                     case "shadowGenerators":
                         this._ApplyDeltaForEntity(source, scene, (id) => this.GetShadowGeneratorById(scene, id), (data) => ShadowGenerator.Parse(data, scene));
                         break;
                     case "meshes":
-                        this._ApplyDeltaForEntity(source, scene, scene.getMeshByID.bind(scene), (data) => Mesh.Parse(data, scene, ""));
+                        this._ApplyDeltaForEntity(source, scene, scene.getMeshById.bind(scene), (data) => Mesh.Parse(data, scene, ""));
                         break;
                     case "skeletons":
                         this._ApplyDeltaForEntity(source, scene, scene.getSkeletonById.bind(scene), (data) => Skeleton.Parse(data, scene));
                         break;
                     case "materials":
-                        this._ApplyDeltaForEntity(source, scene, scene.getMaterialByID.bind(scene), (data) => Material.Parse(data, scene, ""));
+                        this._ApplyDeltaForEntity(source, scene, scene.getMaterialById.bind(scene), (data) => Material.Parse(data, scene, ""));
                         break;
                     case "multiMaterials":
-                        this._ApplyDeltaForEntity(source, scene, scene.getMaterialByID.bind(scene), (data) => MultiMaterial.Parse(data, scene, ""));
+                        this._ApplyDeltaForEntity(source, scene, scene.getMaterialById.bind(scene), (data) => MultiMaterial.Parse(data, scene, ""));
                         break;
                     case "transformNodes":
-                        this._ApplyDeltaForEntity(source, scene, scene.getTransformNodeByID.bind(scene), (data) => TransformNode.Parse(data, scene, ""));
+                        this._ApplyDeltaForEntity(source, scene, scene.getTransformNodeById.bind(scene), (data) => TransformNode.Parse(data, scene, ""));
                         break;
                     case "particleSystems":
-                        this._ApplyDeltaForEntity(source, scene, scene.getParticleSystemByID.bind(scene), (data) => ParticleSystem.Parse(data, scene, ""));
+                        this._ApplyDeltaForEntity(source, scene, scene.getParticleSystemById.bind(scene), (data) => ParticleSystem.Parse(data, scene, ""));
                         break;
                     case "morphTargetManagers":
                         this._ApplyDeltaForEntity(source, scene, scene.getMorphTargetById.bind(scene), (data) => MorphTargetManager.Parse(data, scene));
@@ -263,6 +274,8 @@ export class SceneRecorder {
                 entity[prop] = source;
             } else if (property.fromArray) {
                 property.fromArray(source);
+            } else if (typeof property === "object" && property !== null) {
+                this._ApplyPropertiesToEntity(source, property);
             }
         }
     }

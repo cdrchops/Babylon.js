@@ -1,20 +1,19 @@
 import { Logger } from "../Misc/logger";
 import { DomManagement } from '../Misc/domManagement';
-import { Nullable, DataArray, IndicesArray, FloatArray, Immutable } from "../types";
+import { Nullable, DataArray, IndicesArray, Immutable } from "../types";
 import { Color4 } from "../Maths/math";
 import { Engine } from "../Engines/engine";
 import { InstancingAttributeInfo } from "../Engines/instancingAttributeInfo";
-import { RenderTargetCreationOptions } from "../Materials/Textures/renderTargetCreationOptions";
 import { InternalTexture, InternalTextureSource } from "../Materials/Textures/internalTexture";
 import { IEffectCreationOptions, Effect } from "../Materials/effect";
 import { EffectFallbacks } from "../Materials/effectFallbacks";
 import { _TimeToken } from "../Instrumentation/timeToken";
 import { Constants } from "./constants";
 import * as WebGPUConstants from './WebGPU/webgpuConstants';
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { WebGPUPipelineContext, IWebGPURenderPipelineStageDescriptor } from './WebGPU/webgpuPipelineContext';
 import { IPipelineContext } from './IPipelineContext';
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { WebGPUDataBuffer } from '../Meshes/WebGPU/webgpuDataBuffer';
 import { BaseTexture } from "../Materials/Textures/baseTexture";
 import { IShaderProcessor } from "./Processors/iShaderProcessor";
@@ -24,39 +23,38 @@ import { WebGPUShaderProcessingContext } from "./WebGPU/webgpuShaderProcessingCo
 import { Tools } from "../Misc/tools";
 import { WebGPUTextureHelper } from './WebGPU/webgpuTextureHelper';
 import { ISceneLike } from './thinEngine';
-import { Scene } from '../scene';
 import { WebGPUBufferManager } from './WebGPU/webgpuBufferManager';
-import { DepthTextureCreationOptions } from './depthTextureCreationOptions';
 import { HardwareTextureWrapper } from '../Materials/Textures/hardwareTextureWrapper';
 import { WebGPUHardwareTexture } from './WebGPU/webgpuHardwareTexture';
 import { IColor4Like } from '../Maths/math.like';
-import { IWebRequest } from '../Misc/interfaces/iWebRequest';
 import { UniformBuffer } from '../Materials/uniformBuffer';
 import { WebGPURenderPassWrapper } from './WebGPU/webgpuRenderPassWrapper';
-import { IMultiRenderTargetOptions } from '../Materials/Textures/multiRenderTarget';
 import { WebGPUCacheSampler } from "./WebGPU/webgpuCacheSampler";
 import { WebGPUCacheRenderPipeline } from "./WebGPU/webgpuCacheRenderPipeline";
 import { WebGPUCacheRenderPipelineTree } from "./WebGPU/webgpuCacheRenderPipelineTree";
-import { WebGPUStencilState } from "./WebGPU/webgpuStencilState";
+import { WebGPUStencilStateComposer } from "./WebGPU/webgpuStencilStateComposer";
 import { WebGPUDepthCullingState } from "./WebGPU/webgpuDepthCullingState";
 import { DrawWrapper } from "../Materials/drawWrapper";
 import { WebGPUMaterialContext } from "./WebGPU/webgpuMaterialContext";
 import { WebGPUDrawContext } from "./WebGPU/webgpuDrawContext";
 import { WebGPUCacheBindGroups } from "./WebGPU/webgpuCacheBindGroups";
 import { WebGPUClearQuad } from "./WebGPU/webgpuClearQuad";
+import { IStencilState } from "../States/IStencilState";
+import { WebGPURenderItemBlendColor, WebGPURenderItemScissor, WebGPURenderItemStencilRef, WebGPURenderItemViewport, WebGPUBundleList } from "./WebGPU/webgpuBundleList";
+import { WebGPUTimestampQuery } from "./WebGPU/webgpuTimestampQuery";
+import { ComputeEffect } from "../Compute/computeEffect";
+import { WebGPUOcclusionQuery } from "./WebGPU/webgpuOcclusionQuery";
+import { Observable } from "../Misc/observable";
+import { ShaderCodeInliner } from "./Processors/shaderCodeInliner";
+import { TwgslOptions, WebGPUTintWASM } from "./WebGPU/webgpuTintWASM";
 
 import "../Shaders/clearQuad.vertex";
 import "../Shaders/clearQuad.fragment";
 
+declare function importScripts(...urls: string[]): void;
+
 declare type VideoTexture = import("../Materials/Textures/videoTexture").VideoTexture;
 declare type RenderTargetTexture = import("../Materials/Textures/renderTargetTexture").RenderTargetTexture;
-
-// TODO WEBGPU remove when not needed anymore
-function assert(condition: any, msg?: string): asserts condition {
-    if (!condition) {
-        throw new Error(msg);
-    }
-}
 
 /**
  * Options to load the associated Glslang library
@@ -97,6 +95,12 @@ export interface WebGPUEngineOptions extends GPURequestAdapterOptions {
      * Defines the seconds between each deterministic lock step
      */
     timeStep?: number;
+
+    /**
+     * Defines that engine should ignore context lost events
+     * If this event happens when this parameter is true, you will have to reload the page to restore rendering
+     */
+    doNotHandleContextLost?: boolean;
 
     /**
      * Defines that engine should ignore modifying touch action attribute and style
@@ -147,6 +151,11 @@ export interface WebGPUEngineOptions extends GPURequestAdapterOptions {
     glslangOptions?: GlslangOptions;
 
     /**
+     * Options to load the associated Twgsl library
+     */
+    twgslOptions?: TwgslOptions;
+
+     /**
      * Defines if the engine should no exceed a specified device ratio
      * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
      */
@@ -156,10 +165,29 @@ export interface WebGPUEngineOptions extends GPURequestAdapterOptions {
      * Defines whether to adapt to the device's viewport characteristics (default: false)
      */
     adaptToDeviceRatio?: boolean;
+
+    /**
+     * Defines whether the canvas should be created in "premultiplied" mode (if false, the canvas is created in the "opaque" mode) (true by default)
+     */
+    premultipliedAlpha?: boolean;
+
+    /**
+     * Defines if the final framebuffer Y inversion should always be done by a texture copy (default: false).
+     * If false (and if not using an offscreen canvas), the inversion will be done by the browser during compositing
+     */
+    forceCopyForInvertYFinalFramebuffer?: boolean;
+
+    /**
+     * Defines if the final copy pass doing the Y inversion should be disabled (default: false). This setting takes precedence over forceCopyForInvertYFinalFramebuffer.
+     * If true and if using an offscreen canvas, you should set something like canvas.style.transform = "scaleY(-1)" on the canvas from which you get the offscreen canvas, else the rendering will be Y inverted!
+     * Setting it to true allows to use the browser compositing to perform the Y inversion even when using an offscreen canvas, which leads to better performances
+     */
+    disableCopyForInvertYFinalFramebuffer?: boolean;
 }
 
 /**
  * The web GPU engine class provides support for WebGPU version of babylon.js.
+ * @since 5.0.0
  */
 export class WebGPUEngine extends Engine {
     // Default glslang options.
@@ -167,6 +195,9 @@ export class WebGPUEngine extends Engine {
         jsPath: "https://preview.babylonjs.com/glslang/glslang.js",
         wasmPath: "https://preview.babylonjs.com/glslang/glslang.wasm"
     };
+
+    /** true to enable using TintWASM to convert Spir-V to WGSL */
+    public static UseTWGSL = true;
 
     // Page Life cycle and constants
     private readonly _uploadEncoderDescriptor = { label: "upload" };
@@ -182,32 +213,45 @@ export class WebGPUEngine extends Engine {
 
     // Engine Life Cycle
     private _canvas: HTMLCanvasElement;
-    private _options: WebGPUEngineOptions;
+    /** @hidden */
+    public _options: WebGPUEngineOptions;
     private _glslang: any = null;
+    private _tintWASM: Nullable<WebGPUTintWASM> = null;
     private _adapter: GPUAdapter;
     private _adapterSupportedExtensions: GPUFeatureName[];
-    private _device: GPUDevice;
+    /** @hidden */
+    public _device: GPUDevice;
     private _deviceEnabledExtensions: GPUFeatureName[];
-    private _context: GPUCanvasContext;
-    private _swapChain: GPUSwapChain;
+    private _context: GPUPresentationContext;
     private _swapChainTexture: GPUTexture;
     private _mainPassSampleCount: number;
-    private _textureHelper: WebGPUTextureHelper;
-    private _bufferManager: WebGPUBufferManager;
+    /** @hidden */
+    public _textureHelper: WebGPUTextureHelper;
+    /** @hidden */
+    public _bufferManager: WebGPUBufferManager;
     private _clearQuad: WebGPUClearQuad;
-    private _cacheSampler: WebGPUCacheSampler;
-    private _cacheRenderPipeline: WebGPUCacheRenderPipeline;
+    /** @hidden */
+    public _cacheSampler: WebGPUCacheSampler;
+    /** @hidden */
+    public _cacheRenderPipeline: WebGPUCacheRenderPipeline;
     private _cacheBindGroups: WebGPUCacheBindGroups;
     private _emptyVertexBuffer: VertexBuffer;
-    private _mrtAttachments: number[];
+    /** @hidden */
+    public _mrtAttachments: number[];
+    /** @hidden */
+    public _timestampQuery: WebGPUTimestampQuery;
+    /** @hidden */
+    public _occlusionQuery: WebGPUOcclusionQuery;
+    /** @hidden */
+    public _compiledComputeEffects: { [key: string]: ComputeEffect } = {};
     /** @hidden */
     public _counters: {
         numEnableEffects: number;
         numEnableDrawWrapper: number;
     } = {
-        numEnableEffects: 0,
-        numEnableDrawWrapper: 0,
-    };
+            numEnableEffects: 0,
+            numEnableDrawWrapper: 0,
+        };
     /**
      * Counters from last frame
      */
@@ -215,31 +259,49 @@ export class WebGPUEngine extends Engine {
         numEnableEffects: number;
         numEnableDrawWrapper: number;
     } = {
-        numEnableEffects: 0,
-        numEnableDrawWrapper: 0,
-    };
+            numEnableEffects: 0,
+            numEnableDrawWrapper: 0,
+        };
+    /**
+     * Max number of uncaptured error messages to log
+     */
+    public numMaxUncapturedErrors = 20;
+
+    private _invertYFinalFramebuffer: boolean;
 
     // Some of the internal state might change during the render pass.
     // This happens mainly during clear for the state
     // And when the frame starts to swap the target texture from the swap chain
     private _mainTexture: GPUTexture;
+    private _mainTextureLastCopy: GPUTexture;
     private _depthTexture: GPUTexture;
     private _mainTextureExtends: GPUExtent3D;
     private _depthTextureFormat: GPUTextureFormat | undefined;
     private _colorFormat: GPUTextureFormat;
 
     // Frame Life Cycle (recreated each frame)
-    private _uploadEncoder: GPUCommandEncoder;
-    private _renderEncoder: GPUCommandEncoder;
-    private _renderTargetEncoder: GPUCommandEncoder;
+    /** @hidden */
+    public _uploadEncoder: GPUCommandEncoder;
+    /** @hidden */
+    public _renderEncoder: GPUCommandEncoder;
+    /** @hidden */
+    public _renderTargetEncoder: GPUCommandEncoder;
 
     private _commandBuffers: GPUCommandBuffer[] = [null as any, null as any, null as any];
 
     // Frame Buffer Life Cycle (recreated for each render target pass)
-    private _currentRenderPass: Nullable<GPURenderPassEncoder> = null;
-    private _mainRenderPassWrapper: WebGPURenderPassWrapper = new WebGPURenderPassWrapper();
-    private _rttRenderPassWrapper: WebGPURenderPassWrapper = new WebGPURenderPassWrapper();
-    private _pendingDebugCommands: Array<[string, Nullable<string>]> = [];
+    /** @hidden */
+    public _currentRenderPass: Nullable<GPURenderPassEncoder> = null;
+    /** @hidden */
+    public _mainRenderPassWrapper: WebGPURenderPassWrapper = new WebGPURenderPassWrapper();
+    private _mainRenderPassCopyWrapper: WebGPURenderPassWrapper = new WebGPURenderPassWrapper();
+    /** @hidden */
+    public _rttRenderPassWrapper: WebGPURenderPassWrapper = new WebGPURenderPassWrapper();
+    /** @hidden */
+    public _pendingDebugCommands: Array<[string, Nullable<string>]> = [];
+    private _bundleList: WebGPUBundleList;
+    /** @hidden */
+    public _onAfterUnbindFrameBufferObservable = new Observable<WebGPUEngine>();
 
     // DrawCall Life Cycle
     // Effect is on the parent class
@@ -247,11 +309,11 @@ export class WebGPUEngine extends Engine {
     private _defaultMaterialContext: WebGPUMaterialContext;
     private _currentMaterialContext: WebGPUMaterialContext;
     private _currentDrawContext: WebGPUDrawContext | undefined;
-    private _currentVertexBuffers: Nullable<{ [key: string]: Nullable<VertexBuffer> }> = null;
     private _currentOverrideVertexBuffers: Nullable<{ [key: string]: Nullable<VertexBuffer> }> = null;
     private _currentIndexBuffer: Nullable<DataBuffer> = null;
     private __colorWrite = true;
-    private _uniformsBuffers: { [name: string]: WebGPUDataBuffer } = {};
+    /** @hidden */
+    public _uniformsBuffers: { [name: string]: WebGPUDataBuffer } = {};
     private _forceEnableEffect = false;
 
     // TODO WEBGPU remove those variables when code stabilized
@@ -267,6 +329,44 @@ export class WebGPUEngine extends Engine {
     public dbgLogIfNotDrawWrapper = true;
     /** @hidden */
     public dbgShowEmptyEnableEffectCalls = true;
+
+    private _snapshotRenderingRecordBundles = false;
+    private _snapshotRenderingPlayBundles = false;
+    private _snapshotRenderingMainPassBundleList: WebGPUBundleList[] = [];
+    private _snapshotRenderingModeSaved: number;
+
+    /**
+     * Gets or sets the snapshot rendering mode
+     */
+    public get snapshotRenderingMode(): number {
+        return this._snapshotRenderingMode;
+    }
+
+    public set snapshotRenderingMode(mode: number) {
+        if (this._snapshotRenderingRecordBundles) {
+            this._snapshotRenderingModeSaved = mode;
+        } else {
+            this._snapshotRenderingMode = mode;
+        }
+    }
+
+    /**
+     * Enables or disables the snapshot rendering mode
+     * Note that the WebGL engine does not support snapshot rendering so setting the value won't have any effect for this engine
+     */
+    public get snapshotRendering(): boolean {
+        return this._snapshotRenderingEnabled;
+    }
+
+    public set snapshotRendering(activate) {
+        this._snapshotRenderingMainPassBundleList.length = 0;
+        this._snapshotRenderingRecordBundles = this._snapshotRenderingEnabled = activate;
+        this._snapshotRenderingPlayBundles = false;
+        if (activate) {
+            this._snapshotRenderingModeSaved = this._snapshotRenderingMode;
+            this._snapshotRenderingMode = Constants.SNAPSHOTRENDERING_STANDARD; // need to reset to standard for the recording pass to avoid some code being bypassed
+        }
+    }
 
     /**
      * Sets this to true to disable the cache for the samplers. You should do it only for testing purpose!
@@ -308,11 +408,18 @@ export class WebGPUEngine extends Engine {
     }
 
     /**
-     * Gets a boolean indicating if the engine can be instantiated (ie. if a WebGPU context can be found)
-     * @returns true if the engine can be created
+     * Gets a Promise<boolean> indicating if the engine can be instantiated (ie. if a WebGPU context can be found)
+     */
+     public static get IsSupportedAsync(): Promise<boolean> {
+        return !navigator.gpu ? Promise.resolve(false) : navigator.gpu.requestAdapter().then((adapter: GPUAdapter | null) => adapter !== null);
+    }
+
+    /**
+     * Not supported by WebGPU, you should call IsSupportedAsync instead!
      */
     public static get IsSupported(): boolean {
-        return !!navigator.gpu;
+        Logger.Warn("You must call IsSupportedAsync for WebGPU!");
+        return false;
     }
 
     /**
@@ -363,6 +470,11 @@ export class WebGPUEngine extends Engine {
      */
     public compatibilityMode = true;
 
+    /** @hidden */
+    public get currentSampleCount(): number {
+        return this._currentRenderTarget ? this._currentRenderTarget.samples : this._mainPassSampleCount;
+    }
+
     /**
      * Create a new instance of the gpu engine asynchronously
      * @param canvas Defines the canvas to use to display the result
@@ -373,7 +485,7 @@ export class WebGPUEngine extends Engine {
         const engine = new WebGPUEngine(canvas, options);
 
         return new Promise((resolve) => {
-            engine.initAsync(options.glslangOptions).then(() => resolve(engine));
+            engine.initAsync(options.glslangOptions, options.twgslOptions).then(() => resolve(engine));
         });
     }
 
@@ -385,7 +497,10 @@ export class WebGPUEngine extends Engine {
     public constructor(canvas: HTMLCanvasElement, options: WebGPUEngineOptions = {}) {
         super(null);
 
-        options.deviceDescriptor = options.deviceDescriptor || { };
+        (this.isNDCHalfZRange as any) = true;
+        (this.hasOriginBottomLeft as any)  = false;
+
+        options.deviceDescriptor = options.deviceDescriptor || {};
         options.swapChainFormat = options.swapChainFormat || WebGPUConstants.TextureFormat.BGRA8Unorm;
         options.antialiasing = options.antialiasing === undefined ? true : options.antialiasing;
         options.stencil = options.stencil ?? true;
@@ -416,11 +531,11 @@ export class WebGPUEngine extends Engine {
         this._lockstepMaxSteps = options.lockstepMaxSteps;
         this._timeStep = options.timeStep || 1 / 60;
 
-        this._doNotHandleContextLost = false;
+        this._doNotHandleContextLost = !!options.doNotHandleContextLost;
 
         this._canvas = canvas;
         this._options = options;
-        this.premultipliedAlpha = false;
+        this.premultipliedAlpha = options.premultipliedAlpha ?? true;
 
         const devicePixelRatio = DomManagement.IsWindowObjectExist() ? (window.devicePixelRatio || 1.0) : 1.0;
         const limitDeviceRatio = options.limitDeviceRatio || devicePixelRatio;
@@ -434,8 +549,13 @@ export class WebGPUEngine extends Engine {
 
         this._shaderProcessor = this._getShaderProcessor();
 
-        // TODO. WEBGPU. Use real way to do it.
-        this._canvas.style.transform = "scaleY(-1)";
+        this._invertYFinalFramebuffer = (!!this._options.forceCopyForInvertYFinalFramebuffer || !this._canvas.style) && !this._options.disableCopyForInvertYFinalFramebuffer;
+        if (!this._invertYFinalFramebuffer) {
+            // if style does not exist, we are probably using an offscreen canvas
+            if (this._canvas.style) {
+                this._canvas.style.transform = "scaleY(-1)";
+            }
+        }
     }
 
     //------------------------------------------------------------------------------
@@ -445,49 +565,82 @@ export class WebGPUEngine extends Engine {
     /**
      * Initializes the WebGPU context and dependencies.
      * @param glslangOptions Defines the GLSLang compiler options if necessary
+     * @param twgslOptions Defines the Twgsl compiler options if necessary
      * @returns a promise notifying the readiness of the engine.
      */
-    public initAsync(glslangOptions?: GlslangOptions): Promise<void> {
+    public initAsync(glslangOptions?: GlslangOptions, twgslOptions?: TwgslOptions): Promise<void> {
         return this._initGlslang(glslangOptions ?? this._options?.glslangOptions)
             .then((glslang: any) => {
                 this._glslang = glslang;
-                return navigator.gpu!.requestAdapter(this._options);
+                this._tintWASM = WebGPUEngine.UseTWGSL ? new WebGPUTintWASM() : null;
+                return this._tintWASM ?
+                    this._tintWASM.initTwgsl(twgslOptions ?? this._options?.twgslOptions)
+                        .then(() => {
+                            return navigator.gpu!.requestAdapter(this._options);
+                        }, (msg: string) => {
+                            Logger.Error("Can not initialize twgsl!");
+                            Logger.Error(msg);
+                            throw Error("WebGPU initializations stopped.");
+                        })
+                    : navigator.gpu!.requestAdapter(this._options);
+            }, (msg: string) => {
+                Logger.Error("Can not initialize glslang!");
+                Logger.Error(msg);
+                throw Error("WebGPU initializations stopped.");
             })
             .then((adapter: GPUAdapter | null) => {
                 this._adapter = adapter!;
-                this._adapterSupportedExtensions = this._adapter.features.slice(0);
+                this._adapterSupportedExtensions = [];
+                this._adapter.features?.forEach((feature) => this._adapterSupportedExtensions.push(feature as WebGPUConstants.FeatureName));
 
                 const deviceDescriptor = this._options.deviceDescriptor;
 
-                if (deviceDescriptor?.nonGuaranteedFeatures) {
-                    const requestedExtensions = deviceDescriptor.nonGuaranteedFeatures;
-                    const validExtensions = [];
+                if (deviceDescriptor?.requiredFeatures) {
+                    const requestedExtensions = deviceDescriptor.requiredFeatures;
+                    const validExtensions: GPUFeatureName[] = [];
 
-                    const iterator = requestedExtensions[Symbol.iterator]();
-                    while (true) {
-                        const { done, value : extension } = iterator.next();
-                        if (done) {
-                            break;
-                        }
-                        if (this._adapterSupportedExtensions.indexOf(extension) >= 0) {
+                    for (let extension of requestedExtensions) {
+                        if (this._adapterSupportedExtensions.indexOf(extension) !== -1) {
                             validExtensions.push(extension);
                         }
                     }
 
-                    deviceDescriptor.nonGuaranteedFeatures = validExtensions;
+                    deviceDescriptor.requiredFeatures = validExtensions;
                 }
 
                 return this._adapter.requestDevice(this._options.deviceDescriptor);
             })
             .then((device: GPUDevice | null) => {
                 this._device = device!;
-                this._deviceEnabledExtensions = this._device.features.slice(0);
+                this._deviceEnabledExtensions = [];
+                this._device.features?.forEach((feature) => this._deviceEnabledExtensions.push(feature as WebGPUConstants.FeatureName));
+
+                let numUncapturedErrors = -1;
+                this._device.addEventListener('uncapturederror', (event) => {
+                    if (++numUncapturedErrors < this.numMaxUncapturedErrors) {
+                        Logger.Warn(`WebGPU uncaptured error (${numUncapturedErrors + 1}): ${(<GPUUncapturedErrorEvent>event).error} - ${(<any>event).error.message}`);
+                    } else if (numUncapturedErrors++ === this.numMaxUncapturedErrors) {
+                        Logger.Warn(`WebGPU uncaptured error: too many warnings (${this.numMaxUncapturedErrors}), no more warnings will be reported to the console for this engine.`);
+                    }
+                });
+
+                if (!this._doNotHandleContextLost) {
+                    this._device.lost?.then((info) => {
+                        this._contextWasLost = true;
+                        Logger.Warn("WebGPU context lost. " + info);
+                        this.onContextLostObservable.notifyObservers(this);
+                        this._restoreEngineAfterContextLost(this.initAsync.bind(this));
+                    });
+                }
             })
             .then(() => {
                 this._bufferManager = new WebGPUBufferManager(this._device);
-                this._textureHelper = new WebGPUTextureHelper(this._device, this._glslang, this._bufferManager);
+                this._textureHelper = new WebGPUTextureHelper(this._device, this._glslang, this._tintWASM, this._bufferManager);
                 this._cacheSampler = new WebGPUCacheSampler(this._device);
                 this._cacheBindGroups = new WebGPUCacheBindGroups(this._device, this._cacheSampler, this);
+                this._timestampQuery = new WebGPUTimestampQuery(this._device, this._bufferManager);
+                this._occlusionQuery = (this._device as any).createQuerySet ? new WebGPUOcclusionQuery(this, this._device, this._bufferManager) : undefined as any;
+                this._bundleList = new WebGPUBundleList(this._device);
 
                 if (this.dbgVerboseLogsForFirstFrames) {
                     if ((this as any)._count === undefined) {
@@ -502,18 +655,19 @@ export class WebGPUEngine extends Engine {
 
                 this._emptyVertexBuffer = new VertexBuffer(this, [0], "", false, false, 1, false, 0, 1);
 
-                this._cacheRenderPipeline = new WebGPUCacheRenderPipelineTree(this._device, this._emptyVertexBuffer);
+                this._initializeLimits();
+
+                this._cacheRenderPipeline = new WebGPUCacheRenderPipelineTree(this._device, this._emptyVertexBuffer, !this._caps.textureFloatLinearFiltering);
 
                 this._depthCullingState = new WebGPUDepthCullingState(this._cacheRenderPipeline);
-                this._stencilState = new WebGPUStencilState(this._cacheRenderPipeline);
+                this._stencilStateComposer = new WebGPUStencilStateComposer(this._cacheRenderPipeline);
+                this._stencilStateComposer.stencilGlobal = this._stencilState;
 
                 this._depthCullingState.depthTest = true;
                 this._depthCullingState.depthFunc = Constants.LEQUAL;
                 this._depthCullingState.depthMask = true;
 
                 this._textureHelper.setCommandEncoder(this._uploadEncoder);
-
-                this._initializeLimits();
 
                 this._clearQuad = new WebGPUClearQuad(this._device, this, this._emptyVertexBuffer);
                 this._defaultMaterialContext = this.createMaterialContext()!;
@@ -533,7 +687,7 @@ export class WebGPUEngine extends Engine {
     }
 
     private _initGlslang(glslangOptions?: GlslangOptions): Promise<any> {
-        glslangOptions = glslangOptions || { };
+        glslangOptions = glslangOptions || {};
         glslangOptions = {
             ...WebGPUEngine._glslangDefaultOptions,
             ...glslangOptions
@@ -543,15 +697,20 @@ export class WebGPUEngine extends Engine {
             return Promise.resolve(glslangOptions.glslang);
         }
 
-        if ((window as any).glslang) {
-            return (window as any).glslang(glslangOptions!.wasmPath);
+        if ((self as any).glslang) {
+            return (self as any).glslang(glslangOptions!.wasmPath);
         }
 
         if (glslangOptions.jsPath && glslangOptions.wasmPath) {
-            return Tools.LoadScriptAsync(glslangOptions.jsPath)
-                .then(() => {
-                    return (window as any).glslang(glslangOptions!.wasmPath);
-                });
+            if (DomManagement.IsWindowObjectExist()) {
+                return Tools.LoadScriptAsync(glslangOptions.jsPath)
+                    .then(() => {
+                        return (self as any).glslang(glslangOptions!.wasmPath);
+                    });
+            } else {
+                importScripts(glslangOptions.jsPath);
+                return (self as any).glslang(glslangOptions!.wasmPath);
+            }
         }
 
         return Promise.reject("gslang is not available.");
@@ -565,11 +724,11 @@ export class WebGPUEngine extends Engine {
             maxTexturesImageUnits: 16,
             maxVertexTextureImageUnits: 16,
             maxCombinedTexturesImageUnits: 32,
-            maxTextureSize: 2048,
+            maxTextureSize: 8192,
             maxCubemapTextureSize: 2048,
-            maxRenderTextureSize: 2048,
+            maxRenderTextureSize: 8192,
             maxVertexAttribs: 16,
-            maxVaryingVectors: 16,
+            maxVaryingVectors: 15,
             maxFragmentUniformVectors: 1024,
             maxVertexUniformVectors: 1024,
             standardDerivatives: true,
@@ -579,13 +738,13 @@ export class WebGPUEngine extends Engine {
             etc1: null,
             etc2: null,
             bptc: this._deviceEnabledExtensions.indexOf(WebGPUConstants.FeatureName.TextureCompressionBC) >= 0 ? true : undefined,
-            maxAnisotropy: 16, // TODO WEBGPU: Retrieve this smartly
+            maxAnisotropy: 16,
             uintIndices: true,
             fragmentDepthSupported: true,
             highPrecisionShaderSupported: true,
             colorBufferFloat: true,
             textureFloat: true,
-            textureFloatLinearFiltering: true,
+            textureFloatLinearFiltering: false, // WebGPU does not allow filtering 32 bits float textures
             textureFloatRender: true,
             textureHalfFloat: true,
             textureHalfFloatLinearFiltering: true,
@@ -595,15 +754,18 @@ export class WebGPUEngine extends Engine {
             depthTextureExtension: true,
             vertexArrayObject: false,
             instancedArrays: true,
-            timerQuery: undefined,
-            canUseTimestampForTimerQuery: false,
+            timerQuery: undefined /*typeof (BigUint64Array) !== "undefined" && this.enabledExtensions.indexOf(WebGPUConstants.FeatureName.TimestampQuery) !== -1 ? true as any : undefined*/,
+            supportOcclusionQuery: typeof (BigUint64Array) !== "undefined",
+            canUseTimestampForTimerQuery: true,
             multiview: false,
             oculusMultiview: false,
             parallelShaderCompile: undefined,
             blendMinMax: true,
             maxMSAASamples: 4,
             canUseGLInstanceID: true,
-            canUseGLVertexID: true
+            canUseGLVertexID: true,
+            supportComputeShaders: true,
+            supportSRGBBuffers: true,
         };
 
         this._caps.parallelShaderCompile = null as any;
@@ -613,12 +775,13 @@ export class WebGPUEngine extends Engine {
             supportRenderAndCopyToLodForFloatTextures: true,
             supportDepthStencilTexture: true,
             supportShadowSamplers: true,
-            uniformBufferHardCheckMatrix: true,
+            uniformBufferHardCheckMatrix: false,
             allowTexturePrefiltering: true,
             trackUbosInFrame: true,
+            checkUbosContentBeforeUpload: true,
             supportCSM: true,
             basisNeedsPOT: false,
-            support3DTextures: false, // TODO WEBGPU change to true when Chrome supports 3D textures
+            support3DTextures: true,
             needTypeSuffixInShaderConstants: true,
             supportMSAA: true,
             supportSSAO2: true,
@@ -627,20 +790,21 @@ export class WebGPUEngine extends Engine {
             supportSyncTextureRead: false,
             needsInvertingBitmap: false,
             useUBOBindingCache: false,
-            _collectUbosUpdatedInFrame: true,
+            needShaderCodeInlining: true,
+            _collectUbosUpdatedInFrame: false,
         };
     }
 
     private _initializeContextAndSwapChain(): void {
-        this._context = this._canvas.getContext('gpupresent') as unknown as GPUCanvasContext;
-        this._swapChain = this._context.configureSwapChain({
-            device: this._device,
-            format: this._options.swapChainFormat!,
-            usage: WebGPUConstants.TextureUsage.OutputAttachment | WebGPUConstants.TextureUsage.CopySrc,
-        });
+        this._context = this._canvas.getContext('webgpu') as unknown as GPUPresentationContext;
+        this._configureContext(this._canvas.width, this._canvas.height);
         this._colorFormat = this._options.swapChainFormat!;
         this._mainRenderPassWrapper.colorAttachmentGPUTextures = [new WebGPUHardwareTexture()];
         this._mainRenderPassWrapper.colorAttachmentGPUTextures[0].format = this._colorFormat;
+        if (this._invertYFinalFramebuffer) {
+            this._mainRenderPassCopyWrapper.colorAttachmentGPUTextures = [new WebGPUHardwareTexture()];
+            this._mainRenderPassCopyWrapper.colorAttachmentGPUTextures[0].format = this._colorFormat;
+        }
     }
 
     // Set default values as WebGL with depth and stencil attachment for the broadest Compat.
@@ -660,25 +824,48 @@ export class WebGPUEngine extends Engine {
                 sampleCount: this._mainPassSampleCount,
                 dimension: WebGPUConstants.TextureDimension.E2d,
                 format: this._options.swapChainFormat!,
-                usage: WebGPUConstants.TextureUsage.OutputAttachment,
+                usage: WebGPUConstants.TextureUsage.RenderAttachment,
             };
 
-            if (this._mainTexture) {
-                this._mainTexture.destroy();
-            }
+            this._mainTexture?.destroy();
             this._mainTexture = this._device.createTexture(mainTextureDescriptor);
             mainColorAttachments = [{
-                attachment: this._mainTexture.createView(),
+                view: this._mainTexture.createView(),
+                loadValue: new Color4(0, 0, 0, 1),
+                storeOp: WebGPUConstants.StoreOp.Store // don't use StoreOp.Clear, else using several cameras with different viewports or using scissors will fail because we call beginRenderPass / endPass several times for the same color attachment!
+            }];
+        } else {
+            mainColorAttachments = [{
+                view: undefined as any,
                 loadValue: new Color4(0, 0, 0, 1),
                 storeOp: WebGPUConstants.StoreOp.Store
             }];
         }
-        else {
-            mainColorAttachments = [{
-                attachment: undefined as any,
-                loadValue: new Color4(0, 0, 0, 1),
-                storeOp: WebGPUConstants.StoreOp.Store
-            }];
+
+        if (this._invertYFinalFramebuffer) {
+            const mainTextureCopyDescriptor: GPUTextureDescriptor = {
+                size: this._mainTextureExtends,
+                mipLevelCount: 1,
+                sampleCount: 1,
+                dimension: WebGPUConstants.TextureDimension.E2d,
+                format: this._options.swapChainFormat!,
+                usage: WebGPUConstants.TextureUsage.RenderAttachment | WebGPUConstants.TextureUsage.Sampled,
+            };
+
+            this._mainTextureLastCopy?.destroy();
+            this._mainTextureLastCopy = this._device.createTexture(mainTextureCopyDescriptor);
+            if (this._options.antialiasing) {
+                mainColorAttachments[0].resolveTarget = this._mainTextureLastCopy.createView();
+            } else {
+                mainColorAttachments[0].view = this._mainTextureLastCopy.createView();
+            }
+            this._mainRenderPassCopyWrapper.renderPassDescriptor = {
+                colorAttachments: [{
+                    view: undefined as any,
+                    loadValue: new Color4(0, 0, 0, 1),
+                    storeOp: WebGPUConstants.StoreOp.Store
+                }]
+            };
         }
 
         this._mainRenderPassWrapper.depthTextureFormat = this.isStencilEnable ? WebGPUConstants.TextureFormat.Depth24PlusStencil8 : WebGPUConstants.TextureFormat.Depth32Float;
@@ -691,7 +878,7 @@ export class WebGPUEngine extends Engine {
             sampleCount: this._mainPassSampleCount,
             dimension: WebGPUConstants.TextureDimension.E2d,
             format: this._mainRenderPassWrapper.depthTextureFormat,
-            usage:  WebGPUConstants.TextureUsage.OutputAttachment
+            usage: WebGPUConstants.TextureUsage.RenderAttachment
         };
 
         if (this._depthTexture) {
@@ -699,7 +886,7 @@ export class WebGPUEngine extends Engine {
         }
         this._depthTexture = this._device.createTexture(depthTextureDescriptor);
         const mainDepthAttachment: GPURenderPassDepthStencilAttachment = {
-            attachment: this._depthTexture.createView(),
+            view: this._depthTexture.createView(),
 
             depthLoadValue: this._clearDepthValue,
             depthStoreOp: WebGPUConstants.StoreOp.Store,
@@ -715,6 +902,20 @@ export class WebGPUEngine extends Engine {
         if (this._mainRenderPassWrapper.renderPass !== null) {
             this._endMainRenderPass();
         }
+    }
+
+    private _configureContext(width: number, height: number): void {
+        this._context.configure({
+            device: this._device,
+            format: this._options.swapChainFormat!,
+            usage: WebGPUConstants.TextureUsage.RenderAttachment | WebGPUConstants.TextureUsage.CopySrc,
+            compositingAlphaMode: this.premultipliedAlpha ? WebGPUConstants.CanvasCompositingAlphaMode.Premultiplied : WebGPUConstants.CanvasCompositingAlphaMode.Opaque,
+            size: {
+                width,
+                height,
+                depthOrArrayLayers: 1
+            },
+        });
     }
 
     /**
@@ -736,6 +937,7 @@ export class WebGPUEngine extends Engine {
             }
         }
 
+        this._configureContext(width, height);
         this._initializeMainAttachments();
         return true;
     }
@@ -757,6 +959,11 @@ export class WebGPUEngine extends Engine {
     //                          Static Pipeline WebGPU States
     //------------------------------------------------------------------------------
 
+    /** @hidden */
+    public applyStates() {
+        this._stencilStateComposer.apply();
+    }
+
     /**
      * Force the entire cache to be cleared
      * You should not have to use this function unless your engine needs to share the WebGPU context with another engine
@@ -768,17 +975,14 @@ export class WebGPUEngine extends Engine {
         }
 
         //this._currentEffect = null; // can't reset _currentEffect, else some crashes can occur (for eg in ProceduralTexture which calls bindFrameBuffer (which calls wipeCaches) after having called enableEffect and before drawing into the texture)
-                                        // _forceEnableEffect = true assumes the role of _currentEffect = null
+        // _forceEnableEffect = true assumes the role of _currentEffect = null
         this._forceEnableEffect = true;
         this._currentIndexBuffer = null;
-        this._currentVertexBuffers = null;
         this._currentOverrideVertexBuffers = null;
         this._cacheRenderPipeline.setBuffers(null, null, null);
 
         if (bruteForce) {
-            this._currentProgram = null;
-
-            this._stencilState.reset();
+            this._stencilStateComposer.reset();
 
             this._depthCullingState.reset();
             this._depthCullingState.depthFunc = Constants.LEQUAL;
@@ -835,29 +1039,35 @@ export class WebGPUEngine extends Engine {
         }
     }
 
-    private _applyViewport(renderPass: GPURenderPassEncoder): void {
+    private _mustUpdateViewport(renderPass: GPURenderPassEncoder): boolean {
         const index = renderPass === this._mainRenderPassWrapper.renderPass ? 0 : 1;
 
         const x = this._viewportCached.x,
-              y = this._viewportCached.y,
-              w = this._viewportCached.z,
-              h = this._viewportCached.w;
+            y = this._viewportCached.y,
+            w = this._viewportCached.z,
+            h = this._viewportCached.w;
 
-        if (this._viewportsCurrent[index].x !== x || this._viewportsCurrent[index].y !== y ||
-            this._viewportsCurrent[index].w !== w || this._viewportsCurrent[index].h !== h)
-        {
-            this._viewportsCurrent[index].x = x;
-            this._viewportsCurrent[index].y = y;
-            this._viewportsCurrent[index].w = w;
-            this._viewportsCurrent[index].h = h;
+        const update =
+            this._viewportsCurrent[index].x !== x || this._viewportsCurrent[index].y !== y ||
+            this._viewportsCurrent[index].w !== w || this._viewportsCurrent[index].h !== h;
 
-            renderPass.setViewport(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h), 0, 1);
+        if (update) {
+            this._viewportsCurrent[index].x = this._viewportCached.x;
+            this._viewportsCurrent[index].y = this._viewportCached.y;
+            this._viewportsCurrent[index].w = this._viewportCached.z;
+            this._viewportsCurrent[index].h = this._viewportCached.w;
+        }
 
-            if (this.dbgVerboseLogsForFirstFrames) {
-                if ((this as any)._count === undefined) { (this as any)._count = 0; }
-                if (!(this as any)._count || (this as any)._count < this.dbgVerboseLogsNumFrames) {
-                    console.log("frame #" + (this as any)._count + " - viewport applied - (", x, y, w, h, ") current pass is main pass=" + (renderPass === this._mainRenderPassWrapper.renderPass));
-                }
+        return update;
+    }
+
+    private _applyViewport(renderPass: GPURenderPassEncoder): void {
+        renderPass.setViewport(Math.floor(this._viewportCached.x), Math.floor(this._viewportCached.y), Math.floor(this._viewportCached.z), Math.floor(this._viewportCached.w), 0, 1);
+
+        if (this.dbgVerboseLogsForFirstFrames) {
+            if ((this as any)._count === undefined) { (this as any)._count = 0; }
+            if (!(this as any)._count || (this as any)._count < this.dbgVerboseLogsNumFrames) {
+                console.log("frame #" + (this as any)._count + " - viewport applied - (", this._viewportCached.x, this._viewportCached.y, this._viewportCached.z, this._viewportCached.w, ") current pass is main pass=" + (renderPass === this._mainRenderPassWrapper.renderPass));
             }
         }
     }
@@ -880,38 +1090,44 @@ export class WebGPUEngine extends Engine {
         this._scissorsCurrent[index].h = 0;
     }
 
-    private _applyScissor(renderPass: GPURenderPassEncoder): void {
+    private _mustUpdateScissor(renderPass: GPURenderPassEncoder): boolean {
         const index = renderPass === this._mainRenderPassWrapper.renderPass ? 0 : 1;
 
         const x = this._scissorCached.x,
-              y = this._scissorCached.y,
-              w = this._scissorCached.z,
-              h = this._scissorCached.w;
+            y = this._scissorCached.y,
+            w = this._scissorCached.z,
+            h = this._scissorCached.w;
 
-        if (this._scissorsCurrent[index].x !== x || this._scissorsCurrent[index].y !== y ||
-            this._scissorsCurrent[index].w !== w || this._scissorsCurrent[index].h !== h)
-        {
-            this._scissorsCurrent[index].x = x;
-            this._scissorsCurrent[index].y = y;
-            this._scissorsCurrent[index].w = w;
-            this._scissorsCurrent[index].h = h;
+        const update =
+            this._scissorsCurrent[index].x !== x || this._scissorsCurrent[index].y !== y ||
+            this._scissorsCurrent[index].w !== w || this._scissorsCurrent[index].h !== h;
 
-            renderPass.setScissorRect(x, y, w, h);
+        if (update) {
+            this._scissorsCurrent[index].x = this._scissorCached.x;
+            this._scissorsCurrent[index].y = this._scissorCached.y;
+            this._scissorsCurrent[index].w = this._scissorCached.z;
+            this._scissorsCurrent[index].h = this._scissorCached.w;
+        }
 
-            if (this.dbgVerboseLogsForFirstFrames) {
-                if ((this as any)._count === undefined) { (this as any)._count = 0; }
-                if (!(this as any)._count || (this as any)._count < this.dbgVerboseLogsNumFrames) {
-                    console.log("frame #" + (this as any)._count + " - scissor applied - (", x, y, w, h, ") current pass is main pass=" + (renderPass === this._mainRenderPassWrapper.renderPass));
-                }
+        return update;
+    }
+
+    private _applyScissor(renderPass: GPURenderPassEncoder): void {
+        renderPass.setScissorRect(this._scissorCached.x, this._scissorCached.y, this._scissorCached.z, this._scissorCached.w);
+
+        if (this.dbgVerboseLogsForFirstFrames) {
+            if ((this as any)._count === undefined) { (this as any)._count = 0; }
+            if (!(this as any)._count || (this as any)._count < this.dbgVerboseLogsNumFrames) {
+                console.log("frame #" + (this as any)._count + " - scissor applied - (", this._scissorCached.x, this._scissorCached.y, this._scissorCached.z, this._scissorCached.w, ") current pass is main pass=" + (renderPass === this._mainRenderPassWrapper.renderPass));
             }
         }
     }
 
     private _scissorIsActive() {
-        return  this._scissorCached.x !== 0 ||
-                this._scissorCached.y !== 0 ||
-                this._scissorCached.z !== 0 ||
-                this._scissorCached.w !== 0;
+        return this._scissorCached.x !== 0 ||
+            this._scissorCached.y !== 0 ||
+            this._scissorCached.z !== 0 ||
+            this._scissorCached.w !== 0;
     }
 
     public enableScissor(x: number, y: number, width: number, height: number): void {
@@ -937,44 +1153,51 @@ export class WebGPUEngine extends Engine {
         this._stencilRefsCurrent[index] = -1;
     }
 
-    /** @hidden */
-    public _applyStencilRef(renderPass: GPURenderPassEncoder, force = false): void {
+    private _mustUpdateStencilRef(renderPass: GPURenderPassEncoder): boolean {
         const index = renderPass === this._mainRenderPassWrapper.renderPass ? 0 : 1;
-
-        const stencilRef = this._stencilState.stencilFuncRef;
-
-        if (stencilRef !== this._stencilRefsCurrent[index] || force) {
-            this._stencilRefsCurrent[index] = stencilRef;
-            renderPass.setStencilReference(stencilRef);
+        const update = this._stencilStateComposer.funcRef !== this._stencilRefsCurrent[index];
+        if (update) {
+            this._stencilRefsCurrent[index] = this._stencilStateComposer.funcRef;
         }
+        return update;
+    }
+
+    /** @hidden */
+    public _applyStencilRef(renderPass: GPURenderPassEncoder): void {
+        renderPass.setStencilReference(this._stencilStateComposer.funcRef ?? 0);
     }
 
     private _blendColorsCurrent: Array<Array<Nullable<number>>> = [[null, null, null, null], [null, null, null, null]];
 
     private _resetCurrentColorBlend(index: number): void {
         this._blendColorsCurrent[index][0] =
-        this._blendColorsCurrent[index][1] =
-        this._blendColorsCurrent[index][2] =
-        this._blendColorsCurrent[index][3] = null;
+            this._blendColorsCurrent[index][1] =
+            this._blendColorsCurrent[index][2] =
+            this._blendColorsCurrent[index][3] = null;
     }
 
-    private _applyBlendColor(renderPass: GPURenderPassEncoder, force = false): void {
+    private _mustUpdateBlendColor(renderPass: GPURenderPassEncoder): boolean {
         const index = renderPass === this._mainRenderPassWrapper.renderPass ? 0 : 1;
-
         const colorBlend = this._alphaState._blendConstants;
 
-        if (colorBlend[0] !== this._blendColorsCurrent[index][0] ||
+        const update =
+            colorBlend[0] !== this._blendColorsCurrent[index][0] ||
             colorBlend[1] !== this._blendColorsCurrent[index][1] ||
             colorBlend[2] !== this._blendColorsCurrent[index][2] ||
-            colorBlend[3] !== this._blendColorsCurrent[index][3] || force)
-        {
+            colorBlend[3] !== this._blendColorsCurrent[index][3];
+
+        if (update) {
             this._blendColorsCurrent[index][0] = colorBlend[0];
             this._blendColorsCurrent[index][1] = colorBlend[1];
             this._blendColorsCurrent[index][2] = colorBlend[2];
             this._blendColorsCurrent[index][3] = colorBlend[3];
-
-            renderPass.setBlendColor(colorBlend as GPUColor);
         }
+
+        return update;
+    }
+
+    private _applyBlendColor(renderPass: GPURenderPassEncoder): void {
+        renderPass.setBlendConstant(this._alphaState._blendConstants as GPUColor);
     }
 
     /**
@@ -990,21 +1213,26 @@ export class WebGPUEngine extends Engine {
             color.a = 1;
         }
 
+        const hasScissor = this._scissorIsActive();
+
         if (this.dbgVerboseLogsForFirstFrames) {
             if ((this as any)._count === undefined) { (this as any)._count = 0; }
             if (!(this as any)._count || (this as any)._count < this.dbgVerboseLogsNumFrames) {
-                console.log("frame #" + (this as any)._count + " - clear called - backBuffer=", backBuffer, " depth=", depth, " stencil=", stencil);
+                console.log("frame #" + (this as any)._count + " - clear called - backBuffer=", backBuffer, " depth=", depth, " stencil=", stencil, " scissor is active=", hasScissor);
             }
         }
 
         // We need to recreate the render pass so that the new parameters for clear color / depth / stencil are taken into account
-        const hasScissor = this._scissorIsActive();
         if (this._currentRenderTarget) {
             if (hasScissor) {
                 if (!this._rttRenderPassWrapper.renderPass) {
                     this._startRenderTargetRenderPass(this._currentRenderTarget!, false, backBuffer ? color : null, depth, stencil);
                 }
-                this._applyScissor(this._currentRenderPass!);
+                if (!this.compatibilityMode) {
+                    this._bundleList.addItem(new WebGPURenderItemScissor(this._scissorCached.x, this._scissorCached.y, this._scissorCached.z, this._scissorCached.w));
+                } else {
+                    this._applyScissor(this._currentRenderPass!);
+                }
                 this._clearFullQuad(backBuffer ? color : null, depth, stencil);
             } else {
                 if (this._currentRenderPass) {
@@ -1017,20 +1245,42 @@ export class WebGPUEngine extends Engine {
                 this._startMainRenderPass(!hasScissor, backBuffer ? color : null, depth, stencil);
             }
             if (hasScissor) {
-                this._applyScissor(this._currentRenderPass!);
+                if (!this.compatibilityMode) {
+                    this._bundleList.addItem(new WebGPURenderItemScissor(this._scissorCached.x, this._scissorCached.y, this._scissorCached.z, this._scissorCached.w));
+                } else {
+                    this._applyScissor(this._currentRenderPass!);
+                }
                 this._clearFullQuad(backBuffer ? color : null, depth, stencil);
             }
         }
     }
 
     private _clearFullQuad(clearColor?: Nullable<IColor4Like>, clearDepth?: boolean, clearStencil?: boolean): void {
+        const renderPass = !this.compatibilityMode ? null : this._getCurrentRenderPass();
+
         this._clearQuad.setColorFormat(this._colorFormat);
         this._clearQuad.setDepthStencilFormat(this._depthTextureFormat);
-        this._clearQuad.clear(this._getCurrentRenderPass(), clearColor, clearDepth, clearStencil, this._currentRenderTarget ? this._currentRenderTarget.samples : this._mainPassSampleCount);
+        this._clearQuad.setMRTAttachments(this._cacheRenderPipeline.mrtAttachments ?? [], this._cacheRenderPipeline.mrtTextureArray ?? []);
+
+        if (!this.compatibilityMode) {
+            this._bundleList.addItem(new WebGPURenderItemStencilRef(this._clearStencilValue));
+        } else {
+            renderPass!.setStencilReference(this._clearStencilValue);
+        }
+
+        const bundle = this._clearQuad.clear(renderPass, clearColor, clearDepth, clearStencil, this.currentSampleCount);
+
+        if (!this.compatibilityMode) {
+            this._bundleList.addBundle(bundle!);
+            this._bundleList.addItem(new WebGPURenderItemStencilRef(this._stencilStateComposer.funcRef ?? 0));
+            this._reportDrawCall();
+        } else {
+            this._applyStencilRef(renderPass!);
+        }
     }
 
     //------------------------------------------------------------------------------
-    //                              Vertex/Index Buffers
+    //                              Vertex/Index/Storage Buffers
     //------------------------------------------------------------------------------
 
     /**
@@ -1065,46 +1315,6 @@ export class WebGPUEngine extends Engine {
     }
 
     /**
-     * Updates a vertex buffer.
-     * @param vertexBuffer the vertex buffer to update
-     * @param data the data used to update the vertex buffer
-     * @param byteOffset the byte offset of the data
-     * @param byteLength the byte length of the data
-     */
-    public updateDynamicVertexBuffer(vertexBuffer: DataBuffer, data: DataArray, byteOffset?: number, byteLength?: number): void {
-        const dataBuffer = vertexBuffer as WebGPUDataBuffer;
-        if (byteOffset === undefined) {
-            byteOffset = 0;
-        }
-
-        let view: ArrayBufferView;
-        if (byteLength === undefined) {
-            if (data instanceof Array) {
-                view = new Float32Array(data);
-            }
-            else if (data instanceof ArrayBuffer) {
-                view = new Uint8Array(data);
-            }
-            else {
-                view = data;
-            }
-            byteLength = view.byteLength;
-        } else {
-            if (data instanceof Array) {
-                view = new Float32Array(data);
-            }
-            else if (data instanceof ArrayBuffer) {
-                view = new Uint8Array(data);
-            }
-            else {
-                view = data;
-            }
-        }
-
-        this._bufferManager.setSubData(dataBuffer, byteOffset, view, 0, byteLength);
-    }
-
-    /**
      * Creates a new index buffer
      * @param indices defines the content of the index buffer
      * @param updatable defines if the index buffer must be updatable - not used in WebGPU
@@ -1136,52 +1346,51 @@ export class WebGPUEngine extends Engine {
         return dataBuffer;
     }
 
-    /**
-     * Update an index buffer
-     * @param indexBuffer defines the target index buffer
-     * @param indices defines the data to update
-     * @param offset defines the offset in the target index buffer where update should start
-     */
-    public updateDynamicIndexBuffer(indexBuffer: DataBuffer, indices: IndicesArray, offset: number = 0): void {
-        const gpuBuffer = indexBuffer as WebGPUDataBuffer;
+    /** @hidden */
+    public _createBuffer(data: DataArray | number, creationFlags: number): DataBuffer {
+        let view: ArrayBufferView | number;
 
-        var view: ArrayBufferView;
-        if (indices instanceof Uint16Array) {
-            if (indexBuffer.is32Bits) {
-                view = Uint32Array.from(indices);
-            }
-            else {
-                view = indices;
-            }
+        if (data instanceof Array) {
+            view = new Float32Array(data);
         }
-        else if (indices instanceof Uint32Array) {
-            if (indexBuffer.is32Bits) {
-                view = indices;
-            }
-            else {
-                view = Uint16Array.from(indices);
-            }
+        else if (data instanceof ArrayBuffer) {
+            view = new Uint8Array(data);
         }
         else {
-            if (indexBuffer.is32Bits) {
-                view = new Uint32Array(indices);
-            }
-            else {
-                view = new Uint16Array(indices);
-            }
+            view = data;
         }
 
-        this._bufferManager.setSubData(gpuBuffer, offset, view);
+        let flags = 0;
+        if (creationFlags & Constants.BUFFER_CREATIONFLAG_READ) {
+            flags |= WebGPUConstants.BufferUsage.CopySrc;
+        }
+        if (creationFlags & Constants.BUFFER_CREATIONFLAG_WRITE) {
+            flags |= WebGPUConstants.BufferUsage.CopyDst;
+        }
+        if (creationFlags & Constants.BUFFER_CREATIONFLAG_UNIFORM) {
+            flags |= WebGPUConstants.BufferUsage.Uniform;
+        }
+        if (creationFlags & Constants.BUFFER_CREATIONFLAG_VERTEX) {
+            flags |= WebGPUConstants.BufferUsage.Vertex;
+        }
+        if (creationFlags & Constants.BUFFER_CREATIONFLAG_INDEX) {
+            flags |= WebGPUConstants.BufferUsage.Index;
+        }
+        if (creationFlags & Constants.BUFFER_CREATIONFLAG_STORAGE) {
+            flags |= WebGPUConstants.BufferUsage.Storage;
+        }
+
+        return this._bufferManager.createBuffer(view, flags);
     }
 
     /** @hidden */
     public bindBuffersDirectly(vertexBuffer: DataBuffer, indexBuffer: DataBuffer, vertexDeclaration: number[], vertexStrideSize: number, effect: Effect): void {
-        throw "Not implemented on WebGPU so far.";
+        throw "Not implemented on WebGPU";
     }
 
     /** @hidden */
     public updateAndBindInstancesBuffer(instancesBuffer: DataBuffer, data: Float32Array, offsetLocations: number[] | InstancingAttributeInfo[]): void {
-        throw "Not implemented on WebGPU so far.";
+        throw "Not implemented on WebGPU";
     }
 
     /**
@@ -1191,9 +1400,8 @@ export class WebGPUEngine extends Engine {
      * @param effect defines the effect associated with the vertex buffers
      * @param overrideVertexBuffers defines optional list of avertex buffers that overrides the entries in vertexBuffers
      */
-    public bindBuffers(vertexBuffers: { [key: string]: Nullable<VertexBuffer> }, indexBuffer: Nullable<DataBuffer>, effect: Effect, overrideVertexBuffers?: {[kind: string]: Nullable<VertexBuffer>}): void {
+    public bindBuffers(vertexBuffers: { [key: string]: Nullable<VertexBuffer> }, indexBuffer: Nullable<DataBuffer>, effect: Effect, overrideVertexBuffers?: { [kind: string]: Nullable<VertexBuffer> }): void {
         this._currentIndexBuffer = indexBuffer;
-        this._currentVertexBuffers = vertexBuffers;
         this._currentOverrideVertexBuffers = overrideVertexBuffers ?? null;
         this._cacheRenderPipeline.setBuffers(vertexBuffers, indexBuffer, this._currentOverrideVertexBuffers);
     }
@@ -1201,82 +1409,6 @@ export class WebGPUEngine extends Engine {
     /** @hidden */
     public _releaseBuffer(buffer: DataBuffer): boolean {
         return this._bufferManager.releaseBuffer(buffer);
-    }
-
-    //------------------------------------------------------------------------------
-    //                              UBO
-    //------------------------------------------------------------------------------
-
-    /**
-     * Create an uniform buffer
-     * @see https://doc.babylonjs.com/features/webgl2#uniform-buffer-objets
-     * @param elements defines the content of the uniform buffer
-     * @returns the webGL uniform buffer
-     */
-    public createUniformBuffer(elements: FloatArray): DataBuffer {
-        let view: Float32Array;
-        if (elements instanceof Array) {
-            view = new Float32Array(elements);
-        }
-        else {
-            view = elements;
-        }
-
-        const dataBuffer = this._bufferManager.createBuffer(view, WebGPUConstants.BufferUsage.Uniform | WebGPUConstants.BufferUsage.CopyDst);
-        return dataBuffer;
-    }
-
-    /**
-     * Create a dynamic uniform buffer
-     * @see https://doc.babylonjs.com/features/webgl2#uniform-buffer-objets
-     * @param elements defines the content of the uniform buffer
-     * @returns the webGL uniform buffer
-     */
-    public createDynamicUniformBuffer(elements: FloatArray): DataBuffer {
-        return this.createUniformBuffer(elements);
-    }
-
-    /**
-     * Update an existing uniform buffer
-     * @see https://doc.babylonjs.com/features/webgl2#uniform-buffer-objets
-     * @param uniformBuffer defines the target uniform buffer
-     * @param elements defines the content to update
-     * @param offset defines the offset in the uniform buffer where update should start
-     * @param count defines the size of the data to update
-     */
-    public updateUniformBuffer(uniformBuffer: DataBuffer, elements: FloatArray, offset?: number, count?: number): void {
-        if (offset === undefined) {
-            offset = 0;
-        }
-
-        const dataBuffer = uniformBuffer as WebGPUDataBuffer;
-        let view: Float32Array;
-        if (count === undefined) {
-            if (elements instanceof Float32Array) {
-                view = elements;
-            } else {
-                view = new Float32Array(elements);
-            }
-            count = view.byteLength;
-        } else {
-            if (elements instanceof Float32Array) {
-                view = elements;
-            } else {
-                view = new Float32Array(elements);
-            }
-        }
-
-        this._bufferManager.setSubData(dataBuffer, offset, view, 0, count);
-    }
-
-    /**
-     * Bind a buffer to the current webGL context at a given location
-     * @param buffer defines the buffer to bind
-     * @param location defines the index where to bind the buffer
-     * @param name Name of the uniform variable to bind
-     */
-    public bindUniformBufferBase(buffer: DataBuffer, location: number, name: string): void {
-        this._uniformsBuffers[name] = buffer as WebGPUDataBuffer;
     }
 
     //------------------------------------------------------------------------------
@@ -1300,8 +1432,15 @@ export class WebGPUEngine extends Engine {
         onCompiled?: Nullable<(effect: Effect) => void>, onError?: Nullable<(effect: Effect, errors: string) => void>, indexParameters?: any): Effect {
         const vertex = baseName.vertexElement || baseName.vertex || baseName.vertexToken || baseName.vertexSource || baseName;
         const fragment = baseName.fragmentElement || baseName.fragment || baseName.fragmentToken || baseName.fragmentSource || baseName;
+        const globalDefines = this._getGlobalDefines()!;
 
-        const name = vertex + "+" + fragment + "@" + (defines ? defines : (<IEffectCreationOptions>attributesNamesOrOptions).defines);
+        let fullDefines = defines ?? (<IEffectCreationOptions>attributesNamesOrOptions).defines ?? "";
+
+        if (globalDefines) {
+            fullDefines += "\n" + globalDefines;
+        }
+
+        const name = vertex + "+" + fragment + "@" + fullDefines;
         if (this._compiledEffects[name]) {
             var compiledEffect = <Effect>this._compiledEffects[name];
             if (onCompiled && compiledEffect.isReady()) {
@@ -1325,6 +1464,11 @@ export class WebGPUEngine extends Engine {
     }
 
     private _createPipelineStageDescriptor(vertexShader: Uint32Array, fragmentShader: Uint32Array): IWebGPURenderPipelineStageDescriptor {
+        if (this._tintWASM) {
+            vertexShader = this._tintWASM.convertSpirV2WGSL(vertexShader) as any;
+            fragmentShader = this._tintWASM.convertSpirV2WGSL(fragmentShader) as any;
+        }
+
         return {
             vertexStage: {
                 module: this._device.createShaderModule({
@@ -1370,6 +1514,18 @@ export class WebGPUEngine extends Engine {
     /** @hidden */
     public createShaderProgram(pipelineContext: IPipelineContext, vertexCode: string, fragmentCode: string, defines: Nullable<string>, context?: WebGLRenderingContext, transformFeedbackVaryings: Nullable<string[]> = null): WebGLProgram {
         throw "Not available on WebGPU";
+    }
+
+    /**
+     * Inline functions in shader code that are marked to be inlined
+     * @param code code to inline
+     * @returns inlined code
+     */
+    public inlineShaderCode(code: string): string {
+        const sci = new ShaderCodeInliner(code);
+        sci.debug = false;
+        sci.processCode();
+        return sci.code;
     }
 
     /**
@@ -1488,6 +1644,8 @@ export class WebGPUEngine extends Engine {
             }
         }
 
+        this._stencilStateComposer.stencilMaterial = undefined;
+
         this._forceEnableEffect = isNewEffect || this._forceEnableEffect ? false : this._forceEnableEffect;
 
         if (isNewEffect) {
@@ -1502,14 +1660,23 @@ export class WebGPUEngine extends Engine {
 
     /** @hidden */
     public _releaseEffect(effect: Effect): void {
-        // Effect gets garbage collected without explicit destroy in WebGPU.
+        if (this._compiledEffects[effect._key]) {
+            delete this._compiledEffects[effect._key];
+
+            this._deletePipelineContext(effect.getPipelineContext() as WebGPUPipelineContext);
+        }
     }
 
     /**
      * Force the engine to release all cached effects. This means that next effect compilation will have to be done completely even if a similar effect was already compiled
      */
     public releaseEffects() {
-        // Effect gets garbage collected without explicit destroy in WebGPU.
+        for (const name in this._compiledEffects) {
+            const webGPUPipelineContext = this._compiledEffects[name].getPipelineContext() as WebGPUPipelineContext;
+            this._deletePipelineContext(webGPUPipelineContext);
+        }
+
+        this._compiledEffects = {};
     }
 
     public _deletePipelineContext(pipelineContext: IPipelineContext): void {
@@ -1574,368 +1741,54 @@ export class WebGPUEngine extends Engine {
      * @param forcedExtension defines the extension to use to pick the right loader
      * @param mimeType defines an optional mime type
      * @param loaderOptions options to be passed to the loader
+     * @param creationFlags specific flags to use when creating the texture (Constants.TEXTURE_CREATIONFLAG_STORAGE for storage textures, for eg)
+     * @param useSRGBBuffer defines if the texture must be loaded in a sRGB GPU buffer (if supported by the GPU).
      * @returns a InternalTexture for assignment back into BABYLON.Texture
      */
     public createTexture(url: Nullable<string>, noMipmap: boolean, invertY: boolean, scene: Nullable<ISceneLike>, samplingMode: number = Constants.TEXTURE_TRILINEAR_SAMPLINGMODE,
         onLoad: Nullable<() => void> = null, onError: Nullable<(message: string, exception: any) => void> = null,
         buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap> = null, fallback: Nullable<InternalTexture> = null, format: Nullable<number> = null,
-        forcedExtension: Nullable<string> = null, mimeType?: string, loaderOptions?: any): InternalTexture {
+        forcedExtension: Nullable<string> = null, mimeType?: string, loaderOptions?: any, creationFlags?: number, useSRGBBuffer?: boolean): InternalTexture {
 
         return this._createTextureBase(
             url, noMipmap, invertY, scene, samplingMode, onLoad, onError,
             (texture: InternalTexture, extension: string, scene: Nullable<ISceneLike>, img: HTMLImageElement | ImageBitmap | { width: number, height: number }, invertY: boolean, noMipmap: boolean, isCompressed: boolean,
                 processFunction: (width: number, height: number, img: HTMLImageElement | ImageBitmap | { width: number, height: number }, extension: string, texture: InternalTexture, continuationCallback: () => void) => boolean, samplingMode: number) => {
-                    const imageBitmap = img as (ImageBitmap | { width: number, height: number}); // we will never get an HTMLImageElement in WebGPU
+                const imageBitmap = img as (ImageBitmap | { width: number, height: number }); // we will never get an HTMLImageElement in WebGPU
 
-                    texture.baseWidth = imageBitmap.width;
-                    texture.baseHeight = imageBitmap.height;
-                    texture.width = imageBitmap.width;
-                    texture.height = imageBitmap.height;
-                    texture.format = format ?? -1;
-
-                    processFunction(texture.width, texture.height, imageBitmap, extension, texture, () => {});
-
-                    if (!texture._hardwareTexture?.underlyingResource) { // the texture could have been created before reaching this point so don't recreate it if already existing
-                        const gpuTextureWrapper = this._textureHelper.createGPUTextureForInternalTexture(texture, imageBitmap.width, imageBitmap.height);
-
-                        if (WebGPUTextureHelper.IsImageBitmap(imageBitmap)) {
-                            this._textureHelper.updateTexture(imageBitmap, gpuTextureWrapper.underlyingResource!, imageBitmap.width, imageBitmap.height, texture.depth, gpuTextureWrapper.format, 0, 0, invertY, false, 0, 0, this._uploadEncoder);
-                            if (!noMipmap && !isCompressed) {
-                                this._generateMipmaps(texture, this._uploadEncoder);
-                            }
-                        }
-                    } else if (!noMipmap && !isCompressed) {
-                        this._generateMipmaps(texture, this._uploadEncoder);
-                    }
-
-                    if (scene) {
-                        scene._removePendingData(texture);
-                    }
-
-                    texture.isReady = true;
-
-                    texture.onLoadedObservable.notifyObservers(texture);
-                    texture.onLoadedObservable.clear();
-            },
-            () => false,
-            buffer, fallback, format, forcedExtension, mimeType, loaderOptions
-        );
-    }
-
-    /** @hidden */
-    public _setCubeMapTextureParams(texture: InternalTexture, loadMipmap: boolean) {
-        texture.samplingMode = loadMipmap ? Engine.TEXTURE_TRILINEAR_SAMPLINGMODE : Engine.TEXTURE_BILINEAR_SAMPLINGMODE;
-        texture._cachedWrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-        texture._cachedWrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-    }
-
-    /**
-     * Creates a cube texture
-     * @param rootUrl defines the url where the files to load is located
-     * @param scene defines the current scene
-     * @param files defines the list of files to load (1 per face)
-     * @param noMipmap defines a boolean indicating that no mipmaps shall be generated (false by default)
-     * @param onLoad defines an optional callback raised when the texture is loaded
-     * @param onError defines an optional callback raised if there is an issue to load the texture
-     * @param format defines the format of the data
-     * @param forcedExtension defines the extension to use to pick the right loader
-     * @param createPolynomials if a polynomial sphere should be created for the cube texture
-     * @param lodScale defines the scale applied to environment texture. This manages the range of LOD level used for IBL according to the roughness
-     * @param lodOffset defines the offset applied to environment texture. This manages first LOD level used for IBL according to the roughness
-     * @param fallback defines texture to use while falling back when (compressed) texture file not found.
-     * @param loaderOptions options to be passed to the loader
-     * @returns the cube texture as an InternalTexture
-     */
-    public createCubeTexture(rootUrl: string, scene: Nullable<Scene>, files: Nullable<string[]>, noMipmap?: boolean, onLoad: Nullable<(data?: any) => void> = null,
-        onError: Nullable<(message?: string, exception?: any) => void> = null, format?: number, forcedExtension: any = null, createPolynomials: boolean = false, lodScale: number = 0, lodOffset: number = 0, fallback: Nullable<InternalTexture> = null): InternalTexture {
-
-        return this.createCubeTextureBase(
-            rootUrl, scene, files, !!noMipmap, onLoad, onError, format, forcedExtension, createPolynomials, lodScale, lodOffset, fallback,
-            null,
-            (texture: InternalTexture, imgs: HTMLImageElement[] | ImageBitmap[]) => {
-                const imageBitmaps = imgs as ImageBitmap[]; // we will always get an ImageBitmap array in WebGPU
-                const width = imageBitmaps[0].width;
-                const height = width;
-
-                this._setCubeMapTextureParams(texture, !noMipmap);
+                texture.baseWidth = imageBitmap.width;
+                texture.baseHeight = imageBitmap.height;
+                texture.width = imageBitmap.width;
+                texture.height = imageBitmap.height;
                 texture.format = format ?? -1;
 
-                const gpuTextureWrapper = this._textureHelper.createGPUTextureForInternalTexture(texture, width, height);
+                processFunction(texture.width, texture.height, imageBitmap, extension, texture, () => { });
 
-                this._textureHelper.updateCubeTextures(imageBitmaps, gpuTextureWrapper.underlyingResource!, width, height, gpuTextureWrapper.format, false, false, 0, 0, this._uploadEncoder);
+                if (!texture._hardwareTexture?.underlyingResource) { // the texture could have been created before reaching this point so don't recreate it if already existing
+                    const gpuTextureWrapper = this._textureHelper.createGPUTextureForInternalTexture(texture, imageBitmap.width, imageBitmap.height, undefined, creationFlags);
 
-                if (!noMipmap) {
+                    if (WebGPUTextureHelper.IsImageBitmap(imageBitmap)) {
+                        this._textureHelper.updateTexture(imageBitmap, texture, imageBitmap.width, imageBitmap.height, texture.depth, gpuTextureWrapper.format, 0, 0, invertY, false, 0, 0, this._uploadEncoder);
+                        if (!noMipmap && !isCompressed) {
+                            this._generateMipmaps(texture, this._uploadEncoder);
+                        }
+                    }
+                } else if (!noMipmap && !isCompressed) {
                     this._generateMipmaps(texture, this._uploadEncoder);
+                }
+
+                if (scene) {
+                    scene._removePendingData(texture);
                 }
 
                 texture.isReady = true;
 
                 texture.onLoadedObservable.notifyObservers(texture);
                 texture.onLoadedObservable.clear();
-
-                if (onLoad) {
-                    onLoad();
-                }
-            }
+            },
+            () => false,
+            buffer, fallback, format, forcedExtension, mimeType, loaderOptions, useSRGBBuffer
         );
-    }
-
-    /**
-     * Creates a raw texture
-     * @param data defines the data to store in the texture
-     * @param width defines the width of the texture
-     * @param height defines the height of the texture
-     * @param format defines the format of the data
-     * @param generateMipMaps defines if the engine should generate the mip levels
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param samplingMode defines the required sampling mode (Texture.NEAREST_SAMPLINGMODE by default)
-     * @param compression defines the compression used (null by default)
-     * @param type defines the type fo the data (Engine.TEXTURETYPE_UNSIGNED_INT by default)
-     * @returns the raw texture inside an InternalTexture
-     */
-    public createRawTexture(data: Nullable<ArrayBufferView>, width: number, height: number, format: number, generateMipMaps: boolean, invertY: boolean, samplingMode: number,
-        compression: Nullable<string> = null, type: number = Constants.TEXTURETYPE_UNSIGNED_INT): InternalTexture
-    {
-        const texture = new InternalTexture(this, InternalTextureSource.Raw);
-        texture.baseWidth = width;
-        texture.baseHeight = height;
-        texture.width = width;
-        texture.height = height;
-        texture.format = format;
-        texture.generateMipMaps = generateMipMaps;
-        texture.samplingMode = samplingMode;
-        texture.invertY = invertY;
-        texture._compression = compression;
-        texture.type = type;
-
-        if (!this._doNotHandleContextLost) {
-            texture._bufferView = data;
-        }
-
-        this._textureHelper.createGPUTextureForInternalTexture(texture, width, height);
-
-        this.updateRawTexture(texture, data, format, invertY, compression, type);
-
-        this._internalTexturesCache.push(texture);
-
-        return texture;
-    }
-
-    /**
-     * Creates a new raw cube texture
-     * @param data defines the array of data to use to create each face
-     * @param size defines the size of the textures
-     * @param format defines the format of the data
-     * @param type defines the type of the data (like Engine.TEXTURETYPE_UNSIGNED_INT)
-     * @param generateMipMaps  defines if the engine should generate the mip levels
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param samplingMode defines the required sampling mode (like Texture.NEAREST_SAMPLINGMODE)
-     * @param compression defines the compression used (null by default)
-     * @returns the cube texture as an InternalTexture
-     */
-    public createRawCubeTexture(data: Nullable<ArrayBufferView[]>, size: number, format: number, type: number,
-        generateMipMaps: boolean, invertY: boolean, samplingMode: number,
-        compression: Nullable<string> = null): InternalTexture
-    {
-        const texture = new InternalTexture(this, InternalTextureSource.CubeRaw);
-        texture.isCube = true;
-        texture.format = format === Constants.TEXTUREFORMAT_RGB ? Constants.TEXTUREFORMAT_RGBA : format;
-        texture.type = type;
-        texture.generateMipMaps = generateMipMaps;
-        texture.width = size;
-        texture.height = size;
-        texture.samplingMode = samplingMode;
-        if (!this._doNotHandleContextLost) {
-            texture._bufferViewArray = data;
-        }
-        texture._cachedWrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-        texture._cachedWrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-
-        this._textureHelper.createGPUTextureForInternalTexture(texture);
-
-        if (data) {
-            this.updateRawCubeTexture(texture, data, format, type, invertY, compression);
-        }
-
-        return texture;
-    }
-
-    /**
-     * Creates a new raw cube texture from a specified url
-     * @param url defines the url where the data is located
-     * @param scene defines the current scene
-     * @param size defines the size of the textures
-     * @param format defines the format of the data
-     * @param type defines the type fo the data (like Engine.TEXTURETYPE_UNSIGNED_INT)
-     * @param noMipmap defines if the engine should avoid generating the mip levels
-     * @param callback defines a callback used to extract texture data from loaded data
-     * @param mipmapGenerator defines to provide an optional tool to generate mip levels
-     * @param onLoad defines a callback called when texture is loaded
-     * @param onError defines a callback called if there is an error
-     * @param samplingMode defines the required sampling mode (like Texture.NEAREST_SAMPLINGMODE)
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @returns the cube texture as an InternalTexture
-     */
-    public createRawCubeTextureFromUrl(url: string, scene: Nullable<Scene>, size: number, format: number, type: number, noMipmap: boolean,
-        callback: (ArrayBuffer: ArrayBuffer) => Nullable<ArrayBufferView[]>,
-        mipmapGenerator: Nullable<((faces: ArrayBufferView[]) => ArrayBufferView[][])>,
-        onLoad: Nullable<() => void> = null,
-        onError: Nullable<(message?: string, exception?: any) => void> = null,
-        samplingMode: number = Constants.TEXTURE_TRILINEAR_SAMPLINGMODE,
-        invertY: boolean = false): InternalTexture
-    {
-        const texture = this.createRawCubeTexture(null, size, format, type, !noMipmap, invertY, samplingMode, null);
-        scene?._addPendingData(texture);
-        texture.url = url;
-
-        this._internalTexturesCache.push(texture);
-
-        const onerror = (request?: IWebRequest, exception?: any) => {
-            scene?._removePendingData(texture);
-            if (onError && request) {
-                onError(request.status + " " + request.statusText, exception);
-            }
-        };
-
-        const internalCallback = (data: any) => {
-            const width = texture.width;
-            const faceDataArrays = callback(data);
-
-            if (!faceDataArrays) {
-                return;
-            }
-
-            const faces = [0, 2, 4, 1, 3, 5];
-
-            if (mipmapGenerator) {
-                const needConversion = format === Constants.TEXTUREFORMAT_RGB;
-                const mipData = mipmapGenerator(faceDataArrays);
-                const gpuTextureWrapper = texture._hardwareTexture as WebGPUHardwareTexture;
-                const faces = [0, 1, 2, 3, 4, 5];
-                for (let level = 0; level < mipData.length; level++) {
-                    const mipSize = width >> level;
-                    const allFaces = [];
-                    for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
-                        let mipFaceData = mipData[level][faces[faceIndex]];
-                        if (needConversion) {
-                            mipFaceData = _convertRGBtoRGBATextureData(mipFaceData, mipSize, mipSize, type);
-                        }
-                        allFaces.push(new Uint8Array(mipFaceData.buffer, mipFaceData.byteOffset, mipFaceData.byteLength));
-                    }
-                    this._textureHelper.updateCubeTextures(allFaces, gpuTextureWrapper.underlyingResource!, mipSize, mipSize, gpuTextureWrapper.format, invertY, false, 0, 0, this._uploadEncoder);
-                }
-            }
-            else {
-                const allFaces = [];
-                for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
-                    allFaces.push(faceDataArrays[faces[faceIndex]]);
-                }
-                this.updateRawCubeTexture(texture, allFaces, format, type, invertY);
-            }
-
-            texture.isReady = true;
-            scene?._removePendingData(texture);
-
-            if (onLoad) {
-                onLoad();
-            }
-        };
-
-        this._loadFile(url, (data) => {
-            internalCallback(data);
-        }, undefined, scene?.offlineProvider, true, onerror);
-
-        return texture;
-    }
-
-    /**
-     * Creates a new raw 2D array texture
-     * @param data defines the data used to create the texture
-     * @param width defines the width of the texture
-     * @param height defines the height of the texture
-     * @param depth defines the number of layers of the texture
-     * @param format defines the format of the texture
-     * @param generateMipMaps defines if the engine must generate mip levels
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param samplingMode defines the required sampling mode (like Texture.NEAREST_SAMPLINGMODE)
-     * @param compression defines the compressed used (can be null)
-     * @param textureType defines the compressed used (can be null)
-     * @returns a new raw 2D array texture (stored in an InternalTexture)
-     */
-    public createRawTexture2DArray(data: Nullable<ArrayBufferView>, width: number, height: number, depth: number, format: number, generateMipMaps: boolean, invertY: boolean, samplingMode: number,
-        compression: Nullable<string> = null, textureType: number = Constants.TEXTURETYPE_UNSIGNED_INT): InternalTexture
-    {
-        var source = InternalTextureSource.Raw2DArray;
-        var texture = new InternalTexture(this, source);
-
-        texture.baseWidth = width;
-        texture.baseHeight = height;
-        texture.baseDepth = depth;
-        texture.width = width;
-        texture.height = height;
-        texture.depth = depth;
-        texture.format = format;
-        texture.type = textureType;
-        texture.generateMipMaps = generateMipMaps;
-        texture.samplingMode = samplingMode;
-        texture.is2DArray = true;
-
-        if (!this._doNotHandleContextLost) {
-            texture._bufferView = data;
-        }
-
-        this._textureHelper.createGPUTextureForInternalTexture(texture, width, height, depth);
-
-        this.updateRawTexture2DArray(texture, data, format, invertY, compression, textureType);
-
-        this._internalTexturesCache.push(texture);
-
-        return texture;
-    }
-
-    /**
-     * Creates a new raw 3D texture
-     * @param data defines the data used to create the texture
-     * @param width defines the width of the texture
-     * @param height defines the height of the texture
-     * @param depth defines the depth of the texture
-     * @param format defines the format of the texture
-     * @param generateMipMaps defines if the engine must generate mip levels
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param samplingMode defines the required sampling mode (like Texture.NEAREST_SAMPLINGMODE)
-     * @param compression defines the compressed used (can be null)
-     * @param textureType defines the compressed used (can be null)
-     * @returns a new raw 3D texture (stored in an InternalTexture)
-     */
-    public createRawTexture3D(data: Nullable<ArrayBufferView>, width: number, height: number, depth: number, format: number, generateMipMaps: boolean, invertY: boolean, samplingMode: number,
-        compression: Nullable<string> = null, textureType: number = Constants.TEXTURETYPE_UNSIGNED_INT): InternalTexture
-    {
-        const source = InternalTextureSource.Raw3D;
-        const texture = new InternalTexture(this, source);
-
-        texture.baseWidth = width;
-        texture.baseHeight = height;
-        texture.baseDepth = depth;
-        texture.width = width;
-        texture.height = height;
-        texture.depth = depth;
-        texture.format = format;
-        texture.type = textureType;
-        texture.generateMipMaps = generateMipMaps;
-        texture.samplingMode = samplingMode;
-        texture.is3D = true;
-
-        if (!this._doNotHandleContextLost) {
-            texture._bufferView = data;
-        }
-
-        this._textureHelper.createGPUTextureForInternalTexture(texture, width, height);
-
-        this.updateRawTexture3D(texture, data, format, invertY, compression, textureType);
-
-        this._internalTexturesCache.push(texture);
-
-        return texture;
     }
 
     public generateMipMapsForCubemap(texture: InternalTexture, unbind = true) {
@@ -2001,9 +1854,11 @@ export class WebGPUEngine extends Engine {
             return;
         }
 
+        const additionalUsages = (texture._hardwareTexture as WebGPUHardwareTexture).textureAdditionalUsages;
+
         texture._hardwareTexture.release(); // don't defer the releasing! Else we will release at the end of this frame the gpu texture we are about to create in the next line...
 
-        this._textureHelper.createGPUTextureForInternalTexture(texture, width, height, depth);
+        this._textureHelper.createGPUTextureForInternalTexture(texture, width, height, depth, additionalUsages);
     }
 
     private _setInternalTexture(name: string, internalTexture: Nullable<InternalTexture>, baseName?: string, textureIndex = 0): void {
@@ -2139,7 +1994,16 @@ export class WebGPUEngine extends Engine {
         this._setInternalTexture(name, texture);
     }
 
-    private _generateMipmaps(texture: InternalTexture, commandEncoder?: GPUCommandEncoder) {
+    /**
+     * Generates the mipmaps for a texture
+     * @param texture texture to generate the mipmaps for
+     */
+    public generateMipmaps(texture: InternalTexture): void {
+        this._generateMipmaps(texture, this._renderTargetEncoder);
+    }
+
+    /** @hidden */
+    public _generateMipmaps(texture: InternalTexture, commandEncoder?: GPUCommandEncoder) {
         const gpuTexture = texture._hardwareTexture?.underlyingResource;
 
         if (!gpuTexture) {
@@ -2168,38 +2032,6 @@ export class WebGPUEngine extends Engine {
     }
 
     /**
-     * Update the content of a texture
-     * @param texture defines the texture to update
-     * @param canvas defines the source containing the data
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param premulAlpha defines if alpha is stored as premultiplied
-     * @param format defines the format of the data
-     * @param forceBindTexture if the texture should be forced to be bound eg. after a graphics context loss (Default: false)
-     */
-    public updateDynamicTexture(texture: Nullable<InternalTexture>, canvas: HTMLCanvasElement | OffscreenCanvas, invertY: boolean, premulAlpha: boolean = false, format?: number, forceBindTexture?: boolean): void {
-        if (!texture) {
-            return;
-        }
-
-        const width = canvas.width, height = canvas.height;
-
-        let gpuTextureWrapper = texture._hardwareTexture as WebGPUHardwareTexture;
-
-        if (!texture._hardwareTexture?.underlyingResource) {
-            gpuTextureWrapper = this._textureHelper.createGPUTextureForInternalTexture(texture, width, height);
-        }
-
-        this.createImageBitmap(canvas).then((bitmap) => {
-            this._textureHelper.updateTexture(bitmap, gpuTextureWrapper.underlyingResource!, width, height, texture.depth, gpuTextureWrapper.format, 0, 0, invertY, premulAlpha, 0, 0, this._uploadEncoder);
-            if (texture.generateMipMaps) {
-                this._generateMipmaps(texture, this._uploadEncoder);
-            }
-
-            texture.isReady = true;
-        });
-    }
-
-    /**
      * Update a portion of an internal texture
      * @param texture defines the texture to update
      * @param imageData defines the data to store into the texture
@@ -2219,42 +2051,7 @@ export class WebGPUEngine extends Engine {
 
         const data = new Uint8Array(imageData.buffer, imageData.byteOffset, imageData.byteLength);
 
-        this._textureHelper.updateTexture(data, gpuTextureWrapper.underlyingResource!, width, height, texture.depth, gpuTextureWrapper.format, faceIndex, lod, texture.invertY, false, xOffset, yOffset, this._uploadEncoder);
-    }
-
-    /**
-     * Update a video texture
-     * @param texture defines the texture to update
-     * @param video defines the video element to use
-     * @param invertY defines if data must be stored with Y axis inverted
-     */
-    public updateVideoTexture(texture: Nullable<InternalTexture>, video: HTMLVideoElement, invertY: boolean): void {
-        if (!texture || texture._isDisabled) {
-            return;
-        }
-
-        if (this._videoTextureSupported === undefined) {
-            this._videoTextureSupported = true;
-        }
-
-        let gpuTextureWrapper = texture._hardwareTexture as WebGPUHardwareTexture;
-
-        if (!texture._hardwareTexture?.underlyingResource) {
-            gpuTextureWrapper = this._textureHelper.createGPUTextureForInternalTexture(texture);
-        }
-
-        this.createImageBitmap(video).then((bitmap) => {
-            this._textureHelper.updateTexture(bitmap, gpuTextureWrapper.underlyingResource!, texture.width, texture.height, texture.depth, gpuTextureWrapper.format, 0, 0, !invertY, false, 0, 0, this._uploadEncoder);
-            if (texture.generateMipMaps) {
-                this._generateMipmaps(texture, this._uploadEncoder);
-            }
-
-            texture.isReady = true;
-        }).catch((msg) => {
-            // Sometimes createImageBitmap(video) fails with "Failed to execute 'createImageBitmap' on 'Window': The provided element's player has no current data."
-            // Just keep going on
-            texture.isReady = true;
-        });
+        this._textureHelper.updateTexture(data, texture, width, height, texture.depth, gpuTextureWrapper.format, faceIndex, lod, texture.invertY, false, xOffset, yOffset, this._uploadEncoder);
     }
 
     /** @hidden */
@@ -2268,7 +2065,7 @@ export class WebGPUEngine extends Engine {
 
         const data = new Uint8Array(imageData.buffer, imageData.byteOffset, imageData.byteLength);
 
-        this._textureHelper.updateTexture(data, gpuTextureWrapper.underlyingResource!, width, height, texture.depth, gpuTextureWrapper.format, faceIndex, lod, false, false, 0, 0, this._uploadEncoder);
+        this._textureHelper.updateTexture(data, texture, width, height, texture.depth, gpuTextureWrapper.format, faceIndex, lod, false, false, 0, 0, this._uploadEncoder);
     }
 
     /** @hidden */
@@ -2289,7 +2086,7 @@ export class WebGPUEngine extends Engine {
 
         const data = new Uint8Array(imageData.buffer, imageData.byteOffset, imageData.byteLength);
 
-        this._textureHelper.updateTexture(data, gpuTextureWrapper.underlyingResource!, width, height, texture.depth, gpuTextureWrapper.format, faceIndex, lod, texture.invertY, false, 0, 0, this._uploadEncoder);
+        this._textureHelper.updateTexture(data, texture, width, height, texture.depth, gpuTextureWrapper.format, faceIndex, lod, texture.invertY, false, 0, 0, this._uploadEncoder);
     }
 
     /** @hidden */
@@ -2310,153 +2107,7 @@ export class WebGPUEngine extends Engine {
         const width = Math.ceil(texture.width / (1 << lod));
         const height = Math.ceil(texture.height / (1 << lod));
 
-        this._textureHelper.updateTexture(bitmap, gpuTextureWrapper.underlyingResource!, width, height, texture.depth, gpuTextureWrapper.format, faceIndex, lod, texture.invertY, false, 0, 0, this._uploadEncoder);
-    }
-
-    /**
-     * Update a raw texture
-     * @param texture defines the texture to update
-     * @param bufferView defines the data to store in the texture
-     * @param format defines the format of the data
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param compression defines the compression used (null by default)
-     * @param type defines the type fo the data (Engine.TEXTURETYPE_UNSIGNED_INT by default)
-     */
-    public updateRawTexture(texture: Nullable<InternalTexture>, bufferView: Nullable<ArrayBufferView>, format: number, invertY: boolean, compression: Nullable<string> = null, type: number = Constants.TEXTURETYPE_UNSIGNED_INT): void {
-        if (!texture) {
-            return;
-        }
-
-        if (!this._doNotHandleContextLost) {
-            texture._bufferView = bufferView;
-            texture.invertY = invertY;
-            texture._compression = compression;
-        }
-
-        if (bufferView) {
-            const gpuTextureWrapper = texture._hardwareTexture as WebGPUHardwareTexture;
-            const needConversion = format === Constants.TEXTUREFORMAT_RGB;
-
-            if (needConversion) {
-                bufferView = _convertRGBtoRGBATextureData(bufferView, texture.width, texture.height, type);
-            }
-
-            const data = new Uint8Array(bufferView.buffer, bufferView.byteOffset, bufferView.byteLength);
-
-            this._textureHelper.updateTexture(data, gpuTextureWrapper.underlyingResource!, texture.width, texture.height, texture.depth, gpuTextureWrapper.format, 0, 0, invertY, false, 0, 0, this._uploadEncoder);
-            if (texture.generateMipMaps) {
-                this._generateMipmaps(texture, this._uploadEncoder);
-            }
-        }
-
-        texture.isReady = true;
-    }
-
-    /**
-     * Update a raw cube texture
-     * @param texture defines the texture to update
-     * @param bufferView defines the data to store
-     * @param format defines the data format
-     * @param type defines the type fo the data (Engine.TEXTURETYPE_UNSIGNED_INT by default)
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param compression defines the compression used (null by default)
-     * @param level defines which level of the texture to update
-     */
-    public updateRawCubeTexture(texture: InternalTexture, bufferView: ArrayBufferView[], format: number, type: number, invertY: boolean, compression: Nullable<string> = null, level: number = 0): void {
-        texture._bufferViewArray = bufferView;
-        texture.invertY = invertY;
-        texture._compression = compression;
-
-        const gpuTextureWrapper = texture._hardwareTexture as WebGPUHardwareTexture;
-        const needConversion = format === Constants.TEXTUREFORMAT_RGB;
-
-        const data = [];
-        for (let i = 0; i < bufferView.length; ++i) {
-            let faceData = bufferView[i];
-            if (needConversion) {
-                faceData = _convertRGBtoRGBATextureData(bufferView[i], texture.width, texture.height, type);
-            }
-            data.push(new Uint8Array(faceData.buffer, faceData.byteOffset, faceData.byteLength));
-        }
-
-        this._textureHelper.updateCubeTextures(data, gpuTextureWrapper.underlyingResource!, texture.width, texture.height, gpuTextureWrapper.format, invertY, false, 0, 0, this._uploadEncoder);
-        if (texture.generateMipMaps) {
-            this._generateMipmaps(texture, this._uploadEncoder);
-        }
-
-        texture.isReady = true;
-    }
-
-    /**
-     * Update a raw 2D array texture
-     * @param texture defines the texture to update
-     * @param bufferView defines the data to store
-     * @param format defines the data format
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param compression defines the used compression (can be null)
-     * @param textureType defines the texture Type (Engine.TEXTURETYPE_UNSIGNED_INT, Engine.TEXTURETYPE_FLOAT...)
-     */
-    public updateRawTexture2DArray(texture: InternalTexture, bufferView: Nullable<ArrayBufferView>, format: number, invertY: boolean, compression: Nullable<string> = null, textureType: number = Constants.TEXTURETYPE_UNSIGNED_INT): void {
-        if (!this._doNotHandleContextLost) {
-            texture._bufferView = bufferView;
-            texture.format = format;
-            texture.invertY = invertY;
-            texture._compression = compression;
-        }
-
-        if (bufferView) {
-            const gpuTextureWrapper = texture._hardwareTexture as WebGPUHardwareTexture;
-            const needConversion = format === Constants.TEXTUREFORMAT_RGB;
-
-            if (needConversion) {
-                bufferView = _convertRGBtoRGBATextureData(bufferView, texture.width, texture.height, textureType);
-            }
-
-            const data = new Uint8Array(bufferView.buffer, bufferView.byteOffset, bufferView.byteLength);
-
-            this._textureHelper.updateTexture(data, gpuTextureWrapper.underlyingResource!, texture.width, texture.height, texture.depth, gpuTextureWrapper.format, 0, 0, invertY, false, 0, 0, this._uploadEncoder);
-            if (texture.generateMipMaps) {
-                this._generateMipmaps(texture, this._uploadEncoder);
-            }
-        }
-
-        texture.isReady = true;
-    }
-
-    /**
-     * Update a raw 3D texture
-     * @param texture defines the texture to update
-     * @param bufferView defines the data to store
-     * @param format defines the data format
-     * @param invertY defines if data must be stored with Y axis inverted
-     * @param compression defines the used compression (can be null)
-     * @param textureType defines the texture Type (Engine.TEXTURETYPE_UNSIGNED_INT, Engine.TEXTURETYPE_FLOAT...)
-     */
-    public updateRawTexture3D(texture: InternalTexture, bufferView: Nullable<ArrayBufferView>, format: number, invertY: boolean, compression: Nullable<string> = null, textureType: number = Constants.TEXTURETYPE_UNSIGNED_INT): void {
-        if (!this._doNotHandleContextLost) {
-            texture._bufferView = bufferView;
-            texture.format = format;
-            texture.invertY = invertY;
-            texture._compression = compression;
-        }
-
-        if (bufferView) {
-            const gpuTextureWrapper = texture._hardwareTexture as WebGPUHardwareTexture;
-            const needConversion = format === Constants.TEXTUREFORMAT_RGB;
-
-            if (needConversion) {
-                bufferView = _convertRGBtoRGBATextureData(bufferView, texture.width, texture.height, textureType);
-            }
-
-            const data = new Uint8Array(bufferView.buffer, bufferView.byteOffset, bufferView.byteLength);
-
-            this._textureHelper.updateTexture(data, gpuTextureWrapper.underlyingResource!, texture.width, texture.height, texture.depth, gpuTextureWrapper.format, 0, 0, invertY, false, 0, 0, this._uploadEncoder);
-            if (texture.generateMipMaps) {
-                this._generateMipmaps(texture, this._uploadEncoder);
-            }
-        }
-
-        texture.isReady = true;
+        this._textureHelper.updateTexture(bitmap, texture, width, height, texture.depth, gpuTextureWrapper.format, faceIndex, lod, texture.invertY, false, 0, 0, this._uploadEncoder);
     }
 
     /**
@@ -2483,404 +2134,8 @@ export class WebGPUEngine extends Engine {
         return this._textureHelper.readPixels(gpuTexture, x, y, width, height, gpuTextureFormat);
     }
 
-    /** @hidden */
-    public _readTexturePixels(texture: InternalTexture, width: number, height: number, faceIndex = -1, level = 0, buffer: Nullable<ArrayBufferView> = null, flushRenderer = true): Promise<ArrayBufferView> {
-        let gpuTextureWrapper = texture._hardwareTexture as WebGPUHardwareTexture;
-
-        if (flushRenderer) {
-            this.flushFramebuffer();
-        }
-
-        return this._textureHelper.readPixels(gpuTextureWrapper.underlyingResource!, 0, 0, width, height, gpuTextureWrapper.format, faceIndex, level, buffer);
-    }
-
-    /** @hidden */
-    public _readTexturePixelsSync(texture: InternalTexture, width: number, height: number, faceIndex = -1, level = 0, buffer: Nullable<ArrayBufferView> = null, flushRenderer = true): ArrayBufferView {
-        throw "_readTexturePixelsSync is unsupported in WebGPU!";
-    }
-
     //------------------------------------------------------------------------------
-    //                              Render Target Textures
-    //------------------------------------------------------------------------------
-
-    /**
-     * Creates a new render target texture
-     * @param size defines the size of the texture
-     * @param options defines the options used to create the texture
-     * @returns a new render target texture stored in an InternalTexture
-     */
-    public createRenderTargetTexture(size: any, options: boolean | RenderTargetCreationOptions): InternalTexture {
-        let fullOptions = new RenderTargetCreationOptions();
-
-        if (options !== undefined && typeof options === "object") {
-            fullOptions.generateMipMaps = options.generateMipMaps;
-            fullOptions.generateDepthBuffer = options.generateDepthBuffer === undefined ? true : options.generateDepthBuffer;
-            fullOptions.generateStencilBuffer = fullOptions.generateDepthBuffer && options.generateStencilBuffer;
-            fullOptions.type = options.type === undefined ? Constants.TEXTURETYPE_UNSIGNED_INT : options.type;
-            fullOptions.samplingMode = options.samplingMode === undefined ? Constants.TEXTURE_TRILINEAR_SAMPLINGMODE : options.samplingMode;
-            fullOptions.format = options.format === undefined ? Constants.TEXTUREFORMAT_RGBA : options.format;
-            fullOptions.samples = options.samples ?? 1;
-        } else {
-            fullOptions.generateMipMaps = <boolean>options;
-            fullOptions.generateDepthBuffer = true;
-            fullOptions.generateStencilBuffer = false;
-            fullOptions.type = Constants.TEXTURETYPE_UNSIGNED_INT;
-            fullOptions.samplingMode = Constants.TEXTURE_TRILINEAR_SAMPLINGMODE;
-            fullOptions.format = Constants.TEXTUREFORMAT_RGBA;
-            fullOptions.samples = 1;
-        }
-
-        const texture = new InternalTexture(this, InternalTextureSource.RenderTarget);
-
-        const width = size.width || size;
-        const height = size.height || size;
-        const layers = size.layers || 0;
-
-        texture._depthStencilBuffer = {};
-        texture._framebuffer = {};
-        texture.baseWidth = width;
-        texture.baseHeight = height;
-        texture.width = width;
-        texture.height = height;
-        texture.depth = layers;
-        texture.isReady = true;
-        texture.samples = fullOptions.samples;
-        texture.generateMipMaps = fullOptions.generateMipMaps ? true : false;
-        texture.samplingMode = fullOptions.samplingMode;
-        texture.type = fullOptions.type;
-        texture.format = fullOptions.format;
-        texture._generateDepthBuffer = fullOptions.generateDepthBuffer;
-        texture._generateStencilBuffer = fullOptions.generateStencilBuffer ? true : false;
-        texture.is2DArray = layers > 0;
-        texture._cachedWrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-        texture._cachedWrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-
-        this._internalTexturesCache.push(texture);
-
-        if (texture._generateDepthBuffer || texture._generateStencilBuffer) {
-            texture._depthStencilTexture = this.createDepthStencilTexture({ width, height, layers }, {
-                bilinearFiltering:
-                    fullOptions.samplingMode === undefined ||
-                    fullOptions.samplingMode === Constants.TEXTURE_BILINEAR_SAMPLINGMODE || fullOptions.samplingMode === Constants.TEXTURE_LINEAR_LINEAR ||
-                    fullOptions.samplingMode === Constants.TEXTURE_TRILINEAR_SAMPLINGMODE || fullOptions.samplingMode === Constants.TEXTURE_LINEAR_LINEAR_MIPLINEAR ||
-                    fullOptions.samplingMode === Constants.TEXTURE_NEAREST_LINEAR_MIPNEAREST || fullOptions.samplingMode === Constants.TEXTURE_NEAREST_LINEAR_MIPLINEAR ||
-                    fullOptions.samplingMode === Constants.TEXTURE_NEAREST_LINEAR || fullOptions.samplingMode === Constants.TEXTURE_LINEAR_LINEAR_MIPNEAREST,
-                comparisonFunction: 0,
-                generateStencil: texture._generateStencilBuffer,
-                isCube: texture.isCube,
-                samples: texture.samples,
-            });
-        }
-
-        if (options !== undefined && typeof options === "object" && options.createMipMaps && !fullOptions.generateMipMaps) {
-            texture.generateMipMaps = true;
-        }
-
-        this._textureHelper.createGPUTextureForInternalTexture(texture);
-
-        if (options !== undefined && typeof options === "object" && options.createMipMaps && !fullOptions.generateMipMaps) {
-            texture.generateMipMaps = false;
-        }
-
-        return texture;
-    }
-
-    /**
-     * Create a multi render target texture
-     * @param size defines the size of the texture
-     * @param options defines the creation options
-     * @returns the cube texture as an InternalTexture
-     */
-    public createMultipleRenderTarget(size: any, options: IMultiRenderTargetOptions): InternalTexture[] {
-        let generateMipMaps = false;
-        let generateDepthBuffer = true;
-        let generateStencilBuffer = false;
-        let generateDepthTexture = false;
-        let textureCount = 1;
-
-        let defaultType = Constants.TEXTURETYPE_UNSIGNED_INT;
-        let defaultSamplingMode = Constants.TEXTURE_TRILINEAR_SAMPLINGMODE;
-
-        let types = new Array<number>();
-        let samplingModes = new Array<number>();
-
-        if (options !== undefined) {
-            generateMipMaps = options.generateMipMaps === undefined ? false : options.generateMipMaps;
-            generateDepthBuffer = options.generateDepthBuffer === undefined ? true : options.generateDepthBuffer;
-            generateStencilBuffer = options.generateStencilBuffer === undefined ? false : options.generateStencilBuffer;
-            generateDepthTexture = options.generateDepthTexture === undefined ? false : options.generateDepthTexture;
-            textureCount = options.textureCount || 1;
-
-            if (options.types) {
-                types = options.types;
-            }
-            if (options.samplingModes) {
-                samplingModes = options.samplingModes;
-            }
-
-        }
-
-        const width = size.width || size;
-        const height = size.height || size;
-
-        let depthStencilTexture = null;
-        if (generateDepthBuffer || generateStencilBuffer || generateDepthTexture) {
-            depthStencilTexture = this.createDepthStencilTexture({ width, height }, {
-                bilinearFiltering: false,
-                comparisonFunction: 0,
-                generateStencil: generateStencilBuffer,
-                isCube: false,
-                samples: 1,
-            });
-        }
-
-        const textures = [];
-        const attachments = [];
-
-        for (let i = 0; i < textureCount; i++) {
-            let samplingMode = samplingModes[i] || defaultSamplingMode;
-            let type = types[i] || defaultType;
-
-            if (type === Constants.TEXTURETYPE_FLOAT && !this._caps.textureFloatLinearFiltering) {
-                // if floating point linear (gl.FLOAT) then force to NEAREST_SAMPLINGMODE
-                samplingMode = Constants.TEXTURE_NEAREST_SAMPLINGMODE;
-            }
-            else if (type === Constants.TEXTURETYPE_HALF_FLOAT && !this._caps.textureHalfFloatLinearFiltering) {
-                // if floating point linear (HALF_FLOAT) then force to NEAREST_SAMPLINGMODE
-                samplingMode = Constants.TEXTURE_NEAREST_SAMPLINGMODE;
-            }
-
-            if (type === Constants.TEXTURETYPE_FLOAT && !this._caps.textureFloat) {
-                type = Constants.TEXTURETYPE_UNSIGNED_INT;
-                Logger.Warn("Float textures are not supported. Render target forced to TEXTURETYPE_UNSIGNED_BYTE type");
-            }
-
-            const texture = new InternalTexture(this, InternalTextureSource.MultiRenderTarget);
-
-            textures.push(texture);
-            attachments.push(i + 1);
-
-            texture._depthStencilTexture = i === 0 ? depthStencilTexture : null;
-            texture._framebuffer = {};
-            texture._depthStencilBuffer = {};
-            texture.baseWidth = width;
-            texture.baseHeight = height;
-            texture.width = width;
-            texture.height = height;
-            texture.isReady = true;
-            texture.samples = 1;
-            texture.generateMipMaps = generateMipMaps;
-            texture.samplingMode = samplingMode;
-            texture.type = type;
-            texture._generateDepthBuffer = generateDepthBuffer;
-            texture._generateStencilBuffer = generateStencilBuffer ? true : false;
-            texture._attachments = attachments;
-            texture._textureArray = textures;
-            texture._cachedWrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-            texture._cachedWrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-
-            this._internalTexturesCache.push(texture);
-
-            this._textureHelper.createGPUTextureForInternalTexture(texture);
-        }
-
-        if (depthStencilTexture) {
-            textures.push(depthStencilTexture);
-            this._internalTexturesCache.push(depthStencilTexture);
-        }
-
-        return textures;
-    }
-
-    /**
-     * Creates a new render target cube texture
-     * @param size defines the size of the texture
-     * @param options defines the options used to create the texture
-     * @returns a new render target cube texture stored in an InternalTexture
-     */
-    public createRenderTargetCubeTexture(size: number, options?: Partial<RenderTargetCreationOptions>): InternalTexture {
-        let fullOptions = {
-            generateMipMaps: true,
-            generateDepthBuffer: true,
-            generateStencilBuffer: false,
-            type: Constants.TEXTURETYPE_UNSIGNED_INT,
-            samplingMode: Constants.TEXTURE_TRILINEAR_SAMPLINGMODE,
-            format: Constants.TEXTUREFORMAT_RGBA,
-            samples: 1,
-            ...options
-        };
-        fullOptions.generateStencilBuffer = fullOptions.generateDepthBuffer && fullOptions.generateStencilBuffer;
-
-        const texture = new InternalTexture(this, InternalTextureSource.RenderTarget);
-
-        texture.width = size;
-        texture.height = size;
-        texture.depth = 0;
-        texture.isReady = true;
-        texture.isCube = true;
-        texture.samples = fullOptions.samples;
-        texture.generateMipMaps = fullOptions.generateMipMaps;
-        texture.samplingMode = fullOptions.samplingMode;
-        texture.type = fullOptions.type;
-        texture.format = fullOptions.format;
-        texture._generateDepthBuffer = fullOptions.generateDepthBuffer;
-        texture._generateStencilBuffer = fullOptions.generateStencilBuffer;
-
-        this._internalTexturesCache.push(texture);
-
-        if (texture._generateDepthBuffer || texture._generateStencilBuffer) {
-            texture._depthStencilTexture = this.createDepthStencilTexture({ width: texture.width, height: texture.height, layers: texture.depth }, {
-                bilinearFiltering:
-                    fullOptions.samplingMode === undefined ||
-                    fullOptions.samplingMode === Constants.TEXTURE_BILINEAR_SAMPLINGMODE || fullOptions.samplingMode === Constants.TEXTURE_LINEAR_LINEAR ||
-                    fullOptions.samplingMode === Constants.TEXTURE_TRILINEAR_SAMPLINGMODE || fullOptions.samplingMode === Constants.TEXTURE_LINEAR_LINEAR_MIPLINEAR ||
-                    fullOptions.samplingMode === Constants.TEXTURE_NEAREST_LINEAR_MIPNEAREST || fullOptions.samplingMode === Constants.TEXTURE_NEAREST_LINEAR_MIPLINEAR ||
-                    fullOptions.samplingMode === Constants.TEXTURE_NEAREST_LINEAR || fullOptions.samplingMode === Constants.TEXTURE_LINEAR_LINEAR_MIPNEAREST,
-                comparisonFunction: 0,
-                generateStencil: texture._generateStencilBuffer,
-                isCube: texture.isCube,
-                samples: texture.samples,
-            });
-        }
-
-        if (options && options.createMipMaps && !fullOptions.generateMipMaps) {
-            texture.generateMipMaps = true;
-        }
-
-        this._textureHelper.createGPUTextureForInternalTexture(texture);
-
-        if (options && options.createMipMaps && !fullOptions.generateMipMaps) {
-            texture.generateMipMaps = false;
-        }
-
-        return texture;
-    }
-
-    /** @hidden */
-    public _setupDepthStencilTexture(internalTexture: InternalTexture, size: number | { width: number, height: number, layers?: number }, generateStencil: boolean, bilinearFiltering: boolean, comparisonFunction: number, samples = 1): void {
-        const width = (<{ width: number, height: number, layers?: number }>size).width || <number>size;
-        const height = (<{ width: number, height: number, layers?: number }>size).height || <number>size;
-        const layers = (<{ width: number, height: number, layers?: number }>size).layers || 0;
-
-        internalTexture.baseWidth = width;
-        internalTexture.baseHeight = height;
-        internalTexture.width = width;
-        internalTexture.height = height;
-        internalTexture.is2DArray = layers > 0;
-        internalTexture.depth = layers;
-        internalTexture.isReady = true;
-        internalTexture.samples = samples;
-        internalTexture.generateMipMaps = false;
-        internalTexture._generateDepthBuffer = true;
-        internalTexture._generateStencilBuffer = generateStencil;
-        internalTexture.samplingMode = bilinearFiltering ? Constants.TEXTURE_BILINEAR_SAMPLINGMODE : Constants.TEXTURE_NEAREST_SAMPLINGMODE;
-        internalTexture.type = Constants.TEXTURETYPE_UNSIGNED_INT;
-        internalTexture._comparisonFunction = comparisonFunction;
-        internalTexture._cachedWrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-        internalTexture._cachedWrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-    }
-
-    /** @hidden */
-    public _createDepthStencilTexture(size: number | { width: number, height: number, layers?: number }, options: DepthTextureCreationOptions): InternalTexture {
-        const internalTexture = new InternalTexture(this, InternalTextureSource.Depth);
-
-        const internalOptions = {
-            bilinearFiltering: false,
-            comparisonFunction: 0,
-            generateStencil: false,
-            samples: 1,
-            ...options
-        };
-
-        // TODO WEBGPU allow to choose the format?
-        internalTexture.format = internalOptions.generateStencil ? Constants.TEXTUREFORMAT_DEPTH24_STENCIL8 : Constants.TEXTUREFORMAT_DEPTH32_FLOAT;
-
-        this._setupDepthStencilTexture(internalTexture, size, internalOptions.generateStencil, internalOptions.bilinearFiltering, internalOptions.comparisonFunction, internalOptions.samples);
-
-        this._textureHelper.createGPUTextureForInternalTexture(internalTexture);
-
-        return internalTexture;
-    }
-
-    /** @hidden */
-    public _createDepthStencilCubeTexture(size: number, options: DepthTextureCreationOptions): InternalTexture {
-        const internalTexture = new InternalTexture(this, InternalTextureSource.Depth);
-
-        internalTexture.isCube = true;
-
-        const internalOptions = {
-            bilinearFiltering: false,
-            comparisonFunction: 0,
-            generateStencil: false,
-            samples: 1,
-            ...options
-        };
-
-        // TODO WEBGPU allow to choose the format?
-        internalTexture.format = internalOptions.generateStencil ? Constants.TEXTUREFORMAT_DEPTH24_STENCIL8 : Constants.TEXTUREFORMAT_DEPTH32_FLOAT;
-
-        this._setupDepthStencilTexture(internalTexture, size, internalOptions.generateStencil, internalOptions.bilinearFiltering, internalOptions.comparisonFunction, internalOptions.samples);
-
-        this._textureHelper.createGPUTextureForInternalTexture(internalTexture);
-
-        return internalTexture;
-    }
-
-    public updateRenderTargetTextureSampleCount(texture: Nullable<InternalTexture>, samples: number): number {
-        if (!texture || texture.samples === samples) {
-            return samples;
-        }
-
-        samples = Math.min(samples, this.getCaps().maxMSAASamples);
-
-        if (samples > 1) {
-            // TODO WEBGPU for the time being, Chrome only accepts values of 1 or 4
-            samples = 4;
-        }
-
-        this._textureHelper.createMSAATexture(texture, samples);
-
-        if (texture._depthStencilTexture) {
-            this._textureHelper.createMSAATexture(texture._depthStencilTexture, samples);
-            texture._depthStencilTexture.samples = samples;
-        }
-
-        texture.samples = samples;
-
-        return samples;
-    }
-
-    /**
-     * Update the sample count for a given multiple render target texture
-     * @param textures defines the textures to update
-     * @param samples defines the sample count to set
-     * @returns the effective sample count (could be 0 if multisample render targets are not supported)
-     */
-    public updateMultipleRenderTargetTextureSampleCount(textures: Nullable<InternalTexture[]>, samples: number): number {
-        if (!textures || textures[0].samples === samples) {
-            return samples;
-        }
-
-        samples = Math.min(samples, this.getCaps().maxMSAASamples);
-
-        if (samples > 1) {
-            // TODO WEBGPU for the time being, Chrome only accepts values of 1 or 4
-            samples = 4;
-        }
-
-        // Note that the last texture of textures is the depth texture (if the depth texture has been generated by the MRT class) and so the MSAA texture
-        // will be recreated for this texture too. As a consequence, there's no need to explicitly recreate the MSAA texture for textures[0]._depthStencilTexture
-        for (let i = 0; i < textures.length; ++i) {
-            const texture = textures[i];
-            this._textureHelper.createMSAATexture(texture, samples);
-            texture.samples = samples;
-        }
-
-        return samples;
-    }
-
-    //------------------------------------------------------------------------------
-    //                              Render Commands
+    //                              Frame management
     //------------------------------------------------------------------------------
 
     /**
@@ -2894,9 +2149,33 @@ export class WebGPUEngine extends Engine {
      * End the current frame
      */
     public endFrame() {
+        if (this._snapshotRenderingRecordBundles) {
+            this._snapshotRenderingMainPassBundleList.push(this._bundleList.clone());
+            this._snapshotRenderingRecordBundles = false;
+            this._snapshotRenderingPlayBundles = true;
+            this._snapshotRenderingMode = this._snapshotRenderingModeSaved;
+        }
+
+        if (this._mainRenderPassWrapper.renderPass !== null && this._snapshotRenderingPlayBundles) {
+            for (let i = 0; i < this._snapshotRenderingMainPassBundleList.length; ++i) {
+                this._snapshotRenderingMainPassBundleList[i].run(this._mainRenderPassWrapper.renderPass);
+                if (this._snapshotRenderingMode === Constants.SNAPSHOTRENDERING_FAST) {
+                    this._reportDrawCall(this._snapshotRenderingMainPassBundleList[i].numDrawCalls);
+                }
+            }
+        }
+
         this._endMainRenderPass();
 
-        this.flushFramebuffer();
+        this._timestampQuery.endFrame(this._renderEncoder);
+
+        if (this._invertYFinalFramebuffer) {
+            if (this._mainRenderPassCopyWrapper.renderPassDescriptor!.colorAttachments[0].view) {
+                this._textureHelper.copyWithInvertY(this._mainTextureLastCopy.createView(), this._mainRenderPassWrapper.colorAttachmentGPUTextures[0].format, this._mainRenderPassCopyWrapper.renderPassDescriptor!, this._renderEncoder);
+            }
+        }
+
+        this.flushFramebuffer(false);
 
         if (this.dbgVerboseLogsForFirstFrames) {
             if ((this as any)._count === undefined) { (this as any)._count = 0; }
@@ -2950,20 +2229,19 @@ export class WebGPUEngine extends Engine {
 
     /**
      * Force a WebGPU flush (ie. a flush of all waiting commands)
+     * @param reopenPass true to reopen at the end of the function the pass that was active when entering the function
      */
-    public flushFramebuffer(): void {
+    public flushFramebuffer(reopenPass = true): void {
         // we need to end the current render pass (main or rtt) if any as we are not allowed to submit the command buffers when being in a pass
-        let currentPassType = 0; // 0 if no pass, 1 for rtt, 2 for main pass
-        if (this._currentRenderPass) {
-            if (this._currentRenderTarget) {
-                if (this._currentRenderPass) {
-                    currentPassType = 1;
-                    this._endRenderTargetRenderPass();
-                }
-            } else {
-                currentPassType = 2;
-                this._endMainRenderPass();
-            }
+        const currentRenderPassIsNULL = !this._currentRenderPass;
+        let currentPasses = 0; // 0 if no pass, 1 for rtt, 2 for main pass
+        if (this._currentRenderPass && this._currentRenderTarget) {
+            currentPasses |= 1;
+            this._endRenderTargetRenderPass();
+        }
+        if (this._mainRenderPassWrapper.renderPass) {
+            currentPasses |= 2;
+            this._endMainRenderPass();
         }
 
         this._commandBuffers[0] = this._uploadEncoder.finish();
@@ -2976,14 +2254,29 @@ export class WebGPUEngine extends Engine {
         this._renderEncoder = this._device.createCommandEncoder(this._renderEncoderDescriptor);
         this._renderTargetEncoder = this._device.createCommandEncoder(this._renderTargetEncoderDescriptor);
 
+        this._timestampQuery.startFrame(this._uploadEncoder);
+
         this._textureHelper.setCommandEncoder(this._uploadEncoder);
 
+        this._bundleList.reset();
+
         // restart the render pass
-        if (currentPassType === 1) {
-            this._startRenderTargetRenderPass(this._currentRenderTarget!, false, null, false, false);
-        } else if (currentPassType === 2) {
-            this._startMainRenderPass(false);
+        if (reopenPass) {
+            if (currentPasses & 2) {
+                this._startMainRenderPass(false);
+            }
+            if (currentPasses & 1) {
+                this._startRenderTargetRenderPass(this._currentRenderTarget!, false, null, false, false);
+            }
+            if (currentRenderPassIsNULL && this._currentRenderTarget) {
+                this._currentRenderPass = null;
+            }
         }
+    }
+
+    /** @hidden */
+    public _currentFrameBufferIsDefaultFrameBuffer() {
+        return this._currentRenderTarget === null;
     }
 
     //------------------------------------------------------------------------------
@@ -3005,7 +2298,7 @@ export class WebGPUEngine extends Engine {
         const colorAttachments: GPURenderPassColorAttachment[] = [];
 
         if (this.useReverseDepthBuffer) {
-            this.setDepthFunctionToGreater();
+            this.setDepthFunctionToGreaterOrEqual();
         }
 
         const colorClearValue = !setClearStates ? WebGPUConstants.LoadOp.Load : clearColor ? clearColor : WebGPUConstants.LoadOp.Load;
@@ -3032,7 +2325,7 @@ export class WebGPUEngine extends Engine {
                 const gpuMRTTexture = gpuMRTWrapper?.underlyingResource;
                 if (gpuMRTWrapper && gpuMRTTexture) {
                     const viewDescriptor = {
-                        ...this._rttRenderPassWrapper.colorAttachmentViewDescriptor,
+                        ...this._rttRenderPassWrapper.colorAttachmentViewDescriptor!,
                         format: gpuMRTWrapper.format,
                     };
                     const gpuMSAATexture = gpuMRTWrapper.msaaTexture;
@@ -3040,7 +2333,7 @@ export class WebGPUEngine extends Engine {
                     const colorMSAATextureView = gpuMSAATexture?.createView(viewDescriptor);
 
                     colorAttachments.push({
-                        attachment: colorMSAATextureView ? colorMSAATextureView : colorTextureView,
+                        view: colorMSAATextureView ? colorMSAATextureView : colorTextureView,
                         resolveTarget: gpuMSAATexture ? colorTextureView : undefined,
                         loadValue: colorClearValue,
                         storeOp: WebGPUConstants.StoreOp.Store,
@@ -3055,24 +2348,25 @@ export class WebGPUEngine extends Engine {
             const colorMSAATextureView = gpuMSAATexture?.createView(this._rttRenderPassWrapper.colorAttachmentViewDescriptor!);
 
             colorAttachments.push({
-                attachment: colorMSAATextureView ? colorMSAATextureView : colorTextureView,
+                view: colorMSAATextureView ? colorMSAATextureView : colorTextureView,
                 resolveTarget: gpuMSAATexture ? colorTextureView : undefined,
                 loadValue: colorClearValue,
                 storeOp: WebGPUConstants.StoreOp.Store,
             });
         }
 
-        this._debugPushGroup("render target pass", 1);
+        this._debugPushGroup?.("render target pass", 1);
 
         this._rttRenderPassWrapper.renderPassDescriptor = {
             colorAttachments,
             depthStencilAttachment: depthStencilTexture && gpuDepthStencilTexture ? {
-                attachment: depthMSAATextureView ? depthMSAATextureView : depthTextureView!,
+                view: depthMSAATextureView ? depthMSAATextureView : depthTextureView!,
                 depthLoadValue: depthStencilTexture._generateDepthBuffer ? depthClearValue : WebGPUConstants.LoadOp.Load,
                 depthStoreOp: WebGPUConstants.StoreOp.Store,
                 stencilLoadValue: depthStencilTexture._generateStencilBuffer ? stencilClearValue : WebGPUConstants.LoadOp.Load,
                 stencilStoreOp: WebGPUConstants.StoreOp.Store,
-            } : undefined
+            } : undefined,
+            occlusionQuerySet: this._occlusionQuery?.hasQueries ? this._occlusionQuery.querySet : undefined,
         };
         this._rttRenderPassWrapper.renderPass = this._renderTargetEncoder.beginRenderPass(this._rttRenderPassWrapper.renderPassDescriptor);
 
@@ -3085,7 +2379,7 @@ export class WebGPUEngine extends Engine {
 
         this._currentRenderPass = this._rttRenderPassWrapper.renderPass;
 
-        this._debugFlushPendingCommands();
+        this._debugFlushPendingCommands?.();
 
         this._resetCurrentViewport(1);
         this._resetCurrentScissor(1);
@@ -3093,8 +2387,26 @@ export class WebGPUEngine extends Engine {
         this._resetCurrentColorBlend(1);
     }
 
-    private _endRenderTargetRenderPass() {
+    /** @hidden */
+    public _endRenderTargetRenderPass() {
         if (this._currentRenderPass) {
+            const gpuWrapper = this._currentRenderTarget!._hardwareTexture as WebGPUHardwareTexture;
+            if (this._snapshotRenderingPlayBundles) {
+                gpuWrapper._bundleLists[gpuWrapper._currentLayer]?.run(this._currentRenderPass);
+                if (this._snapshotRenderingMode === Constants.SNAPSHOTRENDERING_FAST) {
+                    this._reportDrawCall(gpuWrapper._bundleLists[gpuWrapper._currentLayer]?.numDrawCalls);
+                }
+            } else if (this._snapshotRenderingRecordBundles) {
+                if (!gpuWrapper._bundleLists) {
+                    gpuWrapper._bundleLists = [];
+                }
+                gpuWrapper._bundleLists[gpuWrapper._currentLayer] = this._bundleList.clone();
+                gpuWrapper._bundleLists[gpuWrapper._currentLayer].run(this._currentRenderPass);
+                this._bundleList.reset();
+            } else if (!this.compatibilityMode) {
+                this._bundleList.run(this._currentRenderPass);
+                this._bundleList.reset();
+            }
             this._currentRenderPass.endPass();
             if (this.dbgVerboseLogsForFirstFrames) {
                 if ((this as any)._count === undefined) { (this as any)._count = 0; }
@@ -3102,7 +2414,7 @@ export class WebGPUEngine extends Engine {
                     console.log("frame #" + (this as any)._count + " - render target end pass - internalTexture.uniqueId=", this._currentRenderTarget?.uniqueId);
                 }
             }
-            this._debugPopGroup(1);
+            this._debugPopGroup?.(1);
             this._resetCurrentViewport(1);
             this._resetCurrentScissor(1);
             this._resetCurrentStencilRef(1);
@@ -3123,13 +2435,18 @@ export class WebGPUEngine extends Engine {
         return this._currentRenderPass!;
     }
 
+    /** @hidden */
+    public _getCurrentRenderPassIndex(): number {
+        return this._currentRenderPass === null ? -1 : this._currentRenderPass === this._mainRenderPassWrapper.renderPass ? 0 : 1;
+    }
+
     private _startMainRenderPass(setClearStates: boolean, clearColor?: Nullable<IColor4Like>, clearDepth?: boolean, clearStencil?: boolean): void {
         if (this._mainRenderPassWrapper.renderPass) {
             this._endMainRenderPass();
         }
 
         if (this.useReverseDepthBuffer) {
-            this.setDepthFunctionToGreater();
+            this.setDepthFunctionToGreaterOrEqual();
         }
 
         const colorClearValue = !setClearStates ? WebGPUConstants.LoadOp.Load : clearColor ? clearColor : WebGPUConstants.LoadOp.Load;
@@ -3139,16 +2456,23 @@ export class WebGPUEngine extends Engine {
         this._mainRenderPassWrapper.renderPassDescriptor!.colorAttachments[0].loadValue = colorClearValue;
         this._mainRenderPassWrapper.renderPassDescriptor!.depthStencilAttachment!.depthLoadValue = depthClearValue;
         this._mainRenderPassWrapper.renderPassDescriptor!.depthStencilAttachment!.stencilLoadValue = stencilClearValue;
+        this._mainRenderPassWrapper.renderPassDescriptor!.occlusionQuerySet = this._occlusionQuery?.hasQueries ? this._occlusionQuery.querySet : undefined;
 
-        this._swapChainTexture = this._swapChain.getCurrentTexture();
-        this._mainRenderPassWrapper.colorAttachmentGPUTextures![0].set(this._swapChainTexture);
+        const renderPassWrapperForSwapChain = this._invertYFinalFramebuffer ? this._mainRenderPassCopyWrapper : this._mainRenderPassWrapper;
+
+        this._swapChainTexture = this._context.getCurrentTexture();
+        renderPassWrapperForSwapChain.colorAttachmentGPUTextures![0].set(this._swapChainTexture);
 
         // Resolve in case of MSAA
         if (this._options.antialiasing) {
-            this._mainRenderPassWrapper.renderPassDescriptor!.colorAttachments[0].resolveTarget = this._swapChainTexture.createView();
+            if (this._invertYFinalFramebuffer) {
+                renderPassWrapperForSwapChain.renderPassDescriptor!.colorAttachments[0].view = this._swapChainTexture.createView();
+            } else {
+                renderPassWrapperForSwapChain.renderPassDescriptor!.colorAttachments[0].resolveTarget = this._swapChainTexture.createView();
+            }
         }
         else {
-            this._mainRenderPassWrapper.renderPassDescriptor!.colorAttachments[0].attachment = this._swapChainTexture.createView();
+            renderPassWrapperForSwapChain.renderPassDescriptor!.colorAttachments[0].view = this._swapChainTexture.createView();
         }
 
         if (this.dbgVerboseLogsForFirstFrames) {
@@ -3158,13 +2482,13 @@ export class WebGPUEngine extends Engine {
             }
         }
 
-        this._debugPushGroup("main pass", 0);
+        this._debugPushGroup?.("main pass", 0);
 
         this._currentRenderPass = this._renderEncoder.beginRenderPass(this._mainRenderPassWrapper.renderPassDescriptor!);
 
         this._mainRenderPassWrapper.renderPass = this._currentRenderPass;
 
-        this._debugFlushPendingCommands();
+        this._debugFlushPendingCommands?.();
 
         this._resetCurrentViewport(0);
         this._resetCurrentScissor(0);
@@ -3174,6 +2498,13 @@ export class WebGPUEngine extends Engine {
 
     private _endMainRenderPass(): void {
         if (this._mainRenderPassWrapper.renderPass !== null) {
+            if (this._snapshotRenderingRecordBundles) {
+                this._snapshotRenderingMainPassBundleList.push(this._bundleList.clone());
+            }
+            if (!this.compatibilityMode && !this._snapshotRenderingPlayBundles) {
+                this._bundleList.run(this._mainRenderPassWrapper.renderPass);
+                this._bundleList.reset();
+            }
             this._mainRenderPassWrapper.renderPass.endPass();
             if (this.dbgVerboseLogsForFirstFrames) {
                 if ((this as any)._count === undefined) { (this as any)._count = 0; }
@@ -3181,7 +2512,7 @@ export class WebGPUEngine extends Engine {
                     console.log("frame #" + (this as any)._count + " - main end pass");
                 }
             }
-            this._debugPopGroup(0);
+            this._debugPopGroup?.(0);
             this._resetCurrentViewport(0);
             this._resetCurrentScissor(0);
             this._resetCurrentStencilRef(0);
@@ -3191,44 +2522,6 @@ export class WebGPUEngine extends Engine {
             }
             this._mainRenderPassWrapper.reset(false);
         }
-    }
-
-    /**
-     * Restores the WebGPU state to only draw on the main color attachment
-     */
-    public restoreSingleAttachment(): void {
-        // nothing to do, this is done automatically in the unBindFramebuffer function
-    }
-
-    /**
-     * Creates a layout object to draw/clear on specific textures in a MRT
-     * @param textureStatus textureStatus[i] indicates if the i-th is active
-     * @returns A layout to be fed to the engine, calling `bindAttachments`.
-     */
-    public buildTextureLayout(textureStatus: boolean[]): number[] {
-        const result = [];
-
-        for (let i = 0; i < textureStatus.length; i++) {
-            if (textureStatus[i]) {
-                result.push(i + 1);
-            } else {
-                result.push(0);
-            }
-        }
-
-        return result;
-    }
-
-    /**
-     * Select a subsets of attachments to draw to.
-     * @param attachments index of attachments
-     */
-    public bindAttachments(attachments: number[]): void {
-        if (attachments.length === 0 || !this._currentRenderTarget) {
-            return;
-        }
-
-        this._mrtAttachments = attachments;
     }
 
     /**
@@ -3256,6 +2549,7 @@ export class WebGPUEngine extends Engine {
             this.unBindFramebuffer(this._currentRenderTarget);
         }
         this._currentRenderTarget = texture;
+        hardwareTexture._currentLayer = texture.isCube ? layer * 6 + faceIndex : layer;
 
         this._rttRenderPassWrapper.colorAttachmentGPUTextures[0] = hardwareTexture;
         this._rttRenderPassWrapper.depthTextureFormat = this._currentRenderTarget._depthStencilTexture ? WebGPUTextureHelper.GetWebGPUTextureFormat(-1, this._currentRenderTarget._depthStencilTexture.format) : undefined;
@@ -3274,7 +2568,7 @@ export class WebGPUEngine extends Engine {
         };
 
         this._rttRenderPassWrapper.depthAttachmentViewDescriptor = {
-            format: this._depthTextureFormat,
+            format: this._depthTextureFormat!,
             dimension: WebGPUConstants.TextureViewDimension.E2d,
             mipLevelCount: 1,
             baseArrayLayer: texture.isCube ? layer * 6 + faceIndex : layer,
@@ -3286,11 +2580,16 @@ export class WebGPUEngine extends Engine {
         if (this.dbgVerboseLogsForFirstFrames) {
             if ((this as any)._count === undefined) { (this as any)._count = 0; }
             if (!(this as any)._count || (this as any)._count < this.dbgVerboseLogsNumFrames) {
-                console.log("frame #" + (this as any)._count + " - bindFramebuffer called - face=", faceIndex, "lodLevel=", lodLevel, "layer=", layer, this._rttRenderPassWrapper.colorAttachmentViewDescriptor, this._rttRenderPassWrapper.depthAttachmentViewDescriptor);
+                console.log("frame #" + (this as any)._count + " - bindFramebuffer called - internalTexture.uniqueId=", texture.uniqueId, "face=", faceIndex, "lodLevel=", lodLevel, "layer=", layer, this._rttRenderPassWrapper.colorAttachmentViewDescriptor, this._rttRenderPassWrapper.depthAttachmentViewDescriptor);
             }
         }
 
         this._currentRenderPass = null; // lazy creation of the render pass, hoping the render pass will be created by a call to clear()...
+
+        if (this.snapshotRendering && this.snapshotRenderingMode === Constants.SNAPSHOTRENDERING_FAST) {
+            // force the creation of the render pass as we know in fast snapshot rendering mode clear() won't be called
+            this._getCurrentRenderPass();
+        }
 
         if (this._cachedViewport && !forceFullscreenViewport) {
             this.setViewport(this._cachedViewport, requiredWidth, requiredHeight);
@@ -3321,9 +2620,6 @@ export class WebGPUEngine extends Engine {
      * @param onBeforeUnbind defines a function which will be called before the effective unbind
      */
     public unBindFramebuffer(texture: InternalTexture, disableGenerateMipMaps = false, onBeforeUnbind?: () => void): void {
-        // TODO WEBGPU remove the assert debugging code
-        assert(this._currentRenderTarget === null || (this._currentRenderTarget !== null && texture === this._currentRenderTarget), "unBindFramebuffer - the texture we want to unbind is not the same than the currentRenderTarget! texture id=" + texture.uniqueId + ", this._currentRenderTarget id=" + this._currentRenderTarget?.uniqueId);
-
         const saveCRT = this._currentRenderTarget;
 
         this._currentRenderTarget = null; // to be iso with thinEngine, this._currentRenderTarget must be null when onBeforeUnbind is called
@@ -3344,39 +2640,14 @@ export class WebGPUEngine extends Engine {
 
         this._currentRenderTarget = null;
 
-        this._mrtAttachments = [];
-        this._cacheRenderPipeline.setMRTAttachments(this._mrtAttachments, []);
-        this._currentRenderPass = this._mainRenderPassWrapper.renderPass;
-        this._setDepthTextureFormat(this._mainRenderPassWrapper);
-        this._setColorFormat(this._mainRenderPassWrapper);
-    }
+        this._onAfterUnbindFrameBufferObservable.notifyObservers(this);
 
-    /**
-     * Unbind a list of render target textures from the WebGPU context
-     * @param textures defines the render target textures to unbind
-     * @param disableGenerateMipMaps defines a boolean indicating that mipmaps must not be generated
-     * @param onBeforeUnbind defines a function which will be called before the effective unbind
-     */
-    public unBindMultiColorAttachmentFramebuffer(textures: InternalTexture[], disableGenerateMipMaps: boolean = false, onBeforeUnbind?: () => void): void {
-        if (onBeforeUnbind) {
-            onBeforeUnbind();
-        }
-
-        const attachments = textures[0]._attachments!;
-        const count = attachments.length;
-
-        if (this._currentRenderPass && this._currentRenderPass !== this._mainRenderPassWrapper.renderPass) {
-            this._endRenderTargetRenderPass();
-        }
-
-        for (let i = 0; i < count; i++) {
-            const texture = textures[i];
-            if (texture.generateMipMaps && !disableGenerateMipMaps && !texture.isCube) {
-                this._generateMipmaps(texture);
+        if (this.dbgVerboseLogsForFirstFrames) {
+            if ((this as any)._count === undefined) { (this as any)._count = 0; }
+            if (!(this as any)._count || (this as any)._count < this.dbgVerboseLogsNumFrames) {
+                console.log("frame #" + (this as any)._count + " - unBindFramebuffer called - internalTexture.uniqueId=", texture.uniqueId);
             }
         }
-
-        this._currentRenderTarget = null;
 
         this._mrtAttachments = [];
         this._cacheRenderPipeline.setMRTAttachments(this._mrtAttachments, []);
@@ -3409,7 +2680,8 @@ export class WebGPUEngine extends Engine {
     //                              Render
     //------------------------------------------------------------------------------
 
-    private _setColorFormat(wrapper: WebGPURenderPassWrapper): void {
+    /** @hidden */
+    public _setColorFormat(wrapper: WebGPURenderPassWrapper): void {
         const format = wrapper.colorAttachmentGPUTextures[0].format;
         this._cacheRenderPipeline.setColorFormat(format);
         if (this._colorFormat === format) {
@@ -3418,7 +2690,8 @@ export class WebGPUEngine extends Engine {
         this._colorFormat = format;
     }
 
-    private _setDepthTextureFormat(wrapper: WebGPURenderPassWrapper): void {
+    /** @hidden */
+    public _setDepthTextureFormat(wrapper: WebGPURenderPassWrapper): void {
         this._cacheRenderPipeline.setDepthStencilFormat(wrapper.depthTextureFormat);
         if (this._depthTextureFormat === wrapper.depthTextureFormat) {
             return;
@@ -3436,20 +2709,21 @@ export class WebGPUEngine extends Engine {
 
     /**
      * Set various states to the context
-     * @param culling defines backface culling state
+     * @param culling defines culling state: true to enable culling, false to disable it
      * @param zOffset defines the value to apply to zOffset (0 by default)
      * @param force defines if states must be applied even if cache is up to date
-     * @param reverseSide defines if culling must be reversed (CCW instead of CW and CW instead of CCW)
+     * @param reverseSide defines if culling must be reversed (CCW if false, CW if true)
+     * @param cullBackFaces true to cull back faces, false to cull front faces (if culling is enabled)
+     * @param stencil stencil states to set
      */
-    public setState(culling: boolean, zOffset: number = 0, force?: boolean, reverseSide = false): void {
+    public setState(culling: boolean, zOffset: number = 0, force?: boolean, reverseSide = false, cullBackFaces?: boolean, stencil?: IStencilState): void {
         // Culling
         if (this._depthCullingState.cull !== culling || force) {
             this._depthCullingState.cull = culling;
         }
 
         // Cull face
-        // var cullFace = this.cullBackFaces ? this._gl.BACK : this._gl.FRONT;
-        var cullFace = this.cullBackFaces ? 1 : 2;
+        var cullFace = (this.cullBackFaces ?? cullBackFaces ?? true) ? 1 : 2;
         if (this._depthCullingState.cullFace !== cullFace || force) {
             this._depthCullingState.cullFace = cullFace;
         }
@@ -3463,179 +2737,136 @@ export class WebGPUEngine extends Engine {
         if (this._depthCullingState.frontFace !== frontFace || force) {
             this._depthCullingState.frontFace = frontFace;
         }
+
+        this._stencilStateComposer.stencilMaterial = stencil;
     }
 
-    /**
-     * Sets the current alpha mode
-     * @param mode defines the mode to use (one of the Engine.ALPHA_XXX)
-     * @param noDepthWriteChange defines if depth writing state should remains unchanged (false by default)
-     * @see http://doc.babylonjs.com/resources/transparency_and_how_meshes_are_rendered
-     */
-    public setAlphaMode(mode: number, noDepthWriteChange: boolean = false): void {
-        if (this._alphaMode === mode) {
-            return;
-        }
+    private _draw(drawType: number, fillMode: number, start: number, count: number, instancesCount: number): void {
+        const renderPass = this._getCurrentRenderPass();
 
-        switch (mode) {
-            case Engine.ALPHA_DISABLE:
-                this._alphaState.alphaBlend = false;
-                break;
-            case Engine.ALPHA_PREMULTIPLIED:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.ONE, this._gl.ONE_MINUS_SRC_ALPHA, this._gl.ONE, this._gl.ONE);
-                this._alphaState.setAlphaBlendFunctionParameters(1, 0x0303, 1, 1);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_PREMULTIPLIED_PORTERDUFF:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.ONE, this._gl.ONE_MINUS_SRC_ALPHA, this._gl.ONE, this._gl.ONE_MINUS_SRC_ALPHA);
-                this._alphaState.setAlphaBlendFunctionParameters(1, 0x0303, 1, 0x0303);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_COMBINE:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.SRC_ALPHA, this._gl.ONE_MINUS_SRC_ALPHA, this._gl.ONE, this._gl.ONE);
-                this._alphaState.setAlphaBlendFunctionParameters(0x0302, 0x0303, 1, 1);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_ONEONE:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.ONE, this._gl.ONE, this._gl.ZERO, this._gl.ONE);
-                this._alphaState.setAlphaBlendFunctionParameters(1, 1, 0, 1);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_ADD:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.SRC_ALPHA, this._gl.ONE, this._gl.ZERO, this._gl.ONE);
-                this._alphaState.setAlphaBlendFunctionParameters(0x0302, 1, 0, 1);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_SUBTRACT:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.ZERO, this._gl.ONE_MINUS_SRC_COLOR, this._gl.ONE, this._gl.ONE);
-                this._alphaState.setAlphaBlendFunctionParameters(0, 0x0301, 1, 1);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_MULTIPLY:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.DST_COLOR, this._gl.ZERO, this._gl.ONE, this._gl.ONE);
-                this._alphaState.setAlphaBlendFunctionParameters(0x0306, 0, 1, 1);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_MAXIMIZED:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.SRC_ALPHA, this._gl.ONE_MINUS_SRC_COLOR, this._gl.ONE, this._gl.ONE);
-                this._alphaState.setAlphaBlendFunctionParameters(0x0302, 0x0301, 1, 1);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_INTERPOLATE:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.CONSTANT_COLOR, this._gl.ONE_MINUS_CONSTANT_COLOR, this._gl.CONSTANT_ALPHA, this._gl.ONE_MINUS_CONSTANT_ALPHA);
-                this._alphaState.setAlphaBlendFunctionParameters(0x8001, 0x8002, 0x8003, 0x8004);
-                this._alphaState.alphaBlend = true;
-                break;
-            case Engine.ALPHA_SCREENMODE:
-                // this._alphaState.setAlphaBlendFunctionParameters(this._gl.ONE, this._gl.ONE_MINUS_SRC_COLOR, this._gl.ONE, this._gl.ONE_MINUS_SRC_ALPHA);
-                this._alphaState.setAlphaBlendFunctionParameters(1, 0x0301, 1, 0x0303);
-                this._alphaState.alphaBlend = true;
-                break;
-        }
-        if (!noDepthWriteChange) {
-            this.setDepthWrite(mode === Engine.ALPHA_DISABLE);
-            this._cacheRenderPipeline.setDepthWriteEnabled(mode === Engine.ALPHA_DISABLE);
-        }
-        this._alphaMode = mode;
-        this._cacheRenderPipeline.setAlphaBlendEnabled(this._alphaState.alphaBlend);
-        this._cacheRenderPipeline.setAlphaBlendFactors(this._alphaState._blendFunctionParameters, this._alphaState._blendEquationParameters);
-    }
+        this.applyStates();
 
-    /**
-     * Sets the current alpha equation
-     * @param equation defines the equation to use (one of the Engine.ALPHA_EQUATION_XXX)
-     */
-    public setAlphaEquation(equation: number): void {
-        super.setAlphaEquation(equation);
+        const mustUpdateViewport = this._mustUpdateViewport(renderPass as GPURenderPassEncoder);
+        const mustUpdateScissor = this._mustUpdateScissor(renderPass as GPURenderPassEncoder);
+        const mustUpdateStencilRef = !this._stencilStateComposer.enabled ? false : this._mustUpdateStencilRef(renderPass as GPURenderPassEncoder);
+        const mustUpdateBlendColor = !this._alphaState.alphaBlend ? false : this._mustUpdateBlendColor(renderPass as GPURenderPassEncoder);
 
-        this._cacheRenderPipeline.setAlphaBlendFactors(this._alphaState._blendFunctionParameters, this._alphaState._blendEquationParameters);
-    }
-
-    private _getBindGroupsToRender(): GPUBindGroup[] {
         const webgpuPipelineContext = this._currentEffect!._pipelineContext as WebGPUPipelineContext;
 
         if (webgpuPipelineContext.uniformBuffer) {
-            this.bindUniformBufferBase(webgpuPipelineContext.uniformBuffer.getBuffer()!, 0, "LeftOver");
             webgpuPipelineContext.uniformBuffer.update();
         }
 
-        const sceneBufferId = this._uniformsBuffers?.["Scene"]?.uniqueId ?? 0;
+        if (this._snapshotRenderingPlayBundles) {
+            this._reportDrawCall();
+            return;
+        }
 
-        if (!this.compatibilityMode && this._currentDrawContext) {
-            let bindGroups = this._currentDrawContext.fastBindGroups[sceneBufferId];
-            if (bindGroups) {
-                return bindGroups;
+        const useFastPath = !this.compatibilityMode && this._currentDrawContext?.fastBundle;
+        let renderPass2: GPURenderPassEncoder | GPURenderBundleEncoder = renderPass;
+
+        if (useFastPath || this._snapshotRenderingRecordBundles) {
+            if (mustUpdateViewport) {
+                this._bundleList.addItem(new WebGPURenderItemViewport(this._viewportCached.x, this._viewportCached.y, this._viewportCached.z, this._viewportCached.w));
+            }
+            if (mustUpdateScissor) {
+                this._bundleList.addItem(new WebGPURenderItemScissor(this._scissorCached.x, this._scissorCached.y, this._scissorCached.z, this._scissorCached.w));
+            }
+            if (mustUpdateStencilRef) {
+                this._bundleList.addItem(new WebGPURenderItemStencilRef(this._stencilStateComposer.funcRef ?? 0));
+            }
+            if (mustUpdateBlendColor) {
+                this._bundleList.addItem(new WebGPURenderItemBlendColor(this._alphaState._blendConstants.slice()));
+            }
+
+            if (!this._snapshotRenderingRecordBundles) {
+                this._bundleList.addBundle(this._currentDrawContext!.fastBundle);
+                this._reportDrawCall();
+                return;
+            }
+
+            renderPass2 = this._bundleList.getBundleEncoder(this._cacheRenderPipeline.colorFormats, this._depthTextureFormat, this.currentSampleCount); // for snapshot recording mode
+            this._bundleList.numDrawCalls++;
+        }
+
+        if (webgpuPipelineContext.uniformBuffer) {
+            this.bindUniformBufferBase(webgpuPipelineContext.uniformBuffer.getBuffer()!, 0, "LeftOver");
+        }
+
+        let textureState = 0;
+        if (!this._caps.textureFloatLinearFiltering) {
+            let bitVal = 1;
+            for (let i = 0; i < webgpuPipelineContext.shaderProcessingContext.samplerNames.length; ++i) {
+                const samplerName = webgpuPipelineContext.shaderProcessingContext.samplerNames[i];
+                const texture = this._currentMaterialContext.textures[samplerName]?.texture;
+                if (texture?.type === Constants.TEXTURETYPE_FLOAT) {
+                    textureState |= bitVal;
+                }
+                bitVal = bitVal << 1;
             }
         }
 
-        let bindGroups = this._cacheBindGroups.getBindGroups(webgpuPipelineContext, this._currentMaterialContext, this._uniformsBuffers);
+        const pipeline = this._cacheRenderPipeline.getRenderPipeline(fillMode, this._currentEffect!, this.currentSampleCount, textureState);
+        const bindGroups = this._cacheBindGroups.getBindGroups(webgpuPipelineContext, this._currentMaterialContext, this._uniformsBuffers);
 
-        if (!this.compatibilityMode && this._currentDrawContext) {
-            this._currentDrawContext.fastBindGroups[sceneBufferId] = bindGroups;
+        if (!this._snapshotRenderingRecordBundles) {
+            if (mustUpdateViewport) {
+                this._applyViewport(renderPass as GPURenderPassEncoder);
+            }
+            if (mustUpdateScissor) {
+                this._applyScissor(renderPass as GPURenderPassEncoder);
+            }
+            if (mustUpdateStencilRef) {
+                this._applyStencilRef(renderPass as GPURenderPassEncoder);
+            }
+            if (mustUpdateBlendColor) {
+                this._applyBlendColor(renderPass as GPURenderPassEncoder);
+            }
+            if (!this.compatibilityMode) {
+                renderPass2 = this._device.createRenderBundleEncoder({
+                    colorFormats: this._cacheRenderPipeline.colorFormats,
+                    depthStencilFormat: this._depthTextureFormat,
+                    sampleCount: this.currentSampleCount,
+                });
+            }
         }
 
-        return bindGroups;
-    }
+        // bind pipeline
+        renderPass2.setPipeline(pipeline);
 
-    private _bindVertexInputs(): void {
-        const renderPass = this._bundleEncoder || this._getCurrentRenderPass();
-
+        // bind index/vertex buffers
         if (this._currentIndexBuffer) {
-            renderPass.setIndexBuffer(this._currentIndexBuffer.underlyingResource, this._currentIndexBuffer!.is32Bits ? WebGPUConstants.IndexFormat.Uint32 : WebGPUConstants.IndexFormat.Uint16, 0);
+            renderPass2.setIndexBuffer(this._currentIndexBuffer.underlyingResource, this._currentIndexBuffer!.is32Bits ? WebGPUConstants.IndexFormat.Uint32 : WebGPUConstants.IndexFormat.Uint16, 0);
         }
 
-        const webgpuPipelineContext = this._currentEffect!._pipelineContext as WebGPUPipelineContext;
-        const attributes = webgpuPipelineContext.shaderProcessingContext.attributeNamesFromEffect;
-        for (var index = 0; index < attributes.length; index++) {
-            let vertexBuffer = (this._currentOverrideVertexBuffers && this._currentOverrideVertexBuffers[attributes[index]]) ?? this._currentVertexBuffers![attributes[index]];
-            if (!vertexBuffer) {
-                // In WebGL it's valid to not bind a vertex buffer to an attribute, but it's not valid in WebGPU
-                // So we must bind a dummy buffer when we are not given one for a specific attribute
-                vertexBuffer = this._emptyVertexBuffer;
-            }
+        const vertexBuffers = this._cacheRenderPipeline.vertexBuffers;
+        for (var index = 0; index < vertexBuffers.length; index++) {
+            let vertexBuffer = vertexBuffers[index];
 
             const buffer = vertexBuffer.getBuffer();
             if (buffer) {
-                renderPass.setVertexBuffer(index, buffer.underlyingResource, vertexBuffer.byteOffset);
+                renderPass2.setVertexBuffer(index, buffer.underlyingResource, vertexBuffer._validOffsetRange ? 0 : vertexBuffer.byteOffset);
             }
         }
-    }
 
-    private _setRenderBindGroups(bindGroups: GPUBindGroup[]): void {
-        // TODO WEBGPU. Only set groups if changes happened.
-        const renderPass = this._bundleEncoder || this._getCurrentRenderPass();
+        // bind bind groups
         for (let i = 0; i < bindGroups.length; i++) {
-            renderPass.setBindGroup(i, bindGroups[i]);
-        }
-    }
-
-    private _setRenderPipeline(fillMode: number): void {
-        const renderPass = this._bundleEncoder || this._getCurrentRenderPass();
-
-        let pipeline = !this.compatibilityMode ? this._currentDrawContext?.fastRenderPipeline : null;
-        if (!pipeline) {
-            pipeline = this._cacheRenderPipeline.getRenderPipeline(fillMode, this._currentEffect!, this._currentRenderTarget ? this._currentRenderTarget.samples : this._mainPassSampleCount);
-        }
-        renderPass.setPipeline(pipeline);
-
-        if (!this.compatibilityMode && this._currentDrawContext) {
-            this._currentDrawContext.fastRenderPipeline = pipeline;
+            renderPass2.setBindGroup(i, bindGroups[i]);
         }
 
-        this._bindVertexInputs();
-
-        const bindGroups = this._getBindGroupsToRender();
-        this._setRenderBindGroups(bindGroups);
-
-        if (renderPass !== this._bundleEncoder) {
-            this._applyViewport(renderPass as GPURenderPassEncoder);
-            this._applyScissor(renderPass as GPURenderPassEncoder);
-            if (this._stencilState.stencilTest) {
-                this._applyStencilRef(renderPass as GPURenderPassEncoder);
-            }
-            if (this._alphaState.alphaBlend) {
-                this._applyBlendColor(renderPass as GPURenderPassEncoder);
-            }
+        // draw
+        if (drawType === 0) {
+            renderPass2.drawIndexed(count, instancesCount || 1, start, 0, 0);
+        } else {
+            renderPass2.draw(count, instancesCount || 1, start, 0);
         }
+
+        if (!this.compatibilityMode && this._currentDrawContext && !this._snapshotRenderingRecordBundles) {
+            this._currentDrawContext.fastBundle = (renderPass2 as GPURenderBundleEncoder).finish();
+            this._bundleList.addBundle(this._currentDrawContext.fastBundle);
+        }
+
+        this._reportDrawCall();
     }
 
     /**
@@ -3646,12 +2877,7 @@ export class WebGPUEngine extends Engine {
      * @param instancesCount defines the number of instances to draw (if instantiation is enabled)
      */
     public drawElementsType(fillMode: number, indexStart: number, indexCount: number, instancesCount: number = 1): void {
-        const renderPass = this._bundleEncoder || this._getCurrentRenderPass();
-
-        this._setRenderPipeline(fillMode);
-
-        renderPass.drawIndexed(indexCount, instancesCount || 1, indexStart, 0, 0);
-        this._reportDrawCall();
+        this._draw(0, fillMode, indexStart, indexCount, instancesCount);
     }
 
     /**
@@ -3662,52 +2888,8 @@ export class WebGPUEngine extends Engine {
      * @param instancesCount defines the number of instances to draw (if instantiation is enabled)
      */
     public drawArraysType(fillMode: number, verticesStart: number, verticesCount: number, instancesCount: number = 1): void {
-        const renderPass = this._bundleEncoder || this._getCurrentRenderPass();
-
         this._currentIndexBuffer = null;
-
-        this._setRenderPipeline(fillMode);
-
-        renderPass.draw(verticesCount, instancesCount || 1, verticesStart, 0);
-        this._reportDrawCall();
-    }
-
-    //------------------------------------------------------------------------------
-    //                              Render Bundle
-    //------------------------------------------------------------------------------
-
-    private _bundleEncoder: Nullable<GPURenderBundleEncoder>;
-
-    /**
-     * Start recording all the gpu calls into a bundle.
-     */
-    public startRecordBundle(): void {
-        // TODO. WebGPU. options should be dynamic.
-        this._bundleEncoder = this._device.createRenderBundleEncoder({
-            colorFormats: [ WebGPUConstants.TextureFormat.BGRA8Unorm ],
-            depthStencilFormat: WebGPUConstants.TextureFormat.Depth24PlusStencil8,
-            sampleCount: this._mainPassSampleCount,
-        });
-    }
-
-    /**
-     * Stops recording the bundle.
-     * @returns the recorded bundle
-     */
-    public stopRecordBundle(): GPURenderBundle {
-        const bundle = this._bundleEncoder!.finish();
-        this._bundleEncoder = null;
-        return bundle;
-    }
-
-    /**
-     * Execute the previously recorded bundle.
-     * @param bundles defines the bundle to replay
-     */
-    public executeBundles(bundles: GPURenderBundle[]): void {
-        const renderPass = this._getCurrentRenderPass();
-
-        renderPass.executeBundles(bundles);
+        this._draw(1, fillMode, verticesStart, verticesCount, instancesCount);
     }
 
     //------------------------------------------------------------------------------
@@ -3718,12 +2900,9 @@ export class WebGPUEngine extends Engine {
      * Dispose and release all associated resources
      */
     public dispose(): void {
-        if (this._mainTexture) {
-            this._mainTexture.destroy();
-        }
-        if (this._depthTexture) {
-            this._depthTexture.destroy();
-        }
+        this._mainTexture?.destroy();
+        this._mainTextureLastCopy?.destroy();
+        this._depthTexture?.destroy();
         super.dispose();
     }
 
@@ -3765,73 +2944,6 @@ export class WebGPUEngine extends Engine {
         return this._canvas;
     }
 
-    /** @hidden */
-    public _debugPushGroup(groupName: string, targetObject?: number): void {
-        if (!this._options.enableGPUDebugMarkers) {
-            return;
-        }
-
-        if (targetObject === 0 || targetObject === 1) {
-            const encoder = targetObject === 0 ? this._renderEncoder : this._renderTargetEncoder;
-            encoder.pushDebugGroup(groupName);
-        } else if (this._currentRenderPass) {
-            this._currentRenderPass.pushDebugGroup(groupName);
-        } else {
-            this._pendingDebugCommands.push(["push", groupName]);
-        }
-    }
-
-    /** @hidden */
-    public _debugPopGroup(targetObject?: number): void {
-        if (!this._options.enableGPUDebugMarkers) {
-            return;
-        }
-
-        if (targetObject === 0 || targetObject === 1) {
-            const encoder = targetObject === 0 ? this._renderEncoder : this._renderTargetEncoder;
-            encoder.popDebugGroup();
-        } else if (this._currentRenderPass) {
-            this._currentRenderPass.popDebugGroup();
-        } else {
-            this._pendingDebugCommands.push(["pop", null]);
-        }
-    }
-
-    /** @hidden */
-    public _debugInsertMarker(text: string, targetObject?: number): void {
-        if (!this._options.enableGPUDebugMarkers) {
-            return;
-        }
-
-        if (targetObject === 0 || targetObject === 1) {
-            const encoder = targetObject === 0 ? this._renderEncoder : this._renderTargetEncoder;
-            encoder.insertDebugMarker(text);
-        } else if (this._currentRenderPass) {
-            this._currentRenderPass.insertDebugMarker(text);
-        } else {
-            this._pendingDebugCommands.push(["insert", text]);
-        }
-    }
-
-    private _debugFlushPendingCommands(): void {
-        for (let i = 0; i < this._pendingDebugCommands.length; ++i) {
-            const [name, param] = this._pendingDebugCommands[i];
-
-            switch (name) {
-                case "push":
-                    this._debugPushGroup(param!);
-                    break;
-                case "pop":
-                    this._debugPopGroup();
-                    break;
-                case "insert":
-                    this._debugInsertMarker(param!);
-                    break;
-            }
-        }
-        this._pendingDebugCommands.length = 0;
-    }
-
     //------------------------------------------------------------------------------
     //                              Errors
     //------------------------------------------------------------------------------
@@ -3859,9 +2971,6 @@ export class WebGPUEngine extends Engine {
 
     /** @hidden */
     public _releaseFramebufferObjects(texture: InternalTexture): void { }
-
-    /** @hidden */
-    public applyStates() { }
 
     /**
      * Gets a boolean indicating if all created effects are ready
@@ -3897,10 +3006,6 @@ export class WebGPUEngine extends Engine {
     /** @hidden */
     public _getSamplingParameters(samplingMode: number, generateMipMaps: boolean): { min: number; mag: number } {
         throw "_getSamplingParameters is not available in WebGPU";
-    }
-
-    /** @hidden */
-    public bindUniformBlock(pipelineContext: IPipelineContext, blockName: string, index: number): void {
     }
 
     /** @hidden */
@@ -3982,34 +3087,4 @@ export class WebGPUEngine extends Engine {
     public setFloat4(uniform: WebGLUniformLocation, x: number, y: number, z: number, w: number): boolean {
         return false;
     }
-}
-
-/** @hidden */
-function _convertRGBtoRGBATextureData(rgbData: any, width: number, height: number, textureType: number): ArrayBufferView {
-    // Create new RGBA data container.
-    var rgbaData: any;
-    if (textureType === Constants.TEXTURETYPE_FLOAT) {
-        rgbaData = new Float32Array(width * height * 4);
-    }
-    else {
-        rgbaData = new Uint32Array(width * height * 4);
-    }
-
-    // Convert each pixel.
-    for (let x = 0; x < width; x++) {
-        for (let y = 0; y < height; y++) {
-            let index = (y * width + x) * 3;
-            let newIndex = (y * width + x) * 4;
-
-            // Map Old Value to new value.
-            rgbaData[newIndex + 0] = rgbData[index + 0];
-            rgbaData[newIndex + 1] = rgbData[index + 1];
-            rgbaData[newIndex + 2] = rgbData[index + 2];
-
-            // Add fully opaque alpha channel.
-            rgbaData[newIndex + 3] = 1;
-        }
-    }
-
-    return rgbaData;
 }

@@ -19,7 +19,7 @@ import { editableInPropertyPage, PropertyTypeForEdition } from "../nodeMaterialD
 
 export class WorleyNoise3DBlock extends NodeMaterialBlock {
     /** Gets or sets a boolean indicating that normal should be inverted on X axis */
-    @editableInPropertyPage("Use Manhattan Distance", PropertyTypeForEdition.Boolean, "PROPERTIES", { "notifiers": { "update": false }})
+    @editableInPropertyPage("Use Manhattan Distance", PropertyTypeForEdition.Boolean, "PROPERTIES", { "notifiers": { "update": false } })
     public manhattanDistance = false;
 
     /**
@@ -235,7 +235,7 @@ export class WorleyNoise3DBlock extends NodeMaterialBlock {
      * Exposes the properties to the UI?
      */
     protected _dumpPropertiesCode() {
-        var codeString = `${this._codeVariableName}.manhattanDistance = ${this.manhattanDistance};\r\n`;
+        var codeString = super._dumpPropertiesCode() + `${this._codeVariableName}.manhattanDistance = ${this.manhattanDistance};\r\n`;
 
         return codeString;
     }

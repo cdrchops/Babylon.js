@@ -7,6 +7,7 @@ import { TouchButton3D } from "./touchButton3D";
 
 /**
  * Class used to create an interactable object. It's a touchable 3D button using a mesh coming from the current scene
+ * @since 5.0.0
  */
 export class TouchMeshButton3D extends TouchButton3D {
     /** @hidden */
@@ -14,19 +15,11 @@ export class TouchMeshButton3D extends TouchButton3D {
 
     /**
      * Creates a new 3D button based on a mesh
-     * @param mesh mesh to become a 3D button
-     * @param collisionMesh mesh to track collisions with
+     * @param mesh mesh to become a 3D button. By default this is also the mesh for near interaction collision checking
      * @param name defines the control name
      */
-    constructor(mesh: Mesh, options: {collisionMesh: Mesh, useDynamicMesh?: boolean}, name?: string) {
-        if (options.useDynamicMesh) {
-            super(name, options.collisionMesh);
-        }
-        else {
-            let newCollisionMesh = options.collisionMesh.clone("", options.collisionMesh.parent);
-            newCollisionMesh.isVisible = false;
-            super(name, newCollisionMesh);
-        }
+    constructor(mesh: Mesh, name?: string) {
+        super(name, mesh);
 
         this._currentMesh = mesh;
 
@@ -70,7 +63,7 @@ export class TouchMeshButton3D extends TouchButton3D {
     // Mesh association
     protected _createNode(scene: Scene): TransformNode {
         this._currentMesh.getChildMeshes().forEach((mesh) => {
-            this._injectGUI3DMetadata(mesh).control = this;
+            this._injectGUI3DReservedDataStore(mesh).control = this;
         });
 
         return this._currentMesh;

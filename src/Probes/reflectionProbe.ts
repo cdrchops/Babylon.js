@@ -30,7 +30,7 @@ declare module "../abstractScene" {
     }
 }
 
-AbstractScene.prototype.removeReflectionProbe = function(toRemove: ReflectionProbe): number {
+AbstractScene.prototype.removeReflectionProbe = function (toRemove: ReflectionProbe): number {
     if (!this.reflectionProbes) {
         return -1;
     }
@@ -43,7 +43,7 @@ AbstractScene.prototype.removeReflectionProbe = function(toRemove: ReflectionPro
     return index;
 };
 
-AbstractScene.prototype.addReflectionProbe = function(newReflectionProbe: ReflectionProbe): void {
+AbstractScene.prototype.addReflectionProbe = function (newReflectionProbe: ReflectionProbe): void {
     if (!this.reflectionProbes) {
         this.reflectionProbes = [];
     }
@@ -70,6 +70,9 @@ export class ReflectionProbe {
     /** Gets or sets probe position (center of the cube map) */
     @serializeAsVector3()
     public position = Vector3.Zero();
+
+    /** @hidden */
+    public _parentContainer: Nullable<AbstractScene> = null;
 
     /**
      * Creates a new reflection probe
@@ -105,6 +108,8 @@ export class ReflectionProbe {
         this._renderTargetTexture = new RenderTargetTexture(name, size, scene, generateMipMaps, true, textureType, true);
         this._renderTargetTexture.gammaSpace = !linearSpace;
 
+        const useReverseDepthBuffer = scene.getEngine().useReverseDepthBuffer;
+
         this._renderTargetTexture.onBeforeRenderObservable.add((faceIndex: number) => {
             switch (faceIndex) {
                 case 0:
@@ -134,30 +139,25 @@ export class ReflectionProbe {
 
             this.position.addToRef(this._add, this._target);
 
-            if (scene.useRightHandedSystem) {
-                Matrix.LookAtRHToRef(this.position, this._target, Vector3.Up(), this._viewMatrix);
+            const lookAtFunction = scene.useRightHandedSystem ? Matrix.LookAtRHToRef : Matrix.LookAtLHToRef;
+            const perspectiveFunction = scene.useRightHandedSystem ? Matrix.PerspectiveFovRH : Matrix.PerspectiveFovLH;
 
-                if (scene.activeCamera) {
-                    this._projectionMatrix = Matrix.PerspectiveFovRH(Math.PI / 2, 1, scene.activeCamera.minZ, scene.activeCamera.maxZ);
-                    scene.setTransformMatrix(this._viewMatrix, this._projectionMatrix);
+            lookAtFunction(this.position, this._target, Vector3.Up(), this._viewMatrix);
+
+            if (scene.activeCamera) {
+                this._projectionMatrix = perspectiveFunction(Math.PI / 2, 1, useReverseDepthBuffer ? scene.activeCamera.maxZ : scene.activeCamera.minZ, useReverseDepthBuffer ? scene.activeCamera.minZ : scene.activeCamera.maxZ, this._scene.getEngine().isNDCHalfZRange);
+                scene.setTransformMatrix(this._viewMatrix, this._projectionMatrix);
+                if (scene.activeCamera.isRigCamera && !this._renderTargetTexture.activeCamera) {
+                    this._renderTargetTexture.activeCamera = scene.activeCamera.rigParent || null;
                 }
             }
-            else  {
-                Matrix.LookAtLHToRef(this.position, this._target, Vector3.Up(), this._viewMatrix);
-
-                if (scene.activeCamera) {
-                    this._projectionMatrix = Matrix.PerspectiveFovLH(Math.PI / 2, 1, scene.activeCamera.minZ, scene.activeCamera.maxZ);
-                    scene.setTransformMatrix(this._viewMatrix, this._projectionMatrix);
-                }
-            }
-
             scene._forcedViewPosition = this.position;
         });
 
         let currentApplyByPostProcess: boolean;
 
         this._renderTargetTexture.onBeforeBindObservable.add(() => {
-            scene.getEngine()._debugPushGroup(`reflection probe generation for ${name}`, 1);
+            scene.getEngine()._debugPushGroup?.(`reflection probe generation for ${name}`, 1);
             currentApplyByPostProcess = this._scene.imageProcessingConfiguration.applyByPostProcess;
             if (linearSpace) {
                 scene.imageProcessingConfiguration.applyByPostProcess = true;
@@ -168,7 +168,7 @@ export class ReflectionProbe {
             scene.imageProcessingConfiguration.applyByPostProcess = currentApplyByPostProcess;
             scene._forcedViewPosition = null;
             scene.updateTransformMatrix(true);
-            scene.getEngine()._debugPopGroup(1);
+            scene.getEngine()._debugPopGroup?.(1);
         });
     }
 
@@ -234,6 +234,14 @@ export class ReflectionProbe {
         if (index !== -1) {
             // Remove from the scene if found
             this._scene.reflectionProbes.splice(index, 1);
+        }
+
+        if (this._parentContainer) {
+            const index = this._parentContainer.reflectionProbes.indexOf(this);
+            if (index > -1) {
+                this._parentContainer.reflectionProbes.splice(index, 1);
+            }
+            this._parentContainer = null;
         }
 
         if (this._renderTargetTexture) {
@@ -303,7 +311,7 @@ export class ReflectionProbe {
         reflectionProbe.cubeTexture._waitingRenderList = parsedReflectionProbe.renderList;
 
         if (parsedReflectionProbe._attachedMesh) {
-            reflectionProbe.attachToMesh(scene.getMeshByID(parsedReflectionProbe._attachedMesh));
+            reflectionProbe.attachToMesh(scene.getMeshById(parsedReflectionProbe._attachedMesh));
         }
 
         return reflectionProbe;

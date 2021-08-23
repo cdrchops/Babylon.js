@@ -37,6 +37,12 @@ struct subSurfaceOutParams
     #ifdef SS_THICKNESSANDMASK_TEXTURE
         const in vec4 thicknessMap,
     #endif
+    #ifdef SS_REFRACTIONINTENSITY_TEXTURE
+        const in vec4 refractionIntensityMap,
+    #endif
+    #ifdef SS_TRANSLUCENCYINTENSITY_TEXTURE
+        const in vec4 translucencyIntensityMap,
+    #endif
     #ifdef REFLECTION
         #ifdef SS_TRANSLUCENCY
             const in mat4 reflectionMatrix,
@@ -67,7 +73,7 @@ struct subSurfaceOutParams
         const in mat4 view,
         const in vec4 vRefractionInfos,
         const in mat4 refractionMatrix,
-        const in vec3 vRefractionMicrosurfaceInfos,
+        const in vec4 vRefractionMicrosurfaceInfos,
         const in vec4 vLightingIntensity,
         #ifdef SS_LINKREFRACTIONTOTRANSPARENCY
             const in float alpha,
@@ -127,29 +133,42 @@ struct subSurfaceOutParams
     #endif
 
     #ifdef SS_THICKNESSANDMASK_TEXTURE
-        float thickness = thicknessMap.r * vThicknessParam.y + vThicknessParam.x;
+        #if defined(SS_USE_GLTF_TEXTURES)
+            float thickness = thicknessMap.g * vThicknessParam.y + vThicknessParam.x;
+        #else
+            float thickness = thicknessMap.r * vThicknessParam.y + vThicknessParam.x;
+        #endif
 
         #if DEBUGMODE > 0
             outParams.thicknessMap = thicknessMap;
         #endif
 
         #ifdef SS_MASK_FROM_THICKNESS_TEXTURE
-            #ifdef SS_REFRACTION
-                refractionIntensity *= thicknessMap.g;
+            #if defined(SS_REFRACTION) && defined(SS_REFRACTION_USE_INTENSITY_FROM_TEXTURE)
+                #if defined(SS_USE_GLTF_TEXTURES)
+                    refractionIntensity *= thicknessMap.r;
+                #else
+                    refractionIntensity *= thicknessMap.g;
+                #endif
             #endif
-            #ifdef SS_TRANSLUCENCY
+            #if defined(SS_TRANSLUCENCY) && defined(SS_TRANSLUCENCY_USE_INTENSITY_FROM_TEXTURE)
                 translucencyIntensity *= thicknessMap.b;
             #endif
-        #elif defined(SS_MASK_FROM_THICKNESS_TEXTURE_GLTF)
-            #ifdef SS_REFRACTION
-                refractionIntensity *= thicknessMap.r;
-            #elif defined(SS_TRANSLUCENCY)
-                translucencyIntensity *= thicknessMap.r;
-            #endif
-            thickness = thicknessMap.g * vThicknessParam.y + vThicknessParam.x;
         #endif
     #else
         float thickness = vThicknessParam.y;
+    #endif
+
+    #ifdef SS_REFRACTIONINTENSITY_TEXTURE
+        #ifdef SS_USE_GLTF_TEXTURES
+            refractionIntensity *= refractionIntensityMap.r;
+        #else
+            refractionIntensity *= refractionIntensityMap.g;
+        #endif
+    #endif
+
+    #ifdef SS_TRANSLUCENCYINTENSITY_TEXTURE
+        translucencyIntensity *= translucencyIntensityMap.b;
     #endif
 
     // _________________________________________________________________________________________
@@ -188,21 +207,35 @@ struct subSurfaceOutParams
             vec3 refractionCoords = refractionVector;
             refractionCoords = vec3(refractionMatrix * vec4(refractionCoords, 0));
         #else
-            vec3 vRefractionUVW = vec3(refractionMatrix * (view * vec4(vPositionW + refractionVector * vRefractionInfos.z, 1.0)));
+            #ifdef SS_USE_THICKNESS_AS_DEPTH
+                vec3 vRefractionUVW = vec3(refractionMatrix * (view * vec4(vPositionW + refractionVector * thickness, 1.0)));
+            #else
+                vec3 vRefractionUVW = vec3(refractionMatrix * (view * vec4(vPositionW + refractionVector * vRefractionInfos.z, 1.0)));
+            #endif
             vec2 refractionCoords = vRefractionUVW.xy / vRefractionUVW.z;
             refractionCoords.y = 1.0 - refractionCoords.y;
         #endif
 
+        // vRefractionInfos.y is the IOR of the volume.
+        // vRefractionMicrosurfaceInfos.w is the IOR of the surface.
+        #ifdef SS_HAS_THICKNESS
+            float ior = vRefractionInfos.y;
+        #else
+            float ior = vRefractionMicrosurfaceInfos.w;
+        #endif
         // Scale roughness with IOR so that an IOR of 1.0 results in no microfacet refraction and
         // an IOR of 1.5 results in the default amount of microfacet refraction.
         #ifdef SS_LODINREFRACTIONALPHA
-            float refractionAlphaG = mix(alphaG, 0.0, clamp(vRefractionInfos.y * 3.0 - 2.0, 0.0, 1.0));
+            float refractionAlphaG = alphaG;
+            refractionAlphaG = mix(alphaG, 0.0, clamp(ior * 3.0 - 2.0, 0.0, 1.0));
             float refractionLOD = getLodFromAlphaG(vRefractionMicrosurfaceInfos.x, refractionAlphaG, NdotVUnclamped);
         #elif defined(SS_LINEARSPECULARREFRACTION)
-            float refractionRoughness = mix(alphaG, 0.0, clamp(vRefractionInfos.y * 3.0 - 2.0, 0.0, 1.0));
+            float refractionRoughness = alphaG;
+            refractionRoughness = mix(alphaG, 0.0, clamp(ior * 3.0 - 2.0, 0.0, 1.0));
             float refractionLOD = getLinearLodFromRoughness(vRefractionMicrosurfaceInfos.x, refractionRoughness);
         #else
-            float refractionAlphaG = mix(alphaG, 0.0, clamp(vRefractionInfos.y * 3.0 - 2.0, 0.0, 1.0));
+            float refractionAlphaG = alphaG;
+            refractionAlphaG = mix(alphaG, 0.0, clamp(ior * 3.0 - 2.0, 0.0, 1.0));
             float refractionLOD = getLodFromAlphaG(vRefractionMicrosurfaceInfos.x, refractionAlphaG);
         #endif
 

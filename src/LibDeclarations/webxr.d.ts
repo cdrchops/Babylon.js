@@ -6,7 +6,8 @@ type XRSessionMode = "inline" | "immersive-vr" | "immersive-ar";
 /**
  * Reference space types
  */
-type XRReferenceSpaceType = "viewer" | "local" | "local-floor" | "bounded-floor" | "unbounded";
+type XRReferenceSpaceType = "viewer" | "local" | "local-floor" | "unbounded";
+type XRBoundedReferenceSpaceType = "bounded-floor";
 
 type XREnvironmentBlendMode = "opaque" | "additive" | "alpha-blend";
 
@@ -30,7 +31,9 @@ type XREye = "none" | "left" | "right";
 /**
  * Type of XR events available
  */
-type XREventType = "devicechange" | "visibilitychange" | "end" | "inputsourceschange" | "select" | "selectstart" | "selectend" | "squeeze" | "squeezestart" | "squeezeend" | "reset";
+type XREventType = "devicechange" | "visibilitychange" | "end" | "inputsourceschange" | "select" | "selectstart" | "selectend" | "squeeze" | "squeezestart" | "squeezeend" | "reset" | "eyetrackingstart" | "eyetrackingend";
+
+type XRDOMOverlayType = "screen" | "floating" | "head-locked";
 
 type XRFrameRequestCallback = (time: DOMHighResTimeStamp, frame: XRFrame) => void;
 
@@ -39,12 +42,23 @@ type XRAnchorSet = Set<XRAnchor>;
 
 type XREventHandler = (callback: any) => void;
 
-interface XRLayer extends EventTarget {}
+interface XRLayer extends EventTarget { }
+
+type XRDOMOverlayInit = {
+    /**
+     * The root attribute specifies the overlay element that will be displayed to the user as the content of the DOM overlay. This is a required attribute, there is no default.
+     */
+    root: Element;
+};
 
 interface XRSessionInit {
     optionalFeatures?: string[];
     requiredFeatures?: string[];
     trackedImages?: XRTrackedImageInit[];
+    /**
+     * When 'dom-overly' is (optionally) requested the application MUST provide configuration for the DOM overlay
+     */
+    domOverlay?: XRDOMOverlayInit;
 }
 
 interface XRSessionEvent extends Event {
@@ -84,7 +98,7 @@ declare class XRWebGLLayer {
 }
 
 // tslint:disable-next-line no-empty-interface
-interface XRSpace extends EventTarget {}
+interface XRSpace extends EventTarget { }
 
 interface XRRenderState {
     readonly baseLayer?: XRWebGLLayer;
@@ -123,6 +137,8 @@ interface XRInputSource {
 interface XRPose {
     readonly transform: XRRigidTransform;
     readonly emulatedPosition: boolean;
+    readonly linearVelocity?: DOMPointReadOnly;
+    readonly angularVelocity?: DOMPointReadOnly;
 }
 
 interface XRWorldInformation {
@@ -132,6 +148,7 @@ interface XRWorldInformation {
 interface XRFrame {
     readonly session: XRSession;
     getPose(space: XRSpace, baseSpace: XRSpace): XRPose | undefined;
+    fillPoses?(spaces: XRSpace[], baseSpace: XRSpace, transforms: Float32Array): boolean;
     getViewerPose(referenceSpace: XRReferenceSpace): XRViewerPose | undefined;
 
     // AR
@@ -140,10 +157,12 @@ interface XRFrame {
     // Anchors
     trackedAnchors?: XRAnchorSet;
     createAnchor?(pose: XRRigidTransform, space: XRSpace): Promise<XRAnchor>;
-    // World geometries
+    // World geometries. DEPRECATED
     worldInformation?: XRWorldInformation;
+    detectedPlanes?: XRPlaneSet;
     // Hand tracking
     getJointPose?(joint: XRJointSpace, baseSpace: XRSpace): XRJointPose;
+    fillJointRadii?(jointSpaces: XRJointSpace[], radii: Float32Array): boolean;
     // Image tracking
     getImageTrackingResults?(): Array<XRImageTrackingResult>;
 }
@@ -153,7 +172,18 @@ interface XRInputSourceEvent extends Event {
     readonly inputSource: XRInputSource;
 }
 
+interface XREyeTrackingSourceEvent extends Event {
+    readonly gazeSpace: XRSpace;
+}
+
 type XRInputSourceArray = XRInputSource[];
+
+type XRDOMOverlayState = {
+    /**
+     * set if supported, or is null if the feature is not supported
+     */
+    type: XRDOMOverlayType | null
+};
 
 interface XRSession {
     addEventListener(type: XREventType, listener: XREventHandler, options?: boolean | AddEventListenerOptions): void;
@@ -194,11 +224,14 @@ interface XRSession {
      * XRBoundedReferenceSpace which was requested, or throws a NotSupportedError if
      * the requested space type isn't supported by the device.
      */
-    requestReferenceSpace(type: XRReferenceSpaceType): Promise<XRReferenceSpace | XRBoundedReferenceSpace>;
+    requestReferenceSpace(type: XRReferenceSpaceType): Promise<XRReferenceSpace>;
+    requestReferenceSpace(type: XRBoundedReferenceSpaceType): Promise<XRBoundedReferenceSpace>;
 
     updateRenderState(XRRenderStateInit: XRRenderState): Promise<void>;
 
     onend: XREventHandler;
+    oneyetrackingstart: XREventHandler;
+    oneyetrackingend: XREventHandler;
     oninputsourceschange: XREventHandler;
     onselect: XREventHandler;
     onselectstart: XREventHandler;
@@ -220,6 +253,11 @@ interface XRSession {
 
     // image tracking
     getTrackedImageScores?(): XRImageTrackingScore[];
+
+    /**
+     * Provided when the optional 'dom-overlay' feature is requested.
+     */
+    readonly domOverlayState?: XRDOMOverlayState;
 }
 
 interface XRViewerPose extends XRPose {
@@ -309,7 +347,7 @@ interface XRPlane {
     lastChangedTime: number;
 }
 
-interface XRJointSpace extends XRSpace {}
+interface XRJointSpace extends XRSpace { }
 
 interface XRJointPose extends XRPose {
     radius: number | undefined;

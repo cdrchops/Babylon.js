@@ -238,6 +238,7 @@ export class KhronosTextureContainer2 {
             }
         }
 
+        internalTexture._extension = ".ktx2";
         internalTexture.width = data.mipmaps[0].width;
         internalTexture.height = data.mipmaps[0].height;
         internalTexture.isReady = true;
@@ -273,6 +274,9 @@ function workerFunc(): void {
     let ktx2Decoder: any;
 
     onmessage = (event) => {
+        if (!event.data) {
+            return;
+        }
         switch (event.data.action) {
             case "init":
                 const urls = event.data.urls;

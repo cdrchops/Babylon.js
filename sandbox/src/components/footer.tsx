@@ -22,10 +22,12 @@ interface IFooterProps {
 }
 
 export class Footer extends React.Component<IFooterProps> {
-            
-    public constructor(props: IFooterProps) {    
+    private _cameraNames: string[] = [];
+
+    public constructor(props: IFooterProps) {
         super(props);
         props.globalState.onSceneLoaded.add(info => {
+            this._updateCameraNames();
             this.forceUpdate();
         });
     }
@@ -52,26 +54,23 @@ export class Footer extends React.Component<IFooterProps> {
             camera.attachControl();
         }
     }
-    
+
+    private _updateCameraNames(): void {
+        if (!!this.props.globalState.currentScene && this.props.globalState.currentScene.cameras.length > 0) {
+            this._cameraNames = this.props.globalState.currentScene.cameras.map(c => c.name);
+            this._cameraNames.push("default camera");
+        }
+    }
+
     private _getVariantsExtension(): Nullable<KHR_materials_variants> {
         return this.props.globalState?.glTFLoaderExtensions["KHR_materials_variants"] as KHR_materials_variants;
     }
 
     render() {
-        let cameraNames: string[] = [];
         let variantNames: string[] = [];
-
-        // Cameras
-        if (!!this.props.globalState.currentScene && this.props.globalState.currentScene.cameras.length > 1) {
-            cameraNames = this.props.globalState.currentScene.cameras.map(c => c.name);
-
-            cameraNames.push("default camera");
-        }
-
-        // Variants
         let hasVariants = false;
         let activeEntry = () => "";
-        let switchVariant = (name: string) => {};
+        let switchVariant = (name: string, index: number) => {};
         const variantExtension = this._getVariantsExtension();
         if (variantExtension && this.props.globalState.currentScene) {
             let scene = this.props.globalState.currentScene;
@@ -80,27 +79,34 @@ export class Footer extends React.Component<IFooterProps> {
             if (rootNode) {
                 let variants: string[] = variantExtension.getAvailableVariants(rootNode);
 
-                if (variants && variants.length > 1) {
+                if (variants && variants.length > 0) {
                     hasVariants = true;
+
+                    variants.splice(0, 0, "Original");
                     variantNames = variants;
-                    
-                    activeEntry = () => { 
+
+                    activeEntry = () => {
                         let lastPickedVariant = variantExtension!.getLastSelectedVariant(rootNode) || 0;
                         if (lastPickedVariant && Object.prototype.toString.call(lastPickedVariant) === '[object String]') {
                             return lastPickedVariant as string;
                         }
 
                         return variantNames[0];
-                    }
+                    };
 
-                    switchVariant = (name) => {
-                        variantExtension.selectVariant(rootNode, name);
-                    }
+                    switchVariant = (name, index) => {
+                        if (index === 0) {
+                            variantExtension.reset(rootNode);
+                        }
+                        else {
+                            variantExtension.selectVariant(rootNode, name);
+                        }
+                    };
                 }
             }
         }
 
-        return (            
+        return (
             <div id="footer" className="footer">
                 <div className="footerLeft">
                     <img id="logoImg" src={babylonIdentity}/>
@@ -112,6 +118,7 @@ export class Footer extends React.Component<IFooterProps> {
                                 enabled={true}
                                 icon={iconOpen}
                                 onFilesPicked={(evt, files) => {
+                                    this.props.globalState.currentScene?.getEngine().clearInternalTexturesCache();
                                     this.props.globalState.filesInput.loadFiles(evt);
                                 }}
                                 label="Open your scene from your hard drive (.babylon, .gltf, .glb, .obj)"/>
@@ -130,16 +137,16 @@ export class Footer extends React.Component<IFooterProps> {
                     <DropUpButton globalState={this.props.globalState} 
                                 icon={iconCameras}
                                 label="Select camera"
-                                options={cameraNames}
+                                options={this._cameraNames}
                                 activeEntry={() => this.props.globalState.currentScene?.activeCamera?.name || ""}
                                 onOptionPicked={option => this.switchCamera(option)}
-                                enabled={cameraNames.length > 1}/>
+                                enabled={this._cameraNames.length > 1}/>
                     <DropUpButton globalState={this.props.globalState} 
                                 icon={iconVariants}
                                 label="Select variant"
                                 options={variantNames}
                                 activeEntry={() => activeEntry()}
-                                onOptionPicked={option => switchVariant(option)}
+                                onOptionPicked={(option, index) => switchVariant(option, index)}
                                 enabled={hasVariants}/>
                 </div>
             </div>

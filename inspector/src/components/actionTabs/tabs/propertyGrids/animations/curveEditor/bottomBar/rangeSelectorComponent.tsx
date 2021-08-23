@@ -1,6 +1,8 @@
+import { TargetedAnimation } from "babylonjs/Animations/animationGroup";
 import * as React from "react";
 import { GlobalState } from "../../../../../../globalState";
 import { Context } from "../context";
+import { Animation } from "babylonjs/Animations/animation";
 
 const handleIcon = require("../assets/scrollbarHandleIcon.svg");
 
@@ -42,6 +44,10 @@ IRangeSelectorComponentState
         });
 
         this.props.context.onFrameSet.add(() => {
+            this.forceUpdate();
+        });
+
+        this.props.context.onAnimationsLoaded.add(() => {
             this.forceUpdate();
         });
 
@@ -92,7 +98,7 @@ IRangeSelectorComponentState
         }
 
         let offset = (left / this._viewWidth) * (this._maxFrame - this._minFrame);
-        const newValue = Math.min(this._maxFrame, Math.max(this._minFrame, (this._minFrame + offset) | 0));
+        const newValue = Math.min(this._maxFrame, Math.max(this._minFrame, Math.round(this._minFrame + offset)));
 
         if (this._bothHandleIsActive) {
 
@@ -130,7 +136,7 @@ IRangeSelectorComponentState
         let maxFrame = -Number.MAX_VALUE;
 
         for (var animation of this.props.context.animations) {
-            const keys = animation.getKeys();
+            const keys = this.props.context.useTargetAnimations ? (animation as TargetedAnimation).animation.getKeys() : (animation as Animation).getKeys();
 
             minFrame = Math.min(minFrame, keys[0].frame);
             maxFrame = Math.max(maxFrame, keys[keys.length - 1].frame);
@@ -149,6 +155,10 @@ IRangeSelectorComponentState
         this._updateLimits();
 
         const ratio = this._maxFrame - this._minFrame
+
+        if (this.props.context.toKey > this._maxFrame ) {
+            this.props.context.toKey = this._maxFrame;
+        }
 
         return (
             <div id="range-selector" ref={this._rangeHost}
