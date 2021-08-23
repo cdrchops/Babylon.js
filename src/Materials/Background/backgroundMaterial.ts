@@ -5,7 +5,7 @@ import { Logger } from "../../Misc/logger";
 import { Nullable, int, float } from "../../types";
 import { Scene } from "../../scene";
 import { Matrix, Vector3, Vector4 } from "../../Maths/math.vector";
-import { VertexBuffer } from "../../Meshes/buffer";
+import { VertexBuffer } from "../../Buffers/buffer";
 import { SubMesh } from "../../Meshes/subMesh";
 import { AbstractMesh } from "../../Meshes/abstractMesh";
 import { Mesh } from "../../Meshes/mesh";
@@ -163,6 +163,9 @@ class BackgroundMaterialDefines extends MaterialDefines implements IImageProcess
     public BonesPerMesh = 0;
     public INSTANCES = false;
     public SHADOWFLOAT = false;
+    public LOGARITHMICDEPTH = false;
+    public NONUNIFORMSCALING = false;
+    public ALPHATEST = false;
 
     /**
      * Constructor of the defines.
@@ -1130,12 +1133,12 @@ export class BackgroundMaterial extends PushMaterial {
             // Clip plane
             MaterialHelper.BindClipPlane(this._activeEffect, scene);
 
-            MaterialHelper.BindEyePosition(effect, scene);
+            scene.bindEyePosition(effect);
         }
 
         if (mustRebind || !this.isFrozen) {
             if (scene.lightsEnabled) {
-                MaterialHelper.BindLights(scene, mesh, this._activeEffect, defines, this._maxSimultaneousLights, false);
+                MaterialHelper.BindLights(scene, mesh, this._activeEffect, defines, this._maxSimultaneousLights);
             }
 
             // View

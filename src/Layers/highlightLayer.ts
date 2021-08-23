@@ -5,7 +5,7 @@ import { Camera } from "../Cameras/camera";
 import { Scene } from "../scene";
 import { Vector2 } from "../Maths/math.vector";
 import { Engine } from "../Engines/engine";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { SubMesh } from "../Meshes/subMesh";
 import { AbstractMesh } from "../Meshes/abstractMesh";
 import { Mesh } from "../Meshes/mesh";
@@ -38,7 +38,7 @@ declare module "../abstractScene" {
     }
 }
 
-AbstractScene.prototype.getHighlightLayerByName = function(name: string): Nullable<HighlightLayer> {
+AbstractScene.prototype.getHighlightLayerByName = function (name: string): Nullable<HighlightLayer> {
     for (var index = 0; index < this.effectLayers.length; index++) {
         if (this.effectLayers[index].name === name && this.effectLayers[index].getEffectName() === HighlightLayer.EffectName) {
             return (<any>this.effectLayers[index]) as HighlightLayer;
@@ -845,7 +845,7 @@ export class HighlightLayer extends EffectLayer {
 
         // Excluded meshes
         for (index = 0; index < parsedHightlightLayer.excludedMeshes.length; index++) {
-            var mesh = scene.getMeshByID(parsedHightlightLayer.excludedMeshes[index]);
+            var mesh = scene.getMeshById(parsedHightlightLayer.excludedMeshes[index]);
             if (mesh) {
                 hl.addExcludedMesh(<Mesh>mesh);
             }
@@ -854,7 +854,7 @@ export class HighlightLayer extends EffectLayer {
         // Included meshes
         for (index = 0; index < parsedHightlightLayer.meshes.length; index++) {
             var highlightedMesh = parsedHightlightLayer.meshes[index];
-            var mesh = scene.getMeshByID(highlightedMesh.meshId);
+            var mesh = scene.getMeshById(highlightedMesh.meshId);
 
             if (mesh) {
                 hl.addMesh(<Mesh>mesh, Color3.FromArray(highlightedMesh.color), highlightedMesh.glowEmissiveOnly);

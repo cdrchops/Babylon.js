@@ -11,8 +11,7 @@ import { IKHRMaterialsSpecular } from 'babylonjs-gltf2interface';
 const NAME = "KHR_materials_specular";
 
 /**
- * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1719)
- * !!! Experimental Extension Subject to Changes !!!
+ * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_specular)
  */
 export class KHR_materials_specular implements IGLTFLoaderExtension {
     /**
@@ -71,8 +70,16 @@ export class KHR_materials_specular implements IGLTFLoaderExtension {
         if (properties.specularTexture) {
             (properties.specularTexture as ITextureInfo).nonColorData = true;
             promises.push(this._loader.loadTextureInfoAsync(`${context}/specularTexture`, properties.specularTexture, (texture) => {
-                texture.name = `${babylonMaterial.name} (Specular F0 Color)`;
+                texture.name = `${babylonMaterial.name} (Specular F0 Strength)`;
                 babylonMaterial.metallicReflectanceTexture = texture;
+                babylonMaterial.useOnlyMetallicFromMetallicReflectanceTexture = true;
+            }));
+        }
+
+        if (properties.specularColorTexture) {
+            promises.push(this._loader.loadTextureInfoAsync(`${context}/specularColorTexture`, properties.specularColorTexture, (texture) => {
+                texture.name = `${babylonMaterial.name} (Specular F0 Color)`;
+                babylonMaterial.reflectanceTexture = texture;
             }));
         }
 

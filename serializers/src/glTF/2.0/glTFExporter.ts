@@ -4,7 +4,7 @@ import { FloatArray, Nullable, IndicesArray } from "babylonjs/types";
 import { Vector2, Vector3, Vector4, Quaternion, Matrix } from "babylonjs/Maths/math.vector";
 import { Color3, Color4 } from "babylonjs/Maths/math.color";
 import { Tools } from "babylonjs/Misc/tools";
-import { VertexBuffer } from "babylonjs/Meshes/buffer";
+import { VertexBuffer } from "babylonjs/Buffers/buffer";
 import { Node } from "babylonjs/node";
 import { TransformNode } from "babylonjs/Meshes/transformNode";
 import { AbstractMesh } from "babylonjs/Meshes/abstractMesh";
@@ -17,8 +17,6 @@ import { Bone } from "babylonjs/Bones/bone";
 import { BaseTexture } from "babylonjs/Materials/Textures/baseTexture";
 import { Texture } from "babylonjs/Materials/Textures/texture";
 import { Material } from "babylonjs/Materials/material";
-import { MultiMaterial } from "babylonjs/Materials/multiMaterial";
-import { StandardMaterial } from 'babylonjs/Materials/standardMaterial';
 import { Engine } from "babylonjs/Engines/engine";
 import { Scene } from "babylonjs/scene";
 
@@ -713,8 +711,8 @@ export class _Exporter {
             }
             case VertexBuffer.ColorKind: {
                 const meshMaterial = (babylonTransformNode as Mesh).material;
-                const convertToLinear = meshMaterial ? (meshMaterial instanceof StandardMaterial) : true;
-                const vertexData : Color3 | Color4 = stride === 3 ? new Color3() : new Color4();
+                const convertToLinear = meshMaterial ? (meshMaterial.getClassName() === "StandardMaterial") : true;
+                const vertexData: Color3 | Color4 = stride === 3 ? new Color3() : new Color4();
                 for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
                     index = k * stride;
                     if (stride === 3) {
@@ -1051,9 +1049,15 @@ export class _Exporter {
             const glbFileName = glTFPrefix + '.glb';
             const headerLength = 12;
             const chunkLengthPrefix = 8;
-            const jsonLength = jsonText.length;
+            let jsonLength = jsonText.length;
+            let encodedJsonText;
             let imageByteLength = 0;
-
+            // make use of TextEncoder when available
+            if (typeof TextEncoder !== "undefined") {
+                const encoder = new TextEncoder();
+                encodedJsonText = encoder.encode(jsonText);
+                jsonLength = encodedJsonText.length;
+            }
             for (let i = 0; i < this._orderedImageData.length; ++i) {
                 imageByteLength += this._orderedImageData[i].data.byteLength;
             }
@@ -1078,8 +1082,21 @@ export class _Exporter {
 
             //json chunk bytes
             const jsonData = new Uint8Array(jsonChunkBuffer, chunkLengthPrefix);
-            for (let i = 0; i < jsonLength; ++i) {
-                jsonData[i] = jsonText.charCodeAt(i);
+            // if TextEncoder was available, we can simply copy the encoded array
+            if (encodedJsonText) {
+                jsonData.set(encodedJsonText);
+            }
+            else {
+                const blankCharCode = "_".charCodeAt(0);
+                for (let i = 0; i < jsonLength; ++i) {
+                    const charCode = jsonText.charCodeAt(i);
+                    // if the character doesn't fit into a single UTF-16 code unit, just put a blank character
+                    if (charCode != jsonText.codePointAt(i)) {
+                        jsonData[i] = blankCharCode;
+                    } else {
+                        jsonData[i] = charCode;
+                    }
+                }
             }
 
             //json padding
@@ -1506,8 +1523,8 @@ export class _Exporter {
                             this._materials.push(material);
                             materialIndex = this._materials.length - 1;
                         }
-                        else if (babylonMaterial instanceof MultiMaterial) {
-                            const subMaterial = babylonMaterial.subMaterials[submesh.materialIndex];
+                        else if (babylonMaterial.getClassName() === "MultiMaterial") {
+                            const subMaterial: Material = (babylonMaterial as any).subMaterials[submesh.materialIndex];
                             if (subMaterial) {
                                 babylonMaterial = subMaterial;
                                 materialIndex = this._materialMap[babylonMaterial.uniqueId];
@@ -1525,7 +1542,7 @@ export class _Exporter {
 
                     for (const attribute of attributeData) {
                         const attributeKind = attribute.kind;
-                        if (attributeKind === VertexBuffer.UVKind || attributeKind === VertexBuffer.UV2Kind) {
+                        if ((attributeKind === VertexBuffer.UVKind || attributeKind === VertexBuffer.UV2Kind) && !this._options.exportUnusedUVs) {
                             if (glTFMaterial && !this._glTFMaterialExporter._hasTexturesPresent(glTFMaterial)) {
                                 continue;
                             }
@@ -1595,10 +1612,8 @@ export class _Exporter {
 
                     mesh.primitives.push(meshPrimitive);
 
-                    const promise = this._extensionsPostExportMeshPrimitiveAsync("postExport", meshPrimitive, submesh, binaryWriter);
-                    if (promise) {
-                        promises.push();
-                    }
+                    this._extensionsPostExportMeshPrimitiveAsync("postExport", meshPrimitive, submesh, binaryWriter);
+                    promises.push();
                 }
             }
         }
@@ -1889,7 +1904,7 @@ export class _Exporter {
             const inverseBindMatrices: Matrix[] = [];
             const skeletonMesh = babylonScene.meshes.find((mesh) => { mesh.skeleton === skeleton; });
             skin.skeleton = skeleton.overrideMesh === null ? (skeletonMesh ? nodeMap[skeletonMesh.uniqueId] : undefined) : nodeMap[skeleton.overrideMesh.uniqueId];
-            const boneIndexMap: {[index: number]: Bone} = {};
+            const boneIndexMap: { [index: number]: Bone } = {};
             let boneIndexMax: number = -1;
             let boneIndex: number = -1;
             for (let bone of skeleton.bones) {

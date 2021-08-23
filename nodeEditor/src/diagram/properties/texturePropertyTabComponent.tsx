@@ -59,7 +59,7 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
 
     updateAfterTextureLoad() {
         this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-        this.props.globalState.onRebuildRequiredObservable.notifyObservers();
+        this.props.globalState.onRebuildRequiredObservable.notifyObservers(true);
         this.forceUpdate();
     }
 
@@ -233,6 +233,16 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
                         <CheckBoxLineComponent label="Is in gamma space" propertyName="gammaSpace" target={texture} onValueChanged={() => {                        
                             this.props.globalState.onUpdateRequiredObservable.notifyObservers();
                         }}/>
+                    }
+                    {
+                        <CheckBoxLineComponent
+                            label="Disable multiplying by level"
+                            propertyName="disableLevelMultiplication"
+                            target={this.props.block}
+                            onValueChanged={() => {
+                                this.props.globalState.onUpdateRequiredObservable.notifyObservers();
+                            }}
+                        />
                     }
                     {
                         texture && texture.updateSamplingMode &&

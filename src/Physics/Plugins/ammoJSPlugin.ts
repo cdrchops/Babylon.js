@@ -3,7 +3,7 @@ import { IPhysicsEnginePlugin, PhysicsImpostorJoint } from "../../Physics/IPhysi
 import { Logger } from "../../Misc/logger";
 import { PhysicsImpostor, IPhysicsEnabledObject } from "../../Physics/physicsImpostor";
 import { PhysicsJoint, IMotorEnabledJoint, DistanceJointData } from "../../Physics/physicsJoint";
-import { VertexBuffer } from "../../Meshes/buffer";
+import { VertexBuffer } from "../../Buffers/buffer";
 import { VertexData } from "../../Meshes/mesh.vertexData";
 import { Nullable } from "../../types";
 import { AbstractMesh } from "../../Meshes/abstractMesh";
@@ -91,7 +91,7 @@ export class AmmoJSPlugin implements IPhysicsEnginePlugin {
 
         this._tmpAmmoConcreteContactResultCallback = new this.bjsAMMO.ConcreteContactResultCallback();
         this._tmpAmmoConcreteContactResultCallback.addSingleResult = (contactPoint: any, colObj0Wrap: any, partId0: any, index0: any) => {
-            contactPoint = this.bjsAMMO.wrapPointer(contactPoint, Ammo.btManifoldPoint);
+            contactPoint = this.bjsAMMO.wrapPointer(contactPoint, this.bjsAMMO.btManifoldPoint);
             const worldPoint = contactPoint.getPositionWorldOnA();
             this._tmpContactPoint.x = worldPoint.x();
             this._tmpContactPoint.y = worldPoint.y();

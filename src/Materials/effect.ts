@@ -5,12 +5,13 @@ import { DomManagement } from "../Misc/domManagement";
 import { Logger } from "../Misc/logger";
 import { IDisposable } from '../scene';
 import { IPipelineContext } from '../Engines/IPipelineContext';
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { ShaderProcessor } from '../Engines/Processors/shaderProcessor';
 import { ProcessingOptions, ShaderProcessingContext } from '../Engines/Processors/shaderProcessingOptions';
 import { IMatrixLike, IVector2Like, IVector3Like, IVector4Like, IColor3Like, IColor4Like } from '../Maths/math.like';
 import { ThinEngine } from '../Engines/thinEngine';
 import { IEffectFallbacks } from './iEffectFallbacks';
+import { ShaderStore as EngineShaderStore } from '../Engines/shaderStore';
 
 declare type Engine = import("../Engines/engine").Engine;
 declare type InternalTexture = import("../Materials/Textures/internalTexture").InternalTexture;
@@ -83,7 +84,12 @@ export class Effect implements IDisposable {
     /**
      * Gets or sets the relative url used to load shaders if using the engine in non-minified mode
      */
-    public static ShadersRepository = "src/Shaders/";
+    public static get ShadersRepository(): string {
+        return EngineShaderStore.ShadersRepository;
+    }
+    public static set ShadersRepository(repo: string) {
+        EngineShaderStore.ShadersRepository = repo;
+    }
     /**
      * Enable logging of the shader code when a compilation error occurs
      */
@@ -161,7 +167,7 @@ export class Effect implements IDisposable {
     private _allFallbacksProcessed = false;
     private _attributesNames: string[];
     private _attributes: number[];
-    private _attributeLocationByName: { [name: string] : number };
+    private _attributeLocationByName: { [name: string]: number };
     private _uniforms: { [key: string]: Nullable<WebGLUniformLocation> } = {};
     /**
      * Key for the effect.
@@ -208,8 +214,7 @@ export class Effect implements IDisposable {
      */
     constructor(baseName: any, attributesNamesOrOptions: string[] | IEffectCreationOptions, uniformsNamesOrEngine: string[] | ThinEngine, samplers: Nullable<string[]> = null,
         engine?: ThinEngine, defines: Nullable<string> = null,
-        fallbacks: Nullable<IEffectFallbacks> = null, onCompiled: Nullable<(effect: Effect) => void> = null, onError: Nullable<(effect: Effect, errors: string) => void> = null, indexParameters?: any, key: string = "")
-    {
+        fallbacks: Nullable<IEffectFallbacks> = null, onCompiled: Nullable<(effect: Effect) => void> = null, onError: Nullable<(effect: Effect, errors: string) => void> = null, indexParameters?: any, key: string = "") {
         this.name = baseName;
         this._key = key;
 
@@ -253,7 +258,7 @@ export class Effect implements IDisposable {
             this._fallbacks = fallbacks;
         }
 
-        this._attributeLocationByName = { };
+        this._attributeLocationByName = {};
 
         this.uniqueId = Effect._uniqueIdSeed++;
 
@@ -299,10 +304,12 @@ export class Effect implements IDisposable {
             includesShadersStore: Effect.IncludesShadersStore,
             version: (this._engine.version * 100).toString(),
             platformName: this._engine.shaderPlatformName,
-            processingContext: this._processingContext
+            processingContext: this._processingContext,
+            isNDCHalfZRange: this._engine.isNDCHalfZRange,
+            useReverseDepthBuffer: this._engine.useReverseDepthBuffer,
         };
 
-        let shaderCodes : [string | undefined, string | undefined] = [undefined, undefined];
+        let shaderCodes: [string | undefined, string | undefined] = [undefined, undefined];
         let shadersLoaded = () => {
             if (shaderCodes[0] && shaderCodes[1]) {
                 processorOptions.isFragment = true;
@@ -532,7 +539,7 @@ export class Effect implements IDisposable {
     }
 
     private _loadShader(shader: any, key: string, optionalKey: string, callback: (data: any) => void): void {
-        if (typeof(HTMLElement) !== "undefined") {
+        if (typeof (HTMLElement) !== "undefined") {
             // DOM element ?
             if (shader instanceof HTMLElement) {
                 var shaderCode = DomManagement.GetDOMTextContent(shader);
@@ -647,6 +654,8 @@ export class Effect implements IDisposable {
 
         var previousPipelineContext = this._pipelineContext;
 
+        this._isReady = false;
+
         try {
             let engine = this._engine;
 
@@ -705,7 +714,7 @@ export class Effect implements IDisposable {
             }
 
         } catch (e) {
-           this._processCompilationErrors(e, previousPipelineContext);
+            this._processCompilationErrors(e, previousPipelineContext);
         }
     }
 
@@ -735,10 +744,10 @@ export class Effect implements IDisposable {
 
         // Let's go through fallbacks then
         Logger.Error("Unable to compile effect:");
-        Logger.Error("Uniforms: " + this._uniformsNames.map(function(uniform) {
+        Logger.Error("Uniforms: " + this._uniformsNames.map(function (uniform) {
             return " " + uniform;
         }));
-        Logger.Error("Attributes: " + attributesNames.map(function(attribute) {
+        Logger.Error("Attributes: " + attributesNames.map(function (attribute) {
             return " " + attribute;
         }));
         Logger.Error("Defines:\r\n" + this.defines);
@@ -1287,11 +1296,11 @@ export class Effect implements IDisposable {
     /**
      * Store of each shader (The can be looked up using effect.key)
      */
-    public static ShadersStore: { [key: string]: string } = {};
+    public static ShadersStore: { [key: string]: string } = EngineShaderStore.ShadersStore;
     /**
      * Store of each included file for a shader (The can be looked up using effect.key)
      */
-    public static IncludesShadersStore: { [key: string]: string } = {};
+    public static IncludesShadersStore: { [key: string]: string } = EngineShaderStore.IncludesShadersStore;
 
     /**
      * Resets the cache of effects.

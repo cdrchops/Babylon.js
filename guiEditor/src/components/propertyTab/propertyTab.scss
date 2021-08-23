@@ -1,13 +1,24 @@
-#propertyTab {
-    $line-padding-left: 5px;
-    color:white;
-    background: #333333;
+:root {
+    --backgroundGrey: #aaaaaa;
+    --spacingHeight: 30px;
+}
 
+hr.ge {
+    border: 1px solid #d0cece;
+}
+
+#ge-propertyTab {
+    $line-padding-left: 5px;
+    $line-padding-bottom: 0px;
+    $line-padding-top: 0px;
+    color:black;
+    background: #e2e2e2;
+    font-family: "acumin-pro-condensed";
       #header {
         height: 30px;
         font-size: 16px;
         color: white;
-        background: #222222;
+        background: white;
         grid-row: 1;
         text-align: center;
         display: grid;
@@ -19,9 +30,10 @@
 
         #logo {
             position: relative;
+            background: white;
             grid-column: 1; 
-            width: 24px;
-            height: 24px;
+            width: 32px;
+            height: 32px;
             left:0;
             display: flex;
             align-self: center;   
@@ -29,6 +41,8 @@
         }        
 
         #title {
+            background: white;
+            color: black;
             grid-column: 2; 
             display: grid;
             align-items: center;   
@@ -39,8 +53,8 @@
     .range {
         -webkit-appearance: none;
         width: 120px;
-        height: 6px;
-        background: #d3d3d3;
+        height: 2px;
+        background: black;
         border-radius: 5px;
         outline: none;
         opacity: 0.7;
@@ -58,7 +72,9 @@
         width: 14px;
         height: 14px;
         border-radius: 50%;
-        background: rgb(51, 122, 183);
+        background: #e2e2e2;
+        border: solid;
+        border-width: thin;
         cursor: pointer;
     }
     
@@ -66,7 +82,7 @@
         width: 14px;
         height: 14px;
         border-radius: 50%;
-        background: rgb(51, 122, 183);
+        background: rgb(0, 0, 0);
         cursor: pointer;
     }
 
@@ -86,32 +102,44 @@
 
     .sliderLine {
         padding-left: $line-padding-left;
-        height: 30px;
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
+        height: var(--spacingHeight);;
         display: grid;
         grid-template-rows: 100%;
-        grid-template-columns: 1fr 40px;
+        grid-template-columns: auto auto auto 1fr;
 
-        .label { 
+        .label {
+            grid-column: 2;
+            display: flex;
+            align-items: center;
+            min-width: 15px;
+        }
+
+        .img {
             grid-column: 1;
             display: flex;
             align-items: center;
         }
 
+
         .slider {
-            grid-column: 3;
+            grid-column: 4;
             grid-row: 1;
             margin-right: 5px;
             width: 90%;
             display: flex;
             align-items: center;
+            padding-left: 5px;
         }
 
         .floatLine {
-            padding-left: $line-padding-left;
-    
+            grid-column: 3;
+            padding-left: 15px;
+            
             .label {
                 grid-column: 1;
-                display: flex;
+                display: none;
                 align-items: center;
             }
         
@@ -121,7 +149,13 @@
                 align-items: center;
                 
                 input {
-                    width: 27px;
+                    width: 40px;
+                    background-color: transparent;
+                    outline-color: transparent;
+                    border-left: transparent;
+                    border-right: transparent;
+                    border-top: transparent;
+                    outline-width: 0px
                 }
                 
                 input::-webkit-outer-spin-button,
@@ -137,13 +171,27 @@
         }  
     }     
 
+    .divider {
+        display: grid;
+        grid-template-columns: auto auto auto auto auto auto;
+    }
+
     .textInputLine {
         padding-left: $line-padding-left;
-        height: 30px;
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
+        height: var(--spacingHeight);
         display: grid;
-        grid-template-columns: 1fr 120px auto;
-
+        grid-template-columns: auto auto 2fr 1fr;
         .label {
+            grid-column: 2;
+            padding-left: 5px;
+            display: flex;
+            align-items: center;
+            min-width: 15px;
+        }
+
+        .img {
             grid-column: 1;
             display: flex;
             align-items: center;
@@ -152,10 +200,23 @@
         .value {                        
             display: flex;
             align-items: center;
-            grid-column: 2;
-            
+            padding-left: 15px;
+            grid-column: 3;
+            background: transparent;
             input {
                 width: calc(100% - 5px);
+                background-color: transparent;
+                outline-color: transparent;
+                border-left: transparent;
+                border-right: transparent;
+                border-top: transparent;
+                outline-width: 0px
+            }
+        }
+
+        .noUnderline {
+            input {
+                border-bottom: transparent;
             }
         }
     }
@@ -229,8 +290,10 @@
             .header {
                 display: grid;
                 grid-template-columns: 1fr auto;
-                background: #555555;    
-                height: 30px;   
+                background: #cccccc;    
+                height: var(--spacingHeight);
+                padding-bottom: $line-padding-bottom;
+                padding-top: $line-padding-top;
                 padding-right: 5px;                        
                 cursor: pointer;
                 
@@ -266,15 +329,13 @@
     }
 
     .color-picker {
-        height: calc(100% - 8px);
-        margin: 4px;
-        width: calc(100% - 8px);
+        height: 150px;
+        width: 15px;
 
         .color-rect {
-            height: calc(100% - 4px);
-            border: 2px white solid;
+            height: 15px;
+            border: 1px black solid;
             cursor: pointer;
-            min-height: 18px;
         }
 
         .color-picker-cover {
@@ -366,27 +427,74 @@
 
     }
 
+    .command-button {
+        cursor: pointer;
+        width: auto;
+
+        .command-label {
+            display: none;
+        }        
+
+        .command-button-icon {
+            height: 100%;
+            width: 100%;
+            display: grid;
+            color: white;
+            align-content: center;
+            justify-content: center;
+        }
+
+        &:hover {
+            background-color: white;
+        } 
+        
+        .active {
+            transform-origin: center;
+            background-color: white;
+        }
+
+        img {
+            &.active {
+                background-color: white;
+            }
+        }
+    }
+
     .floatLine {
         padding-left: $line-padding-left;
-        height: 30px;
+        height: var(--spacingHeight);
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
         display: grid;
-        grid-template-columns: 1fr 120px;
-
+        grid-template-columns: auto auto 2fr 1fr;
 
         .label {
+            grid-column: 2;
+            display: flex;
+            align-items: center;
+            min-width: 15px;
+        }
+
+        .img {
             grid-column: 1;
             display: flex;
             align-items: center;
         }
 
-        .value {
-            grid-column: 2;
-            
+        .value {                        
             display: flex;
+            padding-left: 15px;
             align-items: center;
-            
+            grid-column: 3;
+            background: transparent;
             input {
-                width: 110px;
+                width: calc(100% - 5px);
+                background-color: transparent;
+                outline-color: transparent;
+                border-left: transparent;
+                border-right: transparent;
+                border-top: transparent;
+                outline-width: 0px
             }
         }
 
@@ -413,13 +521,14 @@
     }
 
     .vector3Line {
-        padding-left:$line-padding-left;                    
+        padding-left:$line-padding-left;
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;      
         display: grid;
-
         .firstLine {
             display: grid;
             grid-template-columns: 1fr auto 20px;
-            height: 30px;
+            height: var(--spacingHeight);
 
             .label {
                 grid-column: 1;
@@ -478,19 +587,20 @@
     }
 
     .buttonLine {
-        height: 30px;
+        height: var(--spacingHeight);
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
         display: grid;
         align-items: center;
         justify-items: stretch;
         padding-bottom: 5px;
-
         input[type="file"] {
             display: none;
         }
 
         .file-upload {            
-            background: #222222;
-            border: 1px solid rgb(51, 122, 183);
+            background: var(--backgroundGrey);
+            border: 1px solid #424242;
             margin: 5px 10px;
             color:white;
             padding: 4px 5px;
@@ -498,6 +608,7 @@
             opacity: 0.9;
             cursor: pointer;
             text-align: center;
+            border-radius: 4px;
         }
 
         .file-upload:hover {
@@ -510,12 +621,13 @@
         }
 
         button {
-            background: #222222;
-            border: 1px solid rgb(51, 122, 183);
+            background: var(--backgroundGrey);
+            border: 1px solid #424242;
             margin: 5px 10px 5px 10px;
             color:white;
             padding: 4px 5px;
             opacity: 0.9;
+            border-radius: 4px;
         }
 
         button:hover {
@@ -527,14 +639,16 @@
         }   
         
         button:focus {
-            border: 1px solid rgb(51, 122, 183);
+            border: 1px solid #424242;
             outline: 0px;
         }  
     }
 
     .numeric {
         padding-left: $line-padding-left;
-        height: 30px;
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
+        height: var(--spacingHeight);;
         display: grid;
         grid-template-columns: 1fr 120px auto;
 
@@ -558,21 +672,29 @@
     
     .checkBoxLine {
         padding-left: $line-padding-left;
-        height: 30px;
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
+        height: var(--spacingHeight);
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: auto auto 1fr ;
 
         .label {
+            grid-column: 2;
+            display: flex;
+            align-items: center;
+        }
+        
+        .img {
             grid-column: 1;
             display: flex;
             align-items: center;
         }
 
         .checkBox {
-            grid-column: 2;
-            
+            grid-column: 3;
             display: flex;
             align-items: center;
+            padding-left: 15px;
 
             .lbl {
                 position: relative;
@@ -580,24 +702,27 @@
                 height: 14px;
                 width: 34px;
                 margin-right: 5px;
-                background: #898989;
                 border-radius: 100px;
                 cursor: pointer;
                 transition: all 0.3s ease;
+                border: solid;
+                border-width: thin;
             }
 
             .lbl:after {
                 position: absolute;
                 left: 3px;
-                top: 2px;
+                top: 1px;
                 display: block;
                 width: 10px;
                 height: 10px;
                 border-radius: 100px;
-                background: #fff;
+                background: #e2e2e2;
                 box-shadow: 0px 3px 3px rgba(0,0,0,0.05);
                 content: '';
                 transition: all 0.15s ease;
+                border: solid;
+                border-width: thin;
             }
 
             .lbl:active:after { 
@@ -605,16 +730,19 @@
             }
 
             .cbx:checked ~ label { 
-                background: rgb(51, 122, 183);
+                background: transparent;
+                
             }
 
             .cbx:checked ~ label:after {
                 left: 20px;
-                background: rgb(22, 73, 117);
+                background: rgb(0, 0, 0);
+                border: solid;
+                border-width: thin;
             }
 
             .cbx:checked ~ label.disabled { 
-                background: rgb(22, 73, 117);
+                background: rgb(0, 0, 0);
                 cursor: pointer;
             }
 
@@ -637,12 +765,19 @@
 
     .listLine {
         padding-left: $line-padding-left;
-        height: 30px;
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
+        height: var(--spacingHeight);
         display: grid;
-        grid-template-columns: 1fr auto;
-
+        grid-template-columns: auto 1fr auto ;
 
         .label {
+            grid-column: 2;
+            display: none;
+            align-items: center;
+        }
+
+        .img {
             grid-column: 1;
             display: flex;
             align-items: center;
@@ -656,30 +791,47 @@
             margin-right: 5px;
 
             select {
-                width: 115px;
+                width: 120px;
+                height: 25px;
+                border: transparent;
+                border-radius: 4px;
             }
         }                    
     }  
                     
     .color3Line {
         padding-left: $line-padding-left;
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
         display: grid;
 
         .firstLine {
-            height: 30px;
+            height: var(--spacingHeight);
             display: grid;
-            grid-template-columns: 1fr auto 20px 20px;
+            grid-template-columns: auto auto 1fr;
 
             .label {
+                grid-column: 2;
+                padding-left: 5px;
+                display: none;
+                align-items: center;
+                min-width: 15px;
+            }
+    
+            .img {
                 grid-column: 1;
                 display: flex;
                 align-items: center;
             }
 
+            .textInputLine {
+                grid-column: 3;
+                margin-top: 5px;;
+            }
+    
             .color3 {
                 grid-column: 2;                
-                width: 50px;
-                
+                margin-top: 12px;
                 display: flex;
                 align-items: center;            
                 
@@ -689,12 +841,12 @@
             }
 
             .copy {
-                grid-column: 3;
-                display: grid;
+                grid-column: 4;
+                display: none;
                 align-items: center;
                 justify-items: center;
                 cursor: pointer;
-                
+                color: black;
                 img {
                     height: 100%;
                     width: 20px;
@@ -703,7 +855,7 @@
 
             .expand {
                 grid-column: 4;
-                display: grid;
+                display: none;
                 align-items: center;
                 justify-items: center;
                 cursor: pointer;
@@ -746,7 +898,9 @@
     
     .textLine {
         padding-left: $line-padding-left;
-        height: 30px;
+        padding-bottom: $line-padding-bottom;
+        padding-top: $line-padding-top;
+        height: var(--spacingHeight);
         display: grid;
         grid-template-columns: 1fr auto;
 

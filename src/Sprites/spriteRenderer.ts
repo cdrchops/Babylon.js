@@ -2,8 +2,8 @@ import { Nullable } from "../types";
 import { Constants } from "../Engines/constants";
 import { IMatrixLike } from '../Maths/math.like';
 import { ThinEngine } from "../Engines/thinEngine";
-import { DataBuffer } from "../Meshes/dataBuffer";
-import { Buffer, VertexBuffer } from "../Meshes/buffer";
+import { DataBuffer } from "../Buffers/dataBuffer";
+import { Buffer, VertexBuffer } from "../Buffers/buffer";
 import { DrawWrapper } from "../Materials/drawWrapper";
 import { ThinSprite } from './thinSprite';
 import { ISize } from '../Maths/math.size';
@@ -112,19 +112,7 @@ export class SpriteRenderer {
         this._drawWrapperFog = new DrawWrapper(engine);
 
         if (!this._useInstancing) {
-            const indices = [];
-            let index = 0;
-            for (let count = 0; count < capacity; count++) {
-                indices.push(index);
-                indices.push(index + 1);
-                indices.push(index + 2);
-                indices.push(index);
-                indices.push(index + 2);
-                indices.push(index + 3);
-                index += 4;
-            }
-
-            this._indexBuffer = engine.createIndexBuffer(indices);
+            this._buildIndexBuffer();
         }
 
         // VBO
@@ -236,10 +224,7 @@ export class SpriteRenderer {
         const culling = engine.depthCullingState.cull || true;
         const zOffset = engine.depthCullingState.zOffset;
 
-        // Handle Right Handed
-        if (useRightHandedSystem) {
-            this._scene!.getEngine().setState(culling, zOffset, false, false);
-        }
+        engine.setState(culling, zOffset, false, false);
 
         // Render
         engine.enableEffect(drawWrapper);
@@ -269,7 +254,7 @@ export class SpriteRenderer {
         }
 
         // Draw order
-        engine.depthCullingState.depthFunc = Constants.LEQUAL;
+        engine.depthCullingState.depthFunc = engine.useReverseDepthBuffer ? Constants.GEQUAL : Constants.LEQUAL;
         if (!this.disableDepthWrite) {
             effect.setBool("alphaTest", true);
             engine.setColorWrite(false);
@@ -370,6 +355,44 @@ export class SpriteRenderer {
         this._vertexData[arrayOffset + 15] = sprite.color.g;
         this._vertexData[arrayOffset + 16] = sprite.color.b;
         this._vertexData[arrayOffset + 17] = sprite.color.a;
+    }
+
+    private _buildIndexBuffer(): void {
+        const indices = [];
+        let index = 0;
+        for (let count = 0; count < this._capacity; count++) {
+            indices.push(index);
+            indices.push(index + 1);
+            indices.push(index + 2);
+            indices.push(index);
+            indices.push(index + 2);
+            indices.push(index + 3);
+            index += 4;
+        }
+
+        this._indexBuffer = this._engine.createIndexBuffer(indices);
+    }
+
+    /**
+     * Rebuilds the renderer (after a context lost, for eg)
+     */
+    public rebuild(): void {
+        if (this._indexBuffer) {
+            this._buildIndexBuffer();
+        }
+
+        if (this._useVAO) {
+            this._vertexArrayObject = undefined as any;
+        }
+
+        this._buffer._rebuild();
+
+        for (const key in this._vertexBuffers) {
+            const vertexBuffer = <VertexBuffer>this._vertexBuffers[key];
+            vertexBuffer._rebuild();
+        }
+
+        this._spriteBuffer?._rebuild();
     }
 
     /**

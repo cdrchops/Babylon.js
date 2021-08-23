@@ -10,6 +10,11 @@ require("./scss/topBar.scss");
 
 const logoIcon = require("./assets/babylonLogo.svg");
 const frameIcon = require("./assets/frameIcon.svg");
+const newKeyIcon = require("./assets/newKeyIcon.svg");
+const flatTangentIcon = require("./assets/flatTangentIcon.svg");
+const linearTangentIcon = require("./assets/linearTangentIcon.svg");
+const breakTangentIcon = require("./assets/breakTangentIcon.svg");
+const unifyTangentIcon = require("./assets/unifyTangentIcon.svg");
 
 interface ITopBarComponentProps {
     globalState: GlobalState;
@@ -37,7 +42,7 @@ ITopBarComponentState
         this.state = {keyFrameValue: "", keyValue: "", editControlsVisible: false };
 
         this._onFrameSetObserver = this.props.context.onFrameSet.add(newFrameValue => {
-            this.setState({keyFrameValue: newFrameValue.toFixed(2)});
+            this.setState({keyFrameValue: newFrameValue.toFixed(0)});
         });
 
         this._onValueSetObserver = this.props.context.onValueSet.add(newValue => {
@@ -76,7 +81,7 @@ ITopBarComponentState
                     {this.props.context.title}
                 </div>
                 {
-                    this.state.editControlsVisible && 
+                    this.props.context.activeAnimation && this.state.editControlsVisible && 
                     <>
                         <TextInputComponent 
                             isNumber={true}
@@ -93,11 +98,39 @@ ITopBarComponentState
                             onValueAsNumberChanged={newValue => this.props.context.onValueManuallyEntered.notifyObservers(newValue)}
                             globalState={this.props.globalState} context={this.props.context} />  
                     </>  
-                }                  
+                }  
+                {
+                    this.props.context.activeAnimation &&
+                    <ActionButtonComponent 
+                    tooltip="New key"
+                    id="new-key" globalState={this.props.globalState} context={this.props.context} 
+                    icon={newKeyIcon} onClick={() => this.props.context.onNewKeyPointRequired.notifyObservers()}/>                
+                }
                 <ActionButtonComponent 
                     tooltip="Frame canvas"
                     id="frame-canvas" globalState={this.props.globalState} context={this.props.context} 
                     icon={frameIcon} onClick={() => this.props.context.onFrameRequired.notifyObservers()}/>
+                {
+                    this.props.context.activeKeyPoints && this.props.context.activeKeyPoints.length > 0 &&
+                    <>
+                        <ActionButtonComponent 
+                            tooltip="Flatten tangent"
+                            id="flatten-tangent" globalState={this.props.globalState} context={this.props.context} 
+                            icon={flatTangentIcon} onClick={() => this.props.context.onFlattenTangentRequired.notifyObservers()}/>
+                        <ActionButtonComponent 
+                            tooltip="Linear tangent"
+                            id="linear-tangent" globalState={this.props.globalState} context={this.props.context} 
+                            icon={linearTangentIcon} onClick={() => this.props.context.onLinearTangentRequired.notifyObservers()}/>
+                        <ActionButtonComponent 
+                            tooltip="Break tangent"
+                            id="break-tangent" globalState={this.props.globalState} context={this.props.context} 
+                            icon={breakTangentIcon} onClick={() => this.props.context.onBreakTangentRequired.notifyObservers()}/>
+                        <ActionButtonComponent 
+                            tooltip="Unify tangent"
+                            id="unify-tangent" globalState={this.props.globalState} context={this.props.context} 
+                            icon={unifyTangentIcon} onClick={() => this.props.context.onUnifyTangentRequired.notifyObservers()}/>                            
+                    </>
+                }
             </div>
         );
     }

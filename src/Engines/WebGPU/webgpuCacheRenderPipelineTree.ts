@@ -1,4 +1,4 @@
-import { VertexBuffer } from "../../Meshes/buffer";
+import { VertexBuffer } from "../../Buffers/buffer";
 import { Nullable } from "../../types";
 import { WebGPUCacheRenderPipeline } from "./webgpuCacheRenderPipeline";
 
@@ -37,15 +37,15 @@ export class WebGPUCacheRenderPipelineTree extends WebGPUCacheRenderPipeline {
         return { nodeCount: counts[0], pipelineCount: counts[1] };
     }
 
-    constructor(device: GPUDevice, emptyVertexBuffer: VertexBuffer) {
-        super(device, emptyVertexBuffer);
+    constructor(device: GPUDevice, emptyVertexBuffer: VertexBuffer, useTextureStage: boolean) {
+        super(device, emptyVertexBuffer, useTextureStage);
         this._nodeStack = [];
         this._nodeStack[0] = WebGPUCacheRenderPipelineTree._Cache;
     }
 
     protected _getRenderPipeline(param: { token: any, pipeline: Nullable<GPURenderPipeline> }): void {
         let node = this._nodeStack[this._stateDirtyLowestIndex];
-        for (let i = this._stateDirtyLowestIndex; i < this._states.length; ++i) {
+        for (let i = this._stateDirtyLowestIndex; i < this._statesLength; ++i) {
             let nn: NodeState | undefined = node!.values[this._states[i]];
             if (!nn) {
                 nn = new NodeState();

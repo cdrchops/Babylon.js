@@ -15,7 +15,7 @@ import { IImageProcessingConfigurationDefines, ImageProcessingConfiguration } fr
 import { MaterialHelper } from "babylonjs/Materials/materialHelper";
 import { PushMaterial } from "babylonjs/Materials/pushMaterial";
 import { MaterialFlags } from "babylonjs/Materials/materialFlags";
-import { VertexBuffer } from "babylonjs/Meshes/buffer";
+import { VertexBuffer } from "babylonjs/Buffers/buffer";
 import { AbstractMesh } from "babylonjs/Meshes/abstractMesh";
 import { SubMesh } from "babylonjs/Meshes/subMesh";
 import { Mesh } from "babylonjs/Meshes/mesh";
@@ -50,6 +50,7 @@ class WaterMaterialDefines extends MaterialDefines implements IImageProcessingCo
     public INSTANCES = false;
     public SPECULARTERM = false;
     public LOGARITHMICDEPTH = false;
+    public USE_REVERSE_DEPTHBUFFER = false;
     public FRESNELSEPARATE = false;
     public BUMPSUPERIMPOSE = false;
     public BUMPAFFECTSREFLECTION = false;
@@ -386,7 +387,7 @@ export class WaterMaterial extends PushMaterial {
 
         if (this._waitingRenderList) {
             for (var i = 0; i < this._waitingRenderList.length; i++) {
-                this.addToRenderList(scene.getNodeByID(this._waitingRenderList[i]));
+                this.addToRenderList(scene.getNodeById(this._waitingRenderList[i]));
             }
 
             this._waitingRenderList = null;
@@ -529,7 +530,7 @@ export class WaterMaterial extends PushMaterial {
                 this._activeEffect.setFloat("pointSize", this.pointSize);
             }
 
-            MaterialHelper.BindEyePosition(effect, scene);
+            scene.bindEyePosition(effect);
         }
 
         this._activeEffect.setColor4("vDiffuseColor", this.diffuseColor, this.alpha * mesh.visibility);
@@ -668,7 +669,7 @@ export class WaterMaterial extends PushMaterial {
 
             // Transform
             scene.setTransformMatrix(savedViewMatrix, scene.getProjectionMatrix());
-            scene.getEngine().cullBackFaces = true;
+            scene.getEngine().cullBackFaces = null;
             scene._mirroredCameraPosition = null;
         };
     }

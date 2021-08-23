@@ -21,13 +21,13 @@ export class WebXREnterExitUIButton {
         public sessionMode: XRSessionMode,
         /** Reference space type */
         public referenceSpaceType: XRReferenceSpaceType
-    ) {}
+    ) { }
 
     /**
      * Extendable function which can be used to update the button's visuals when the state changes
      * @param activeButton the current active button in the UI
      */
-    public update(activeButton: Nullable<WebXREnterExitUIButton>) {}
+    public update(activeButton: Nullable<WebXREnterExitUIButton>) { }
 }
 
 /**
@@ -113,16 +113,16 @@ export class WebXREnterExitUI implements IDisposable {
         this.overlay.style.cssText = "z-index:11;position: absolute; right: 20px;bottom: 50px;";
 
         // prepare for session granted event
-        if (!options.ignoreSessionGrantedEvent) {
+        if (!options.ignoreSessionGrantedEvent && (navigator as any).xr) {
             (navigator as any).xr.addEventListener("sessiongranted", this._onSessionGranted);
         }
 
         // if served over HTTP, warn people.
         // Hopefully the browsers will catch up
         if (typeof window !== "undefined") {
-            if (window.location && window.location.protocol === "http:") {
+            if (window.location && window.location.protocol === "http:" && window.location.hostname !== "localhost") {
                 Tools.Warn("WebXR can only be served over HTTPS");
-                return;
+                throw new Error("WebXR can only be served over HTTPS");
             }
         }
 

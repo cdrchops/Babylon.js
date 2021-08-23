@@ -42,6 +42,12 @@ export class WebXRCamera extends FreeCamera {
     public compensateOnFirstFrame: boolean = true;
 
     /**
+     * The last XRViewerPose from the current XRFrame
+     * @hidden
+     */
+    public _lastXRViewerPose?: XRViewerPose;
+
+    /**
      * Creates a new webXRCamera, this should only be set at the camera after it has been updated by the xrSessionManager
      * @param name the name of the camera
      * @param scene the scene to add the camera to
@@ -148,11 +154,16 @@ export class WebXRCamera extends FreeCamera {
         return "WebXRCamera";
     }
 
+    public dispose() {
+        super.dispose();
+        this._lastXRViewerPose = undefined;
+    }
+
     private _rotate180 = new Quaternion(0, 1, 0, 0);
 
     private _updateFromXRSession() {
         const pose = this._xrSessionManager.currentFrame && this._xrSessionManager.currentFrame.getViewerPose(this._xrSessionManager.referenceSpace);
-
+        this._lastXRViewerPose = pose || undefined;
         if (!pose) {
             this._setTrackingState(WebXRTrackingState.NOT_TRACKING);
             return;
@@ -163,9 +174,14 @@ export class WebXRCamera extends FreeCamera {
         this._setTrackingState(trackingState);
 
         if (pose.transform) {
+            const orientation = pose.transform.orientation;
+            if (pose.transform.orientation.x === undefined) {
+                // Babylon native polyfill can return an undefined orientation value
+                // When not initialized
+                return;
+            }
             const pos = pose.transform.position;
             this._referencedPosition.set(pos.x, pos.y, pos.z);
-            const orientation = pose.transform.orientation;
 
             this._referenceQuaternion.set(orientation.x, orientation.y, orientation.z, orientation.w);
             if (!this._scene.useRightHandedSystem) {
@@ -208,6 +224,8 @@ export class WebXRCamera extends FreeCamera {
             // Update view/projection matrix
             const pos = view.transform.position;
             const orientation = view.transform.orientation;
+
+            currentRig.parent = this.parent;
 
             currentRig.position.set(pos.x, pos.y, pos.z);
             currentRig.rotationQuaternion.set(orientation.x, orientation.y, orientation.z, orientation.w);
@@ -282,16 +300,19 @@ export class WebXRCamera extends FreeCamera {
             }
 
             transformMat.decompose(undefined, this._referenceQuaternion, this._referencedPosition);
-            const transform = new XRRigidTransform({
-                x: this._referencedPosition.x,
-                y: this._referencedPosition.y,
-                z: this._referencedPosition.z
-            }, {
-                x: this._referenceQuaternion.x,
-                y: this._referenceQuaternion.y,
-                z: this._referenceQuaternion.z,
-                w: this._referenceQuaternion.w
-            });
+            const transform = new XRRigidTransform(
+                {
+                    x: this._referencedPosition.x,
+                    y: this._referencedPosition.y,
+                    z: this._referencedPosition.z,
+                },
+                {
+                    x: this._referenceQuaternion.x,
+                    y: this._referenceQuaternion.y,
+                    z: this._referenceQuaternion.z,
+                    w: this._referenceQuaternion.w,
+                }
+            );
             this._xrSessionManager.referenceSpace = this._xrSessionManager.referenceSpace.getOffsetReferenceSpace(transform);
         }
     }

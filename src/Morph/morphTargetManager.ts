@@ -9,11 +9,15 @@ import { MorphTarget } from "./morphTarget";
 import { Constants } from "../Engines/constants";
 import { Effect } from "../Materials/effect";
 import { RawTexture2DArray } from "../Materials/Textures/rawTexture2DArray";
+import { AbstractScene } from "../abstractScene";
 /**
  * This class is used to deform meshes using morphing between different targets
  * @see https://doc.babylonjs.com/how_to/how_to_use_morphtargets
  */
 export class MorphTargetManager implements IDisposable {
+    /** Enable storing morph target data into textures when set to true (true by default) */
+    public static EnableTextureStorage = true;
+
     private _targets = new Array<MorphTarget>();
     private _targetInfluenceChangedObservers = new Array<Nullable<Observer<boolean>>>();
     private _targetDataLayoutChangedObservers = new Array<Nullable<Observer<void>>>();
@@ -31,6 +35,10 @@ export class MorphTargetManager implements IDisposable {
     private _uniqueId = 0;
     private _tempInfluences = new Array<number>();
     private _canUseTextureForTargets = false;
+    private _blockCounter = 0;
+
+    /** @hidden */
+    public _parentContainer: Nullable<AbstractScene> = null;
 
     /** @hidden */
     public _targetStoreTexture: Nullable<RawTexture2DArray>;
@@ -54,6 +62,26 @@ export class MorphTargetManager implements IDisposable {
      * Gets or sets a boolean indicating if UV must be morphed
      */
     public enableUVMorphing = true;
+
+    /**
+     * Sets a boolean indicating that adding new target will or will not update the underlying data buffers
+     */
+    public set areUpdatesFrozen(block: boolean) {
+        if (block) {
+            this._blockCounter++;
+        } else {
+            this._blockCounter--;
+            if (this._blockCounter <= 0) {
+                this._blockCounter = 0;
+
+                this._syncActiveTargets(true);
+            }
+        }
+    }
+
+    public get areUpdatesFrozen() {
+        return this._blockCounter > 0;
+    }
 
     /**
      * Creates a new MorphTargetManager
@@ -149,7 +177,7 @@ export class MorphTargetManager implements IDisposable {
      * Gets a boolean indicating that the targets are stored into a texture (instead of as attributes)
      */
     public get isUsingTextureForTargets() {
-        return this.useTextureToStoreTargets && this._canUseTextureForTargets;
+        return MorphTargetManager.EnableTextureStorage && this.useTextureToStoreTargets && this._canUseTextureForTargets;
     }
 
     /**
@@ -182,7 +210,9 @@ export class MorphTargetManager implements IDisposable {
         this._targetDataLayoutChangedObservers.push(target._onDataLayoutChanged.add(() => {
             this._syncActiveTargets(true);
         }));
-        this._syncActiveTargets(true);
+        if (!this.areUpdatesFrozen) {
+            this._syncActiveTargets(true);
+        }
     }
 
     /**
@@ -331,8 +361,8 @@ export class MorphTargetManager implements IDisposable {
             if (this._targetStoreTexture) {
                 let textureSize = this._targetStoreTexture.getSize();
                 if (textureSize.width === this._textureWidth
-                && textureSize.height === this._textureHeight
-                && this._targetStoreTexture.depth === this._targets.length) {
+                    && textureSize.height === this._textureHeight
+                    && this._targetStoreTexture.depth === this._targets.length) {
                     mustUpdateTexture = false;
                 }
             }
@@ -413,6 +443,19 @@ export class MorphTargetManager implements IDisposable {
         }
 
         this._targetStoreTexture = null;
+
+        // Remove from scene
+        if (this._scene) {
+            this._scene.removeMorphTargetManager(this);
+
+            if (this._parentContainer) {
+                const index = this._parentContainer.morphTargetManagers.indexOf(this);
+                if (index > -1) {
+                    this._parentContainer.morphTargetManagers.splice(index, 1);
+                }
+                this._parentContainer = null;
+            }
+        }
     }
 
     // Statics

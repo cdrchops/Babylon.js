@@ -13,7 +13,7 @@ import { _DevTools } from '../../Misc/devTools';
 declare type WebRequest = import("../../Misc/webRequest").WebRequest;
 declare type LoadFileError = import("../../Misc/fileTools").LoadFileError;
 declare type IOfflineProvider = import("../../Offline/IOfflineProvider").IOfflineProvider;
-declare type IFileRequest  = import("../../Misc/fileRequest").IFileRequest;
+declare type IFileRequest = import("../../Misc/fileRequest").IFileRequest;
 declare type ThinEngine = import("../thinEngine").ThinEngine;
 
 const regexSE = /defined\s*?\((.+?)\)/g;
@@ -30,6 +30,13 @@ export class ShaderProcessor {
     public static Process(sourceCode: string, options: ProcessingOptions, callback: (migratedCode: string) => void, engine: ThinEngine) {
         this._ProcessIncludes(sourceCode, options, (codeWithIncludes) => {
             let migratedCode = this._ProcessShaderConversion(codeWithIncludes, options, engine);
+            callback(migratedCode);
+        });
+    }
+
+    public static PreProcess(sourceCode: string, options: ProcessingOptions, callback: (migratedCode: string) => void, engine: ThinEngine) {
+        this._ProcessIncludes(sourceCode, options, (codeWithIncludes) => {
+            let migratedCode = this._ApplyPreProcessing(codeWithIncludes, options, engine);
             callback(migratedCode);
         });
     }
@@ -109,16 +116,16 @@ export class ShaderProcessor {
 
                 let operator = c == '&&' ? new ShaderDefineAndOperator() : new ShaderDefineOrOperator();
 
-                if (typeof(v1) === 'string') {
+                if (typeof (v1) === 'string') {
                     v1 = v1.replace(regexSERevert, "defined($1)");
                 }
 
-                if (typeof(v2) === 'string') {
+                if (typeof (v2) === 'string') {
                     v2 = v2.replace(regexSERevert, "defined($1)");
                 }
 
-                operator.leftOperand = typeof(v2) === 'string' ? this._ExtractOperation(v2) : v2;
-                operator.rightOperand = typeof(v1) === 'string' ? this._ExtractOperation(v1) : v1;
+                operator.leftOperand = typeof (v2) === 'string' ? this._ExtractOperation(v2) : v2;
+                operator.rightOperand = typeof (v1) === 'string' ? this._ExtractOperation(v1) : v1;
 
                 stack.push(operator);
             }
@@ -126,13 +133,13 @@ export class ShaderProcessor {
 
         let result = stack[stack.length - 1];
 
-        if (typeof(result) === 'string') {
+        if (typeof (result) === 'string') {
             result = result.replace(regexSERevert, "defined($1)");
         }
 
         // note: stack.length !== 1 if there was an error in the parsing
 
-        return typeof(result) === 'string' ? this._ExtractOperation(result) : result;
+        return typeof (result) === 'string' ? this._ExtractOperation(result) : result;
     }
 
     private static _BuildExpression(line: string, start: number): ShaderCodeTestNode {
@@ -251,7 +258,7 @@ export class ShaderProcessor {
         return rootNode.process(preprocessors, options);
     }
 
-    private static _PreparePreProcessors(options: ProcessingOptions): { [key: string]: string } {
+    private static _PreparePreProcessors(options: ProcessingOptions, engine: ThinEngine, addGLES = true): { [key: string]: string } {
         let defines = options.defines;
         let preprocessors: { [key: string]: string } = {};
 
@@ -261,9 +268,13 @@ export class ShaderProcessor {
             preprocessors[split[0]] = split.length > 1 ? split[1] : "";
         }
 
-        preprocessors["GL_ES"] = "true";
+        if (addGLES) {
+            preprocessors["GL_ES"] = "true";
+        }
         preprocessors["__VERSION__"] = options.version;
         preprocessors[options.platformName] = "true";
+
+        engine._getGlobalDefines(preprocessors);
 
         return preprocessors;
     }
@@ -283,7 +294,7 @@ export class ShaderProcessor {
 
         let defines = options.defines;
 
-        let preprocessors = this._PreparePreProcessors(options);
+        let preprocessors = this._PreparePreProcessors(options, engine);
 
         // General pre processing
         if (options.processor.preProcessor) {
@@ -295,6 +306,38 @@ export class ShaderProcessor {
         // Post processing
         if (options.processor.postProcessor) {
             preparedSourceCode = options.processor.postProcessor(preparedSourceCode, defines, options.isFragment, options.processingContext, engine);
+        }
+
+        // Inline functions tagged with #define inline
+        if (engine._features.needShaderCodeInlining) {
+            preparedSourceCode = engine.inlineShaderCode(preparedSourceCode);
+        }
+
+        return preparedSourceCode;
+    }
+
+    private static _ApplyPreProcessing(sourceCode: string, options: ProcessingOptions, engine: ThinEngine): string {
+        let preparedSourceCode = sourceCode;
+
+        const defines = options.defines;
+
+        let preprocessors = this._PreparePreProcessors(options, engine, false);
+
+        // General pre processing
+        if (options.processor?.preProcessor) {
+            preparedSourceCode = options.processor.preProcessor(preparedSourceCode, defines, options.isFragment, options.processingContext);
+        }
+
+        preparedSourceCode = this._EvaluatePreProcessors(preparedSourceCode, preprocessors, options);
+
+        // Post processing
+        if (options.processor?.postProcessor) {
+            preparedSourceCode = options.processor.postProcessor(preparedSourceCode, defines, options.isFragment, options.processingContext, engine);
+        }
+
+        // Inline functions tagged with #define inline
+        if (engine._features.needShaderCodeInlining) {
+            preparedSourceCode = engine.inlineShaderCode(preparedSourceCode);
         }
 
         return preparedSourceCode;
@@ -407,6 +450,6 @@ export class ShaderProcessor {
      * @hidden
      */
     public static _FileToolsLoadFile(url: string, onSuccess: (data: string | ArrayBuffer, responseURL?: string) => void, onProgress?: (ev: ProgressEvent) => void, offlineProvider?: IOfflineProvider, useArrayBuffer?: boolean, onError?: (request?: WebRequest, exception?: LoadFileError) => void): IFileRequest {
-        throw  _DevTools.WarnImport("FileTools");
+        throw _DevTools.WarnImport("FileTools");
     }
 }

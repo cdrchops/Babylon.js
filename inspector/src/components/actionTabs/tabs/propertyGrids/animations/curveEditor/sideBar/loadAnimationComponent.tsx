@@ -41,16 +41,19 @@ ILoadAnimationComponentState
             const parsedAnimations = JSON.parse(decoder.decode(data)).animations;
             context.animations = [];
 
+            let animations = context.animations as Animation[];
+
             for (const parsedAnimation of parsedAnimations) {
-                context.animations.push(Animation.Parse(parsedAnimation));
+                animations.push(Animation.Parse(parsedAnimation));
             }
 
             context.stop();
 
-            context.target.animations = context.animations;
-            context.activeAnimation = null;
+            context.target!.animations = animations;
+            context.activeAnimation = animations.length ? animations[0] : null;
+            context.prepare();
+            context.onAnimationsLoaded.notifyObservers();
             context.onActiveAnimationChanged.notifyObservers();
-            context.onSwitchToEditMode.notifyObservers();
         }, undefined, true);
 
         evt.target.value = "";
@@ -71,11 +74,12 @@ ILoadAnimationComponentState
 
             context.stop();
 
-            context.target.animations = context.animations;
-            context.activeAnimation = null;
+            context.target!.animations = context.animations;
+            context.activeAnimation = context.animations.length ? context.animations[0] : null;
+            context.prepare();
+            context.onAnimationsLoaded.notifyObservers();
             context.onActiveAnimationChanged.notifyObservers();    
             
-            context.onSwitchToEditMode.notifyObservers();
         }).catch((err) => {
             this._root.current?.ownerDocument.defaultView!.alert("Unable to load your animations: " + err);
         });

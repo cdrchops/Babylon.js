@@ -1,9 +1,9 @@
 import { Nullable } from "../types";
 import { InternalTexture } from "../Materials/Textures/internalTexture";
 import { PostProcess } from "./postProcess";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { Constants } from "../Engines/constants";
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 
 declare type Scene = import("../scene").Scene;
 
@@ -115,7 +115,7 @@ export class PostProcessManager {
                 } else if (!doNotBindFrambuffer) {
                     engine.restoreDefaultFramebuffer();
                 }
-                engine._debugInsertMarker(`post process ${postProcesses[index].name} output`);
+                engine._debugInsertMarker?.(`post process ${postProcesses[index].name} output`);
             }
 
             var pp = postProcesses[index];
@@ -175,7 +175,7 @@ export class PostProcessManager {
                     engine.restoreDefaultFramebuffer();
                     pp._outputTexture = null;
                 }
-                engine._debugInsertMarker(`post process ${postProcesses[index].name} output`);
+                engine._debugInsertMarker?.(`post process ${postProcesses[index].name} output`);
             }
 
             if (doNotPresent) {

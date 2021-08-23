@@ -5,7 +5,6 @@ import { Quaternion, Matrix, Vector3 } from "../Maths/math.vector";
 import { Color3 } from '../Maths/math.color';
 import "../Meshes/Builders/linesBuilder";
 import { AbstractMesh } from "../Meshes/abstractMesh";
-import { LinesMesh } from '../Meshes/linesMesh';
 import { Mesh } from "../Meshes/mesh";
 import { Node } from "../node";
 import { PointerDragBehavior } from "../Behaviors/Meshes/pointerDragBehavior";
@@ -140,10 +139,10 @@ export class PlaneRotationGizmo extends Gizmo {
             vertex: "rotationGizmo",
             fragment: "rotationGizmo",
         },
-        {
-            attributes: ["position", "uv"],
-            uniforms: ["worldViewProjection", "angles"]
-        });
+            {
+                attributes: ["position", "uv"],
+                uniforms: ["worldViewProjection", "angles"]
+            });
         this._rotationShaderMaterial.backFaceCulling = false;
 
         this._rotationDisplayPlane.material = this._rotationShaderMaterial;
@@ -280,12 +279,13 @@ export class PlaneRotationGizmo extends Gizmo {
         light.includedOnlyMeshes = light.includedOnlyMeshes.concat(this._rootMesh.getChildMeshes(false));
 
         const cache: GizmoAxisCache = {
-            colliderMeshes: [ collider ],
-            gizmoMeshes: [ rotationMesh ],
+            colliderMeshes: [collider],
+            gizmoMeshes: [rotationMesh],
             material: this._coloredMaterial,
             hoverMaterial: this._hoverMaterial,
             disableMaterial: this._disableMaterial,
-            active: false
+            active: false,
+            dragBehavior: this.dragBehavior
         };
         this._parent?.addToAxisCache(this._gizmoMesh, cache);
 
@@ -297,14 +297,13 @@ export class PlaneRotationGizmo extends Gizmo {
             this.dragBehavior.maxDragAngle = PlaneRotationGizmo.MaxDragAngle;
             this._isHovered = !!(cache.colliderMeshes.indexOf(<Mesh>pointerInfo?.pickInfo?.pickedMesh) != -1);
             if (!this._parent) {
-                var material = this._isHovered || this._dragging ? this._hoverMaterial : this._coloredMaterial;
-                cache.gizmoMeshes.forEach((m: Mesh) => {
-                    m.material = material;
-                    if ((<LinesMesh>m).color) {
-                        (<LinesMesh>m).color = material.diffuseColor;
-                    }
-                });
+                const material = cache.dragBehavior.enabled ? (this._isHovered || this._dragging ? this._hoverMaterial : this._coloredMaterial) : this._disableMaterial;
+                this._setGizmoMeshMaterial(cache.gizmoMeshes, material);
             }
+        });
+
+        this.dragBehavior.onEnabledObservable.add((newState) => {
+            this._setGizmoMeshMaterial(cache.gizmoMeshes, newState ? this._coloredMaterial : this._disableMaterial);
         });
     }
 

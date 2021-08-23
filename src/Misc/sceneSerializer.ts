@@ -29,7 +29,7 @@ var serializeMesh = (mesh: Mesh, serializationScene: any): any => {
     // Geometry
     var geometry = mesh._geometry;
     if (geometry) {
-        if (!mesh.getScene().getGeometryByID(geometry.id)) {
+        if (!mesh.getScene().getGeometryById(geometry.id)) {
             // Geometry was in the memory but not added to the scene, nevertheless it's better to serialize to be able to reload the mesh with its geometry
             serializeGeometry(geometry, serializationScene.geometries);
         }
@@ -102,6 +102,7 @@ var finalizeSingleMesh = (mesh: Mesh, serializationObject: any) => {
  * Class used to serialize a scene into a string
  */
 export class SceneSerializer {
+
     /**
      * Clear cache used by a previous serialization
      */
@@ -341,7 +342,7 @@ export class SceneSerializer {
         return Promise.all(promises).then(() => serializationObject);
     }
 
-    private static _CollectPromises(obj: any, promises: Array<Promise<any>>): void  {
+    private static _CollectPromises(obj: any, promises: Array<Promise<any>>): void {
         if (Array.isArray(obj)) {
             for (let i = 0; i < obj.length; ++i) {
                 const o = obj[i];

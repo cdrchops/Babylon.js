@@ -20,6 +20,9 @@ interface IWebGPUMaterialContextTextureCache {
 
 /** @hidden */
 export class WebGPUMaterialContext implements IMaterialContext {
+    private static _Counter = 0;
+
+    public uniqueId: number;
     public samplers: { [name: string]: Nullable<IWebGPUMaterialContextSamplerCache> };
     public textures: { [name: string]: Nullable<IWebGPUMaterialContextTextureCache> };
 
@@ -29,6 +32,7 @@ export class WebGPUMaterialContext implements IMaterialContext {
         this._cacheBindGroups = cachBindGroups;
         this.samplers = {};
         this.textures = {};
+        this.uniqueId = WebGPUMaterialContext._Counter++;
     }
 
     public setTexture(name: string, internalTexture: Nullable<InternalTexture>): boolean {
@@ -40,8 +44,7 @@ export class WebGPUMaterialContext implements IMaterialContext {
         const curTexture = textureCache.texture;
         if (curTexture !== null && curTexture === internalTexture &&
             (textureCache.wrapU !== internalTexture._cachedWrapU || textureCache.wrapV !== internalTexture._cachedWrapV || textureCache.wrapR !== internalTexture._cachedWrapR ||
-                textureCache.anisotropicFilteringLevel !== internalTexture._cachedAnisotropicFilteringLevel || textureCache.samplingMode !== internalTexture.samplingMode))
-        {
+                textureCache.anisotropicFilteringLevel !== internalTexture._cachedAnisotropicFilteringLevel || textureCache.samplingMode !== internalTexture.samplingMode)) {
             // the sampler used to sample the texture must be updated, so we need to clear the bind group cache entries that are using
             // this texture so that the bind groups are re-created with the right sampler
             textureCache.wrapU = internalTexture._cachedWrapU;

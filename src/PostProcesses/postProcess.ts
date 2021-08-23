@@ -16,6 +16,7 @@ import { NodeMaterial } from '../Materials/Node/nodeMaterial';
 import { serialize, serializeAsColor4, SerializationHelper } from '../Misc/decorators';
 import { _TypeStore } from '../Misc/typeStore';
 import { DrawWrapper } from "../Materials/drawWrapper";
+import { AbstractScene } from "../abstractScene";
 
 declare type Scene = import("../scene").Scene;
 declare type InternalTexture = import("../Materials/Textures/internalTexture").InternalTexture;
@@ -29,13 +30,16 @@ declare type PrePassEffectConfiguration = import("../Rendering/prePassEffectConf
  */
 export type PostProcessOptions = { width: number, height: number };
 
-type TextureCache = {texture: InternalTexture, postProcessChannel: number, lastUsedRenderId : number};
+type TextureCache = { texture: InternalTexture, postProcessChannel: number, lastUsedRenderId: number };
 
 /**
  * PostProcess can be used to apply a shader to a texture after it has been rendered
  * See https://doc.babylonjs.com/how_to/how_to_use_postprocesses
  */
 export class PostProcess {
+    /** @hidden */
+    public _parentContainer: Nullable<AbstractScene> = null;
+
     /**
      * Gets or sets the unique id of the post process
      */
@@ -369,41 +373,41 @@ export class PostProcess {
         samplingMode: number = Constants.TEXTURE_NEAREST_SAMPLINGMODE, engine?: Engine, reusable?: boolean, defines: Nullable<string> = null, textureType: number = Constants.TEXTURETYPE_UNSIGNED_INT, vertexUrl: string = "postprocess",
         indexParameters?: any, blockCompilation = false, textureFormat = Constants.TEXTUREFORMAT_RGBA) {
 
-            this.name = name;
-            if (camera != null) {
-                this._camera = camera;
-                this._scene = camera.getScene();
-                camera.attachPostProcess(this);
-                this._engine = this._scene.getEngine();
+        this.name = name;
+        if (camera != null) {
+            this._camera = camera;
+            this._scene = camera.getScene();
+            camera.attachPostProcess(this);
+            this._engine = this._scene.getEngine();
 
-                this._scene.postProcesses.push(this);
-                this.uniqueId = this._scene.getUniqueId();
-            }
-            else if (engine) {
-                this._engine = engine;
-                this._engine.postProcesses.push(this);
-            }
-            this._options = options;
-            this.renderTargetSamplingMode = samplingMode ? samplingMode : Constants.TEXTURE_NEAREST_SAMPLINGMODE;
-            this._reusable = reusable || false;
-            this._textureType = textureType;
-            this._textureFormat = textureFormat;
+            this._scene.postProcesses.push(this);
+            this.uniqueId = this._scene.getUniqueId();
+        }
+        else if (engine) {
+            this._engine = engine;
+            this._engine.postProcesses.push(this);
+        }
+        this._options = options;
+        this.renderTargetSamplingMode = samplingMode ? samplingMode : Constants.TEXTURE_NEAREST_SAMPLINGMODE;
+        this._reusable = reusable || false;
+        this._textureType = textureType;
+        this._textureFormat = textureFormat;
 
-            this._samplers = samplers || [];
-            this._samplers.push("textureSampler");
+        this._samplers = samplers || [];
+        this._samplers.push("textureSampler");
 
-            this._fragmentUrl = fragmentUrl;
-            this._vertexUrl = vertexUrl;
-            this._parameters = parameters || [];
+        this._fragmentUrl = fragmentUrl;
+        this._vertexUrl = vertexUrl;
+        this._parameters = parameters || [];
 
-            this._parameters.push("scale");
+        this._parameters.push("scale");
 
-            this._indexParameters = indexParameters;
-            this._drawWrapper = new DrawWrapper(this._engine);
+        this._indexParameters = indexParameters;
+        this._drawWrapper = new DrawWrapper(this._engine);
 
-            if (!blockCompilation) {
-                this.updateEffect(defines);
-            }
+        if (!blockCompilation) {
+            this.updateEffect(defines);
+        }
     }
 
     /**
@@ -498,13 +502,14 @@ export class PostProcess {
         for (let i = 0; i < this._textureCache.length; i++) {
             if (this._textureCache[i].texture.width === textureSize.width &&
                 this._textureCache[i].texture.height === textureSize.height &&
-                this._textureCache[i].postProcessChannel === channel) {
+                this._textureCache[i].postProcessChannel === channel &&
+                this._textureCache[i].texture._generateDepthBuffer === textureOptions.generateDepthBuffer) {
                 return this._textureCache[i].texture;
             }
         }
 
         const tex = this._engine.createRenderTargetTexture(textureSize, textureOptions);
-        this._textureCache.push({ texture: tex, postProcessChannel: channel, lastUsedRenderId : -1 });
+        this._textureCache.push({ texture: tex, postProcessChannel: channel, lastUsedRenderId: -1 });
 
         return tex;
     }
@@ -538,11 +543,19 @@ export class PostProcess {
         this.width = width;
         this.height = height;
 
+        let firstPP = null;
+        for (let i = 0; i < camera._postProcesses.length; i++) {
+            if (camera._postProcesses[i] !== null) {
+                firstPP = camera._postProcesses[i];
+                break;
+            }
+        }
+
         let textureSize = { width: this.width, height: this.height };
         let textureOptions = {
             generateMipMaps: needMipMaps,
-            generateDepthBuffer: forceDepthStencil || camera._postProcesses.indexOf(this) === 0,
-            generateStencilBuffer: (forceDepthStencil || camera._postProcesses.indexOf(this) === 0) && this._engine.isStencilEnable,
+            generateDepthBuffer: forceDepthStencil || firstPP === this,
+            generateStencilBuffer: (forceDepthStencil || firstPP === this) && this._engine.isStencilEnable,
             samplingMode: this.renderTargetSamplingMode,
             type: this._textureType,
             format: this._textureFormat
@@ -661,7 +674,7 @@ export class PostProcess {
             this._engine.bindFramebuffer(target, 0, undefined, undefined, this.forceFullscreenViewport);
         }
 
-        this._engine._debugInsertMarker(`post process ${this.name} input`);
+        this._engine._debugInsertMarker?.(`post process ${this.name} input`);
 
         this.onActivateObservable.notifyObservers(camera);
 
@@ -796,6 +809,14 @@ export class PostProcess {
             }
         }
 
+        if (this._parentContainer) {
+            const index = this._parentContainer.postProcesses.indexOf(this);
+            if (index > -1) {
+                this._parentContainer.postProcesses.splice(index, 1);
+            }
+            this._parentContainer = null;
+        }
+
         index = this._engine.postProcesses.indexOf(this);
         if (index !== -1) {
             this._engine.postProcesses.splice(index, 1);
@@ -822,7 +843,7 @@ export class PostProcess {
     }
 
     /**
-     * Serializes the particle system to a JSON object
+     * Serializes the post process to a JSON object
      * @returns the JSON object
      */
     public serialize(): any {
@@ -884,12 +905,12 @@ export class PostProcess {
             return null;
         }
 
-        var camera = scene ? scene.getCameraByID(parsedPostProcess.cameraId) : null;
+        var camera = scene ? scene.getCameraById(parsedPostProcess.cameraId) : null;
         return postProcessType._Parse(parsedPostProcess, camera, scene, rootUrl);
     }
 
     /** @hidden */
-    public static _Parse(parsedPostProcess: any, targetCamera: Camera, scene: Scene, rootUrl: string) : Nullable<PostProcess> {
+    public static _Parse(parsedPostProcess: any, targetCamera: Camera, scene: Scene, rootUrl: string): Nullable<PostProcess> {
         return SerializationHelper.Parse(() => {
             return new PostProcess(
                 parsedPostProcess.name,
@@ -907,7 +928,7 @@ export class PostProcess {
                 parsedPostProcess.indexParameters,
                 false,
                 parsedPostProcess.textureFormat
-                );
+            );
         }, parsedPostProcess, scene, rootUrl);
     }
 }

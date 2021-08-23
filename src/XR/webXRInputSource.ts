@@ -6,6 +6,7 @@ import { Scene } from "../scene";
 import { WebXRAbstractMotionController } from "./motionController/webXRAbstractMotionController";
 import { WebXRMotionControllerManager } from "./motionController/webXRMotionControllerManager";
 import { Tools } from "../Misc/tools";
+import { WebXRCamera } from "./webXRCamera";
 
 let idCount = 0;
 
@@ -74,6 +75,12 @@ export class WebXRInputSource {
     public pointer: AbstractMesh;
 
     /**
+     * The last XRPose the was calculated on the current XRFrame
+     * @hidden
+     */
+    public _lastXRPose?: XRPose;
+
+    /**
      * Creates the input source object
      * @see https://doc.babylonjs.com/how_to/webxr_controllers_support
      * @param _scene the scene which the controller should be associated to
@@ -105,7 +112,7 @@ export class WebXRInputSource {
                     this.motionController = motionController;
                     this.onMotionControllerInitObservable.notifyObservers(motionController);
                     // should the model be loaded?
-                    if (!this._options.doNotLoadControllerMesh) {
+                    if (!this._options.doNotLoadControllerMesh && !this.motionController._doNotLoadControllerMesh) {
                         this.motionController.loadModel().then((success) => {
                             if (success && this.motionController && this.motionController.rootMesh) {
                                 if (this._options.renderingGroupId) {
@@ -143,12 +150,12 @@ export class WebXRInputSource {
      */
     public dispose() {
         if (this.grip) {
-            this.grip.dispose(false, true);
+            this.grip.dispose(true);
         }
         if (this.motionController) {
             this.motionController.dispose();
         }
-        this.pointer.dispose();
+        this.pointer.dispose(true);
         this.onMotionControllerInitObservable.clear();
         this.onMeshLoadedObservable.clear();
         this.onDisposeObservable.notifyObservers(this);
@@ -173,9 +180,11 @@ export class WebXRInputSource {
      * Updates the controller pose based on the given XRFrame
      * @param xrFrame xr frame to update the pose with
      * @param referenceSpace reference space to use
+     * @param xrCamera the xr camera, used for parenting
      */
-    public updateFromXRFrame(xrFrame: XRFrame, referenceSpace: XRReferenceSpace) {
-        let pose = xrFrame.getPose(this.inputSource.targetRaySpace, referenceSpace);
+    public updateFromXRFrame(xrFrame: XRFrame, referenceSpace: XRReferenceSpace, xrCamera: WebXRCamera) {
+        const pose = xrFrame.getPose(this.inputSource.targetRaySpace, referenceSpace);
+        this._lastXRPose = pose;
 
         // Update the pointer mesh
         if (pose) {
@@ -188,6 +197,7 @@ export class WebXRInputSource {
                 this.pointer.rotationQuaternion!.z *= -1;
                 this.pointer.rotationQuaternion!.w *= -1;
             }
+            this.pointer.parent = xrCamera.parent;
         }
 
         // Update the grip mesh if it exists
@@ -204,6 +214,7 @@ export class WebXRInputSource {
                     this.grip.rotationQuaternion!.w *= -1;
                 }
             }
+            this.grip.parent = xrCamera.parent;
         }
         if (this.motionController) {
             // either update buttons only or also position, if in gamepad mode

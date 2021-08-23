@@ -1,9 +1,10 @@
 import { DeepCopier } from "../../Misc/deepCopier";
 import { Vector3, Matrix, TmpVectors } from "../../Maths/math.vector";
-import { Effect } from "../../Materials/effect";
 import { Particle } from "../particle";
 import { IParticleEmitterType } from "./IParticleEmitterType";
 import { Nullable } from '../../types';
+import { UniformBufferEffectCommonAccessor } from "../../Materials/uniformBufferEffectCommonAccessor";
+import { UniformBuffer } from "../../Materials/uniformBuffer";
 /**
  * Particle emitter emitting particles from a custom list of positions.
  */
@@ -13,13 +14,13 @@ export class CustomParticleEmitter implements IParticleEmitterType {
      * Gets or sets the position generator that will create the initial position of each particle.
      * Index will be provided when used with GPU particle. Particle will be provided when used with CPU particles
      */
-    public particlePositionGenerator: (index: number, particle: Nullable<Particle>, outPosition: Vector3) => void = () => {};
+    public particlePositionGenerator: (index: number, particle: Nullable<Particle>, outPosition: Vector3) => void = () => { };
 
     /**
      * Gets or sets the destination generator that will create the final destination of each particle.
      *  * Index will be provided when used with GPU particle. Particle will be provided when used with CPU particles
      */
-    public particleDestinationGenerator: (index: number, particle: Nullable<Particle>, outDestination: Vector3) => void = () => {};
+    public particleDestinationGenerator: (index: number, particle: Nullable<Particle>, outDestination: Vector3) => void = () => { };
 
     /**
      * Creates a new instance CustomParticleEmitter
@@ -96,9 +97,16 @@ export class CustomParticleEmitter implements IParticleEmitterType {
 
     /**
      * Called by the GPUParticleSystem to setup the update shader
-     * @param effect defines the update shader
+     * @param uboOrEffect defines the update shader
      */
-    public applyToShader(effect: Effect): void {
+    public applyToShader(uboOrEffect: UniformBufferEffectCommonAccessor): void {
+    }
+
+    /**
+     * Creates the structure of the ubo for this particle emitter
+     * @param ubo ubo to create the structure for
+     */
+    public buildUniformLayout(ubo: UniformBuffer): void {
     }
 
     /**

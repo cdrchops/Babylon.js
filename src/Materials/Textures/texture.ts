@@ -20,6 +20,47 @@ declare type RenderTargetTexture = import("../../Materials/Textures/renderTarget
 declare type Scene = import("../../scene").Scene;
 
 /**
+ * Defines the available options when creating a texture
+ */
+export interface ITextureCreationOptions {
+    /** Defines if the texture will require mip maps or not (default: false) */
+    noMipmap?: boolean;
+
+    /** Defines if the texture needs to be inverted on the y axis during loading (default: true) */
+    invertY?: boolean;
+
+    /** Defines the sampling mode we want for the texture while fetching from it (Texture.NEAREST_SAMPLINGMODE...) (default: Texture.TRILINEAR_SAMPLINGMODE) */
+    samplingMode?: number;
+
+    /** Ddefines a callback triggered when the texture has been loaded (default: null) */
+    onLoad?: Nullable<() => void>;
+
+    /** Defines a callback triggered when an error occurred during the loading session (default: null) */
+    onError?: Nullable<(message?: string, exception?: any) => void>;
+
+    /** Defines the buffer to load the texture from in case the texture is loaded from a buffer representation (default: null) */
+    buffer?: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap>;
+
+    /** Defines if the buffer we are loading the texture from should be deleted after load (default: false) */
+    deleteBuffer?: boolean;
+
+    /** Defines the format of the texture we are trying to load (Engine.TEXTUREFORMAT_RGBA...) (default: ) */
+    format?: number;
+
+    /** Defines an optional mime type information (default: undefined) */
+    mimeType?: string;
+
+    /** Options to be passed to the loader (default: undefined) */
+    loaderOptions?: any;
+
+    /** Specific flags to use when creating the texture (Constants.TEXTURE_CREATIONFLAG_STORAGE for storage textures, for eg) (default: undefined) */
+    creationFlags?: number;
+
+    /** Defines if the texture must be loaded in a sRGB GPU buffer (if supported by the GPU) (default: false) */
+    useSRGBBuffer?: boolean;
+}
+
+/**
  * This represents a texture in babylon. It can be easily loaded from a network, base64 or html input.
  * @see https://doc.babylonjs.com/babylon101/materials#texture
  */
@@ -44,7 +85,7 @@ export class Texture extends BaseTexture {
         throw _DevTools.WarnImport("MirrorTexture");
     }
     /** @hidden */
-    public static _CreateRenderTargetTexture = (name: string, renderTargetSize: number, scene: Scene, generateMipMaps: boolean): RenderTargetTexture => {
+    public static _CreateRenderTargetTexture = (name: string, renderTargetSize: number, scene: Scene, generateMipMaps: boolean, creationFlags?: number): RenderTargetTexture => {
         throw _DevTools.WarnImport("RenderTargetTexture");
     }
 
@@ -232,9 +273,6 @@ export class Texture extends BaseTexture {
     private _cachedCoordinatesMode: number = -1;
 
     /** @hidden */
-    protected _initialSamplingMode = Texture.BILINEAR_SAMPLINGMODE;
-
-    /** @hidden */
     public _buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap> = null;
     private _deleteBuffer: boolean = false;
     protected _format: Nullable<number> = null;
@@ -242,6 +280,8 @@ export class Texture extends BaseTexture {
     private _delayedOnError: Nullable<() => void> = null;
     private _mimeType?: string;
     private _loaderOptions?: any;
+    private _creationFlags?: number;
+    private _useSRGBBuffer?: boolean;
 
     /** Returns the texture mime type if it was defined by a loader (undefined else) */
     public get mimeType() {
@@ -267,17 +307,6 @@ export class Texture extends BaseTexture {
     }
 
     /**
-     * Get the current sampling mode associated with the texture.
-     */
-    public get samplingMode(): number {
-        if (!this._texture) {
-            return this._initialSamplingMode;
-        }
-
-        return this._texture.samplingMode;
-    }
-
-    /**
      * Gets a boolean indicating if the texture needs to be inverted on the y axis during loading
      */
     public get invertY(): boolean {
@@ -290,7 +319,7 @@ export class Texture extends BaseTexture {
      * @see https://doc.babylonjs.com/babylon101/materials#texture
      * @param url defines the url of the picture to load as a texture
      * @param sceneOrEngine defines the scene or engine the texture will belong to
-     * @param noMipmap defines if the texture will require mip maps or not
+     * @param noMipmapOrOptions defines if the texture will require mip maps or not or set of all options to create the texture
      * @param invertY defines if the texture needs to be inverted on the y axis during loading
      * @param samplingMode defines the sampling mode we want for the texture while fetching from it (Texture.NEAREST_SAMPLINGMODE...)
      * @param onLoad defines a callback triggered when the texture has been loaded
@@ -300,15 +329,36 @@ export class Texture extends BaseTexture {
      * @param format defines the format of the texture we are trying to load (Engine.TEXTUREFORMAT_RGBA...)
      * @param mimeType defines an optional mime type information
      * @param loaderOptions options to be passed to the loader
+     * @param creationFlags specific flags to use when creating the texture (Constants.TEXTURE_CREATIONFLAG_STORAGE for storage textures, for eg)
      */
-    constructor(url: Nullable<string>, sceneOrEngine: Nullable<Scene | ThinEngine>, noMipmap: boolean = false, invertY: boolean = true, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE,
-            onLoad: Nullable<() => void> = null, onError: Nullable<(message?: string, exception?: any) => void> = null, buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap> = null,
-            deleteBuffer: boolean = false, format?: number, mimeType?: string, loaderOptions?: any)
-    {
+    constructor(url: Nullable<string>, sceneOrEngine: Nullable<Scene | ThinEngine>, noMipmapOrOptions?: boolean | ITextureCreationOptions, invertY: boolean = true, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE,
+        onLoad: Nullable<() => void> = null, onError: Nullable<(message?: string, exception?: any) => void> = null, buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap> = null,
+        deleteBuffer: boolean = false, format?: number, mimeType?: string, loaderOptions?: any, creationFlags?: number) {
         super(sceneOrEngine);
 
         this.name = url || "";
         this.url = url;
+
+        let noMipmap: boolean;
+        let useSRGBBuffer: boolean = false;
+
+        if (typeof noMipmapOrOptions === 'object' && noMipmapOrOptions !== null) {
+            noMipmap = noMipmapOrOptions.noMipmap ?? false;
+            invertY = noMipmapOrOptions.invertY ?? true;
+            samplingMode = noMipmapOrOptions.samplingMode ?? Texture.TRILINEAR_SAMPLINGMODE;
+            onLoad = noMipmapOrOptions.onLoad ?? null;
+            onError = noMipmapOrOptions.onError ?? null;
+            buffer = noMipmapOrOptions.buffer ?? null;
+            deleteBuffer = noMipmapOrOptions.deleteBuffer ?? false;
+            format = noMipmapOrOptions.format;
+            mimeType = noMipmapOrOptions.mimeType;
+            loaderOptions = noMipmapOrOptions.loaderOptions;
+            creationFlags = noMipmapOrOptions.creationFlags;
+            useSRGBBuffer = noMipmapOrOptions.useSRGBBuffer ?? false;
+        } else {
+            noMipmap = !!noMipmapOrOptions;
+        }
+
         this._noMipmap = noMipmap;
         this._invertY = invertY;
         this._initialSamplingMode = samplingMode;
@@ -316,6 +366,8 @@ export class Texture extends BaseTexture {
         this._deleteBuffer = deleteBuffer;
         this._mimeType = mimeType;
         this._loaderOptions = loaderOptions;
+        this._creationFlags = creationFlags;
+        this._useSRGBBuffer = useSRGBBuffer;
         if (format) {
             this._format = format;
         }
@@ -368,11 +420,18 @@ export class Texture extends BaseTexture {
             return;
         }
 
-        this._texture = this._getFromCache(this.url, noMipmap, samplingMode, invertY);
+        this._texture = this._getFromCache(this.url, noMipmap, samplingMode, invertY, useSRGBBuffer);
 
         if (!this._texture) {
             if (!scene || !scene.useDelayedTextureLoading) {
-                this._texture = engine.createTexture(this.url, noMipmap, invertY, scene, samplingMode, load, onError, this._buffer, undefined, this._format, null, mimeType, loaderOptions);
+                try {
+                    this._texture = engine.createTexture(this.url, noMipmap, invertY, scene, samplingMode, load, onError, this._buffer, undefined, this._format, null, mimeType, loaderOptions, creationFlags, useSRGBBuffer);
+                } catch (e) {
+                    if (onError) {
+                        onError(e.message, e);
+                    }
+                    throw e;
+                }
                 if (deleteBuffer) {
                     this._buffer = null;
                 }
@@ -431,10 +490,10 @@ export class Texture extends BaseTexture {
         }
 
         this.delayLoadState = Constants.DELAYLOADSTATE_LOADED;
-        this._texture = this._getFromCache(this.url, this._noMipmap, this.samplingMode, this._invertY);
+        this._texture = this._getFromCache(this.url, this._noMipmap, this.samplingMode, this._invertY, this._useSRGBBuffer);
 
         if (!this._texture) {
-            this._texture = scene.getEngine().createTexture(this.url, this._noMipmap, this._invertY, scene, this.samplingMode, this._delayedOnLoad, this._delayedOnError, this._buffer, null, this._format, null, this._mimeType, this._loaderOptions);
+            this._texture = scene.getEngine().createTexture(this.url, this._noMipmap, this._invertY, scene, this.samplingMode, this._delayedOnLoad, this._delayedOnError, this._buffer, null, this._format, null, this._mimeType, this._loaderOptions, this._creationFlags, this._useSRGBBuffer);
             if (this._deleteBuffer) {
                 this._buffer = null;
             }
@@ -474,13 +533,13 @@ export class Texture extends BaseTexture {
      */
     public checkTransformsAreIdentical(texture: Nullable<Texture>): boolean {
         return texture !== null &&
-                this.uOffset === texture.uOffset &&
-                this.vOffset === texture.vOffset &&
-                this.uScale === texture.uScale &&
-                this.vScale === texture.vScale &&
-                this.uAng === texture.uAng &&
-                this.vAng === texture.vAng &&
-                this.wAng === texture.wAng;
+            this.uOffset === texture.uOffset &&
+            this.vOffset === texture.vOffset &&
+            this.uScale === texture.uScale &&
+            this.vScale === texture.vScale &&
+            this.uAng === texture.uAng &&
+            this.vAng === texture.vAng &&
+            this.wAng === texture.wAng;
     }
 
     /**
@@ -687,6 +746,8 @@ export class Texture extends BaseTexture {
 
         serializationObject.invertY = this._invertY;
         serializationObject.samplingMode = this.samplingMode;
+        serializationObject._creationFlags = this._creationFlags;
+        serializationObject._useSRGBBuffer = this._useSRGBBuffer;
 
         this.name = savedName;
 
@@ -792,7 +853,7 @@ export class Texture extends BaseTexture {
                         }
                     }
                 } else {
-                    renderTargetTexture = Texture._CreateRenderTargetTexture(parsedTexture.name, parsedTexture.renderTargetSize, scene, generateMipMaps);
+                    renderTargetTexture = Texture._CreateRenderTargetTexture(parsedTexture.name, parsedTexture.renderTargetSize, scene, generateMipMaps, parsedTexture._creationFlags ?? 0);
                     renderTargetTexture._waitingRenderList = parsedTexture.renderList;
                 }
                 onLoaded();
@@ -800,7 +861,7 @@ export class Texture extends BaseTexture {
             } else {
                 var texture: Texture;
                 if (parsedTexture.base64String) {
-                    texture = Texture.CreateFromBase64String(parsedTexture.base64String, parsedTexture.name, scene, !generateMipMaps, parsedTexture.invertY, parsedTexture.samplingMode, onLoaded);
+                    texture = Texture.CreateFromBase64String(parsedTexture.base64String, parsedTexture.name, scene, !generateMipMaps, parsedTexture.invertY, parsedTexture.samplingMode, onLoaded, parsedTexture._creationFlags ?? 0, parsedTexture._useSRGBBuffer ?? false);
                 } else {
                     let url: string;
                     if (parsedTexture.name && parsedTexture.name.indexOf("://") > 0) {
@@ -828,17 +889,18 @@ export class Texture extends BaseTexture {
      * @param data Define the base64 payload without the data: prefix
      * @param name Define the name of the texture in the scene useful fo caching purpose for instance
      * @param scene Define the scene the texture should belong to
-     * @param noMipmap Forces the texture to not create mip map information if true
+     * @param noMipmapOrOptions defines if the texture will require mip maps or not or set of all options to create the texture
      * @param invertY define if the texture needs to be inverted on the y axis during loading
      * @param samplingMode define the sampling mode we want for the texture while fetching from it (Texture.NEAREST_SAMPLINGMODE...)
      * @param onLoad define a callback triggered when the texture has been loaded
      * @param onError define a callback triggered when an error occurred during the loading session
      * @param format define the format of the texture we are trying to load (Engine.TEXTUREFORMAT_RGBA...)
+     * @param creationFlags specific flags to use when creating the texture (Constants.TEXTURE_CREATIONFLAG_STORAGE for storage textures, for eg)
      * @returns the created texture
      */
-    public static CreateFromBase64String(data: string, name: string, scene: Scene, noMipmap?: boolean, invertY?: boolean, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE,
-        onLoad: Nullable<() => void> = null, onError: Nullable<() => void> = null, format: number = Constants.TEXTUREFORMAT_RGBA): Texture {
-        return new Texture("data:" + name, scene, noMipmap, invertY, samplingMode, onLoad, onError, data, false, format);
+    public static CreateFromBase64String(data: string, name: string, scene: Scene, noMipmapOrOptions?: boolean | ITextureCreationOptions, invertY?: boolean, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE,
+        onLoad: Nullable<() => void> = null, onError: Nullable<() => void> = null, format: number = Constants.TEXTUREFORMAT_RGBA, creationFlags?: number): Texture {
+        return new Texture("data:" + name, scene, noMipmapOrOptions, invertY, samplingMode, onLoad, onError, data, false, format, undefined, undefined, creationFlags);
     }
 
     /**
@@ -848,21 +910,22 @@ export class Texture extends BaseTexture {
      * @param buffer define the buffer to load the texture from in case the texture is loaded from a buffer representation
      * @param scene Define the scene the texture should belong to
      * @param deleteBuffer define if the buffer we are loading the texture from should be deleted after load
-     * @param noMipmap Forces the texture to not create mip map information if true
+     * @param noMipmapOrOptions defines if the texture will require mip maps or not or set of all options to create the texture
      * @param invertY define if the texture needs to be inverted on the y axis during loading
      * @param samplingMode define the sampling mode we want for the texture while fetching from it (Texture.NEAREST_SAMPLINGMODE...)
      * @param onLoad define a callback triggered when the texture has been loaded
      * @param onError define a callback triggered when an error occurred during the loading session
      * @param format define the format of the texture we are trying to load (Engine.TEXTUREFORMAT_RGBA...)
+     * @param creationFlags specific flags to use when creating the texture (Constants.TEXTURE_CREATIONFLAG_STORAGE for storage textures, for eg)
      * @returns the created texture
      */
-    public static LoadFromDataString(name: string, buffer: any, scene: Scene, deleteBuffer: boolean = false, noMipmap: boolean = false, invertY: boolean = true, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE,
-        onLoad: Nullable<() => void> = null, onError: Nullable<(message?: string, exception?: any) => void> = null, format: number = Constants.TEXTUREFORMAT_RGBA): Texture {
+    public static LoadFromDataString(name: string, buffer: any, scene: Scene, deleteBuffer: boolean = false, noMipmapOrOptions?: boolean | ITextureCreationOptions, invertY: boolean = true, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE,
+        onLoad: Nullable<() => void> = null, onError: Nullable<(message?: string, exception?: any) => void> = null, format: number = Constants.TEXTUREFORMAT_RGBA, creationFlags?: number): Texture {
         if (name.substr(0, 5) !== "data:") {
             name = "data:" + name;
         }
 
-        return new Texture(name, scene, noMipmap, invertY, samplingMode, onLoad, onError, buffer, deleteBuffer, format);
+        return new Texture(name, scene, noMipmapOrOptions, invertY, samplingMode, onLoad, onError, buffer, deleteBuffer, format, undefined, undefined, creationFlags);
     }
 }
 

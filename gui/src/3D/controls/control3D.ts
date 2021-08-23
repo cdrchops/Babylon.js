@@ -11,6 +11,8 @@ import { GUI3DManager } from "../gui3DManager";
 import { Vector3WithInfo } from "../vector3WithInfo";
 import { Container3D } from "./container3D";
 
+declare type TouchButton3D = import("./touchButton3D").TouchButton3D;
+
 /**
  * Class used as base class for controls
  */
@@ -23,7 +25,7 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
     private _downPointerIds: { [id: number]: number } = {}; // Store number of pointer downs per ID, from near and far interactions
     private _isVisible = true;
 
-    /** Gets or sets the control position  in world space */
+    /** Gets or sets the control position in world space */
     public get position(): Vector3 {
         if (!this._node) {
             return Vector3.Zero();
@@ -40,7 +42,7 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
         this._node.position = value;
     }
 
-    /** Gets or sets the control scaling  in world space */
+    /** Gets or sets the control scaling in world space */
     public get scaling(): Vector3 {
         if (!this._node) {
             return new Vector3(1, 1, 1);
@@ -67,12 +69,12 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
     public pointerUpAnimation: () => void;
 
     /**
-    * An event triggered when the pointer move over the control
-    */
+     * An event triggered when the pointer moves over the control
+     */
     public onPointerMoveObservable = new Observable<Vector3>();
 
     /**
-     * An event triggered when the pointer move out of the control
+     * An event triggered when the pointer moves out of the control
      */
     public onPointerOutObservable = new Observable<Control3D>();
 
@@ -199,8 +201,8 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
      */
     constructor(
         /** Defines the control name */
-        public name?: string) {
-    }
+        public name?: string
+    ) { }
 
     /**
      * Gets a string representing the class name
@@ -259,7 +261,7 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
             if (!this.node) {
                 return;
             }
-            this._injectGUI3DMetadata(this.node).control = this; // Store the control on the metadata field in order to get it when picking
+            this._injectGUI3DReservedDataStore(this.node).control = this; // Store the control on the reservedDataStore field in order to get it when picking
 
             let mesh = this.mesh;
             if (mesh) {
@@ -270,10 +272,10 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
         }
     }
 
-    protected _injectGUI3DMetadata(node: TransformNode): any {
-        node.metadata = node.metadata ?? {};
-        node.metadata.GUI3D = node.metadata.GUI3D ?? {};
-        return node.metadata.GUI3D;
+    protected _injectGUI3DReservedDataStore(node: TransformNode): any {
+        node.reservedDataStore = node.reservedDataStore ?? {};
+        node.reservedDataStore.GUI3D = node.reservedDataStore.GUI3D ?? {};
+        return node.reservedDataStore.GUI3D;
     }
 
     /**
@@ -295,6 +297,10 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
         mesh.material = null;
     }
 
+    private _IsTouchButton3D(control: Control3D): control is TouchButton3D {
+        return (control as TouchButton3D)._generatePointerEventType !== undefined;
+    }
+
     // Pointers
 
     /** @hidden */
@@ -304,7 +310,8 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
 
     /** @hidden */
     public _onPointerEnter(target: Control3D): boolean {
-        if (this._enterCount === -1) { // -1 is for touch input, we are now sure we are with a mouse or pencil
+        if (this._enterCount === -1) {
+            // -1 is for touch input, we are now sure we are with a mouse or pencil
             this._enterCount = 0;
         }
 
@@ -397,12 +404,15 @@ export class Control3D implements IDisposable, IBehaviorAware<Control3D> {
                 this._downCount = 1;
                 this._onPointerUp(this, Vector3.Zero(), 0, 0, true);
             }
-
         }
     }
 
     /** @hidden */
-    public _processObservables(type: number, pickedPoint: Vector3, pointerId: number, buttonIndex: number): boolean {
+    public _processObservables(type: number, pickedPoint: Vector3, originMeshPosition: Nullable<Vector3>, pointerId: number, buttonIndex: number): boolean {
+        if (this._IsTouchButton3D(this) && originMeshPosition) {
+            type = this._generatePointerEventType(type, originMeshPosition, this._downCount);
+        }
+
         if (type === PointerEventTypes.POINTERMOVE) {
             this._onPointerMove(this, pickedPoint);
 

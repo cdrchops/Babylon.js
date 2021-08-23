@@ -5,7 +5,7 @@ import { Scene } from "../../../scene";
 import { Matrix, Vector3, Vector2 } from "../../../Maths/math.vector";
 import { Color4, Color3 } from '../../../Maths/math.color';
 import { Engine } from "../../../Engines/engine";
-import { VertexBuffer } from "../../../Meshes/buffer";
+import { VertexBuffer } from "../../../Buffers/buffer";
 import { SceneComponentConstants } from "../../../sceneComponent";
 
 import { Material } from "../../../Materials/material";
@@ -17,7 +17,7 @@ import { ProceduralTextureSceneComponent } from "./proceduralTextureSceneCompone
 import "../../../Engines/Extensions/engine.renderTarget";
 import "../../../Engines/Extensions/engine.renderTargetCube";
 import "../../../Shaders/procedural.vertex";
-import { DataBuffer } from '../../../Meshes/dataBuffer';
+import { DataBuffer } from '../../../Buffers/dataBuffer';
 import { _TypeStore } from '../../../Misc/typeStore';
 import { NodeMaterial } from '../../Node/nodeMaterial';
 import { RenderTargetTextureSize } from '../../../Engines/Extensions/engine.renderTarget';
@@ -578,7 +578,7 @@ export class ProceduralTexture extends Texture {
             return;
         }
 
-        engine._debugPushGroup(`procedural texture generation for ${this.name}`, 1);
+        engine._debugPushGroup?.(`procedural texture generation for ${this.name}`, 1);
 
         if (this.isCube) {
             for (var face = 0; face < 6; face++) {
@@ -620,7 +620,7 @@ export class ProceduralTexture extends Texture {
             engine.generateMipMapsForCubemap(this._texture);
         }
 
-        engine._debugPopGroup(1);
+        engine._debugPopGroup?.(1);
 
         if (this.onGenerated) {
             this.onGenerated();

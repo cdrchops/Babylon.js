@@ -2,7 +2,7 @@ import { Nullable } from "../types";
 import { Scene } from "../scene";
 import { Color3, Color4 } from "../Maths/math.color";
 import { Node } from "../node";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { SubMesh } from "../Meshes/subMesh";
 import { Mesh } from "../Meshes/mesh";
 import { InstancedMesh } from "../Meshes/instancedMesh";
@@ -59,6 +59,7 @@ export class LinesMesh extends Mesh {
      * This will make creation of children, recursive.
      * @param useVertexColor defines if this LinesMesh supports vertex color
      * @param useVertexAlpha defines if this LinesMesh supports vertex alpha
+     * @param material material to use to draw the line. If not provided, will create a new one
      */
     constructor(
         name: string,
@@ -73,7 +74,8 @@ export class LinesMesh extends Mesh {
         /**
          * If vertex alpha should be applied to the mesh
          */
-        public readonly useVertexAlpha?: boolean
+        public readonly useVertexAlpha?: boolean,
+        material?: Material
     ) {
         super(name, scene, parent, source, doNotCloneChildren);
 
@@ -107,7 +109,11 @@ export class LinesMesh extends Mesh {
             options.attributes.push(VertexBuffer.ColorKind);
         }
 
-        this._lineMaterial = new ShaderMaterial("colorShader", this.getScene(), "color", options);
+        if (material) {
+            this.material = material;
+        } else {
+            this._lineMaterial = new ShaderMaterial("colorShader", this.getScene(), "color", options);
+        }
     }
 
     private _addClipPlaneDefine(label: string) {
@@ -257,7 +263,17 @@ export class LinesMesh extends Mesh {
      * @returns a new InstancedLinesMesh
      */
     public createInstance(name: string): InstancedLinesMesh {
-        return new InstancedLinesMesh(name, this);
+        const instance = new InstancedLinesMesh(name, this);
+
+        if (this.instancedBuffers) {
+            instance.instancedBuffers = {};
+
+            for (const key in this.instancedBuffers) {
+                instance.instancedBuffers[key] = this.instancedBuffers[key];
+            }
+        }
+
+        return instance;
     }
 
     /**
@@ -270,12 +286,12 @@ export class LinesMesh extends Mesh {
         serializationObject.alpha = this.alpha;
     }
 
-        /**
-     * Parses a serialized ground mesh
-     * @param parsedMesh the serialized mesh
-     * @param scene the scene to create the ground mesh in
-     * @returns the created ground mesh
-     */
+    /**
+ * Parses a serialized ground mesh
+ * @param parsedMesh the serialized mesh
+ * @param scene the scene to create the ground mesh in
+ * @returns the created ground mesh
+ */
     public static Parse(parsedMesh: any, scene: Scene): LinesMesh {
         var result = new LinesMesh(parsedMesh.name, scene);
 

@@ -43,7 +43,7 @@ declare module "babylonjs-loaders/glTF/glTFFileLoader" {
     import { WebRequest } from "babylonjs/Misc/webRequest";
     import { IFileRequest } from "babylonjs/Misc/fileRequest";
     import { IDataBuffer } from 'babylonjs/Misc/dataReader';
-    import { RequestFileError } from 'babylonjs/Misc/fileTools';
+    import { LoadFileError } from 'babylonjs/Misc/fileTools';
     /**
      * Mode that determines the coordinate system to use.
      */
@@ -125,7 +125,7 @@ declare module "babylonjs-loaders/glTF/glTFFileLoader" {
     /** @hidden */
     export interface IGLTFLoader extends IDisposable {
         readonly state: Nullable<GLTFLoaderState>;
-        importMeshAsync: (meshesNames: any, scene: Scene, forAssetContainer: boolean, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string) => Promise<ISceneLoaderAsyncResult>;
+        importMeshAsync: (meshesNames: any, scene: Scene, container: Nullable<AssetContainer>, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string) => Promise<ISceneLoaderAsyncResult>;
         loadAsync: (scene: Scene, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string) => Promise<void>;
     }
     /**
@@ -203,8 +203,12 @@ declare module "babylonjs-loaders/glTF/glTFFileLoader" {
          */
         loadAllMaterials: boolean;
         /**
-         * Function called before loading a url referenced by the asset.
+         * If true, load the color (gamma encoded) textures into sRGB buffers (if supported by the GPU), which will yield more accurate results when sampling the texture. Defaults to true.
          */
+        useSRGBBuffers: boolean;
+        /**
+        * Function called before loading a url referenced by the asset.
+        */
         preprocessUrlAsync: (url: string) => Promise<string>;
         /**
          * Observable raised when the loader creates a mesh after parsing the glTF properties of the mesh.
@@ -323,9 +327,7 @@ declare module "babylonjs-loaders/glTF/glTFFileLoader" {
          */
         dispose(): void;
         /** @hidden */
-        requestFile(scene: Scene, url: string, onSuccess: (data: any, request?: WebRequest) => void, onProgress?: (ev: ISceneLoaderProgressEvent) => void, useArrayBuffer?: boolean, onError?: (error: any) => void): IFileRequest;
-        /** @hidden */
-        readFile(scene: Scene, file: File, onSuccess: (data: any) => void, onProgress?: (ev: ISceneLoaderProgressEvent) => any, useArrayBuffer?: boolean, onError?: (error: any) => void): IFileRequest;
+        loadFile(scene: Scene, fileOrUrl: File | string, onSuccess: (data: any, responseURL?: string) => void, onProgress?: (ev: ISceneLoaderProgressEvent) => void, useArrayBuffer?: boolean, onError?: (request?: WebRequest, exception?: LoadFileError) => void): IFileRequest;
         /** @hidden */
         importMeshAsync(meshesNames: any, scene: Scene, data: any, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<ISceneLoaderAsyncResult>;
         /** @hidden */
@@ -355,9 +357,7 @@ declare module "babylonjs-loaders/glTF/glTFFileLoader" {
          */
         whenCompleteAsync(): Promise<void>;
         /** @hidden */
-        _loadFile(url: string, scene: Scene, onSuccess: (data: string | ArrayBuffer) => void, useArrayBuffer?: boolean, onError?: (request?: WebRequest) => void): IFileRequest;
-        /** @hidden */
-        _requestFile(url: string, scene: Scene, onSuccess: (data: string | ArrayBuffer, request?: WebRequest) => void, useArrayBuffer?: boolean, onError?: (error: RequestFileError) => void, onOpened?: (request: WebRequest) => void): IFileRequest;
+        _loadFile(scene: Scene, fileOrUrl: File | string, onSuccess: (data: string | ArrayBuffer) => void, useArrayBuffer?: boolean, onError?: (request?: WebRequest) => void, onOpened?: (request: WebRequest) => void): IFileRequest;
         private _onProgress;
         private _validate;
         private _getLoader;
@@ -390,11 +390,13 @@ declare module "babylonjs-loaders/glTF/glTFFileLoader" {
     }
 }
 declare module "babylonjs-loaders/glTF/1.0/glTFLoaderInterfaces" {
+    import { AssetContainer } from "babylonjs/assetContainer";
     import { Bone } from "babylonjs/Bones/bone";
     import { Skeleton } from "babylonjs/Bones/skeleton";
     import { Texture } from "babylonjs/Materials/Textures/texture";
     import { Node } from "babylonjs/node";
     import { Scene } from "babylonjs/scene";
+    import { Nullable } from "babylonjs/types";
     /**
     * Enums
     * @hidden
@@ -787,7 +789,7 @@ declare module "babylonjs-loaders/glTF/1.0/glTFLoaderInterfaces" {
         importOnlyMeshes: boolean;
         importMeshesNames?: string[];
         dummyNodes: Node[];
-        forAssetContainer: boolean;
+        assetContainer: Nullable<AssetContainer>;
     }
     /** @hidden */
     export interface INodeToRoot {
@@ -873,6 +875,7 @@ declare module "babylonjs-loaders/glTF/1.0/glTFLoader" {
     import { ISceneLoaderAsyncResult, ISceneLoaderProgressEvent } from "babylonjs/Loading/sceneLoader";
     import { Scene } from "babylonjs/scene";
     import { IGLTFLoader, GLTFLoaderState, IGLTFLoaderData } from "babylonjs-loaders/glTF/glTFFileLoader";
+    import { AssetContainer } from "babylonjs/assetContainer";
     /**
     * Implementation of the base glTF spec
     * @hidden
@@ -901,13 +904,13 @@ declare module "babylonjs-loaders/glTF/1.0/glTFLoader" {
         * Imports one or more meshes from a loaded gltf file and adds them to the scene
         * @param meshesNames a string or array of strings of the mesh names that should be loaded from the file
         * @param scene the scene the meshes should be added to
-        * @param forAssetContainer defines if the entities must be stored in the scene
+        * @param assetContainer defines the asset container to use (can be null)
         * @param data gltf data containing information of the meshes in a loaded file
         * @param rootUrl root url to load from
         * @param onProgress event that fires when loading progress has occured
         * @returns a promise containg the loaded meshes, particles, skeletons and animations
         */
-        importMeshAsync(meshesNames: any, scene: Scene, forAssetContainer: boolean, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void): Promise<ISceneLoaderAsyncResult>;
+        importMeshAsync(meshesNames: any, scene: Scene, assetContainer: Nullable<AssetContainer>, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void): Promise<ISceneLoaderAsyncResult>;
         private _loadAsync;
         /**
         * Imports all objects from a loaded gltf file and adds them to the scene
@@ -1013,7 +1016,7 @@ declare module "babylonjs-loaders/glTF/2.0/glTFLoaderInterfaces" {
     import { Skeleton } from "babylonjs/Bones/skeleton";
     import { Material } from "babylonjs/Materials/material";
     import { TransformNode } from "babylonjs/Meshes/transformNode";
-    import { Buffer, VertexBuffer } from "babylonjs/Meshes/buffer";
+    import { Buffer, VertexBuffer } from "babylonjs/Buffers/buffer";
     import { AbstractMesh } from "babylonjs/Meshes/abstractMesh";
     import { Mesh } from "babylonjs/Meshes/mesh";
     import * as GLTF2 from "babylonjs-gltf2interface";
@@ -1391,6 +1394,7 @@ declare module "babylonjs-loaders/glTF/2.0/glTFLoader" {
     import { IAnimatable } from 'babylonjs/Animations/animatable.interface';
     import { IDataBuffer } from 'babylonjs/Misc/dataReader';
     import { Light } from 'babylonjs/Lights/light';
+    import { AssetContainer } from "babylonjs/assetContainer";
     /**
      * Helper class for working with arrays when loading the glTF asset
      */
@@ -1416,7 +1420,7 @@ declare module "babylonjs-loaders/glTF/2.0/glTFLoader" {
         /** @hidden */
         _completePromises: Promise<any>[];
         /** @hidden */
-        _forAssetContainer: boolean;
+        _assetContainer: Nullable<AssetContainer>;
         /** Storage */
         _babylonLights: Light[];
         /** @hidden */
@@ -1479,7 +1483,7 @@ declare module "babylonjs-loaders/glTF/2.0/glTFLoader" {
         /** @hidden */
         dispose(): void;
         /** @hidden */
-        importMeshAsync(meshesNames: any, scene: Scene, forAssetContainer: boolean, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<ISceneLoaderAsyncResult>;
+        importMeshAsync(meshesNames: any, scene: Scene, container: Nullable<AssetContainer>, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<ISceneLoaderAsyncResult>;
         /** @hidden */
         loadAsync(scene: Scene, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<void>;
         private _loadAsync;
@@ -1631,7 +1635,7 @@ declare module "babylonjs-loaders/glTF/2.0/glTFLoader" {
         /** @hidden */
         _loadTextureAsync(context: string, texture: ITexture, assign?: (babylonTexture: BaseTexture) => void): Promise<BaseTexture>;
         /** @hidden */
-        _createTextureAsync(context: string, sampler: ISampler, image: IImage, assign?: (babylonTexture: BaseTexture) => void, textureLoaderOptions?: any): Promise<BaseTexture>;
+        _createTextureAsync(context: string, sampler: ISampler, image: IImage, assign?: (babylonTexture: BaseTexture) => void, textureLoaderOptions?: any, useSRGBBuffer?: boolean): Promise<BaseTexture>;
         private _loadSampler;
         /**
          * Loads a glTF image.
@@ -1811,6 +1815,7 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/EXT_meshopt_compression" {
      * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Vendor/EXT_meshopt_compression)
      *
      * This extension uses a WebAssembly decoder module from https://github.com/zeux/meshoptimizer/tree/master/js
+     * @since 5.0.0
      */
     export class EXT_meshopt_compression implements IGLTFLoaderExtension {
         /**
@@ -1821,12 +1826,7 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/EXT_meshopt_compression" {
          * Defines whether this extension is enabled.
          */
         enabled: boolean;
-        /**
-         * Path to decoder module; defaults to https://preview.babylonjs.com/meshopt_decoder.js
-         */
-        static DecoderPath: string;
         private _loader;
-        private _decoderPromise?;
         /** @hidden */
         constructor(loader: GLTFLoader);
         /** @hidden */
@@ -2027,7 +2027,6 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/KHR_materials_sheen" {
     /**
      * [Specification](https://github.com/KhronosGroup/glTF/blob/master/extensions/2.0/Khronos/KHR_materials_sheen/README.md)
      * [Playground Sample](https://www.babylonjs-playground.com/frame.html#BNIZX6#4)
-     * !!! Experimental Extension Subject to Changes !!!
      */
     export class KHR_materials_sheen implements IGLTFLoaderExtension {
         /**
@@ -2059,8 +2058,7 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/KHR_materials_specular" {
     import { IGLTFLoaderExtension } from "babylonjs-loaders/glTF/2.0/glTFLoaderExtension";
     import { GLTFLoader } from "babylonjs-loaders/glTF/2.0/glTFLoader";
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1719)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_specular)
      */
     export class KHR_materials_specular implements IGLTFLoaderExtension {
         /**
@@ -2092,8 +2090,7 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/KHR_materials_ior" {
     import { IGLTFLoaderExtension } from "babylonjs-loaders/glTF/2.0/glTFLoaderExtension";
     import { GLTFLoader } from "babylonjs-loaders/glTF/2.0/glTFLoader";
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1718)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_ior)
      */
     export class KHR_materials_ior implements IGLTFLoaderExtension {
         /**
@@ -2272,8 +2269,8 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/KHR_materials_volume" {
     import { IGLTFLoaderExtension } from "babylonjs-loaders/glTF/2.0/glTFLoaderExtension";
     import { GLTFLoader } from "babylonjs-loaders/glTF/2.0/glTFLoader";
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1726)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_volume)
+     * @since 5.0.0
      */
     export class KHR_materials_volume implements IGLTFLoaderExtension {
         /**
@@ -2326,8 +2323,7 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/KHR_texture_basisu" {
     import { BaseTexture } from "babylonjs/Materials/Textures/baseTexture";
     import { Nullable } from "babylonjs/types";
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1751)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_texture_basisu)
      */
     export class KHR_texture_basisu implements IGLTFLoaderExtension {
         /** The name of this extension. */
@@ -2374,8 +2370,8 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/KHR_xmp_json_ld" {
     import { IGLTFLoaderExtension } from "babylonjs-loaders/glTF/2.0/glTFLoaderExtension";
     import { GLTFLoader } from "babylonjs-loaders/glTF/2.0/glTFLoader";
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1893)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_xmp_json_ld)
+     * @since 5.0.0
      */
     export class KHR_xmp_json_ld implements IGLTFLoaderExtension {
         /**
@@ -2450,7 +2446,7 @@ declare module "babylonjs-loaders/glTF/2.0/Extensions/MSFT_lod" {
     import { INode, IMaterial, IBuffer, IScene } from "babylonjs-loaders/glTF/2.0/glTFLoaderInterfaces";
     import { IGLTFLoaderExtension } from "babylonjs-loaders/glTF/2.0/glTFLoaderExtension";
     import { GLTFLoader } from "babylonjs-loaders/glTF/2.0/glTFLoader";
-    import { IProperty } from 'babylonjs-gltf2interface';
+    import { IProperty } from "babylonjs-gltf2interface";
     /**
      * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Vendor/MSFT_lod)
      */
@@ -2625,8 +2621,10 @@ declare module "babylonjs-loaders/glTF/index" {
     export { GLTF1, GLTF2 };
 }
 declare module "babylonjs-loaders/OBJ/mtlFileLoader" {
+    import { Nullable } from "babylonjs/types";
     import { StandardMaterial } from "babylonjs/Materials/standardMaterial";
     import { Scene } from "babylonjs/scene";
+    import { AssetContainer } from "babylonjs/assetContainer";
     /**
      * Class reading and parsing the MTL file bundled with the obj file.
      */
@@ -2648,9 +2646,9 @@ declare module "babylonjs-loaders/OBJ/mtlFileLoader" {
          * @param scene defines the scene the material will be created in
          * @param data defines the mtl data to parse
          * @param rootUrl defines the rooturl to use in order to load relative dependencies
-         * @param forAssetContainer defines if the material should be registered in the scene
+         * @param assetContainer defines the asset container to store the material in (can be null)
          */
-        parseMTL(scene: Scene, data: string | ArrayBuffer, rootUrl: string, forAssetContainer: boolean): void;
+        parseMTL(scene: Scene, data: string | ArrayBuffer, rootUrl: string, assetContainer: Nullable<AssetContainer>): void;
         /**
          * Gets the texture for the material.
          *
@@ -2664,19 +2662,16 @@ declare module "babylonjs-loaders/OBJ/mtlFileLoader" {
         private static _getTexture;
     }
 }
-declare module "babylonjs-loaders/OBJ/objFileLoader" {
+declare module "babylonjs-loaders/OBJ/objLoadingOptions" {
     import { Vector2 } from "babylonjs/Maths/math.vector";
-    import { ISceneLoaderPluginAsync, ISceneLoaderProgressEvent, ISceneLoaderPluginFactory, ISceneLoaderPlugin, ISceneLoaderAsyncResult } from "babylonjs/Loading/sceneLoader";
-    import { AssetContainer } from "babylonjs/assetContainer";
-    import { Scene } from "babylonjs/scene";
     /**
      * Options for loading OBJ/MTL files
      */
-    type MeshLoadOptions = {
+    export type OBJLoadingOptions = {
         /**
          * Defines if UVs are optimized by default during load.
          */
-        OptimizeWithUV: boolean;
+        optimizeWithUV: boolean;
         /**
          * Defines custom scaling of UV coordinates of loaded meshes.
          */
@@ -2684,33 +2679,195 @@ declare module "babylonjs-loaders/OBJ/objFileLoader" {
         /**
          * Invert model on y-axis (does a model scaling inversion)
          */
-        InvertY: boolean;
+        invertY: boolean;
         /**
          * Invert Y-Axis of referenced textures on load
          */
-        InvertTextureY: boolean;
+        invertTextureY: boolean;
         /**
          * Include in meshes the vertex colors available in some OBJ files.  This is not part of OBJ standard.
          */
-        ImportVertexColors: boolean;
+        importVertexColors: boolean;
         /**
          * Compute the normals for the model, even if normals are present in the file.
          */
-        ComputeNormals: boolean;
+        computeNormals: boolean;
         /**
          * Optimize the normals for the model. Lighting can be uneven if you use OptimizeWithUV = true because new vertices can be created for the same location if they pertain to different faces.
          * Using OptimizehNormals = true will help smoothing the lighting by averaging the normals of those vertices.
          */
-        OptimizeNormals: boolean;
+        optimizeNormals: boolean;
         /**
          * Skip loading the materials even if defined in the OBJ file (materials are ignored).
          */
-        SkipMaterials: boolean;
+        skipMaterials: boolean;
         /**
          * When a material fails to load OBJ loader will silently fail and onSuccess() callback will be triggered.
          */
-        MaterialLoadingFailsSilently: boolean;
+        materialLoadingFailsSilently: boolean;
     };
+}
+declare module "babylonjs-loaders/OBJ/solidParser" {
+    import { AssetContainer } from "babylonjs/assetContainer";
+    import { Mesh } from "babylonjs/Meshes/mesh";
+    import { Scene } from "babylonjs/scene";
+    import { Nullable } from "babylonjs/types";
+    import { OBJLoadingOptions } from "babylonjs-loaders/OBJ/objLoadingOptions";
+    /**
+     * Class used to load mesh data from OBJ content
+     */
+    export class SolidParser {
+        /** Object descriptor */
+        static ObjectDescriptor: RegExp;
+        /** Group descriptor */
+        static GroupDescriptor: RegExp;
+        /** Material lib descriptor */
+        static MtlLibGroupDescriptor: RegExp;
+        /** Use a material descriptor */
+        static UseMtlDescriptor: RegExp;
+        /** Smooth descriptor */
+        static SmoothDescriptor: RegExp;
+        /** Pattern used to detect a vertex */
+        static VertexPattern: RegExp;
+        /** Pattern used to detect a normal */
+        static NormalPattern: RegExp;
+        /** Pattern used to detect a UV set */
+        static UVPattern: RegExp;
+        /** Pattern used to detect a first kind of face (f vertex vertex vertex) */
+        static FacePattern1: RegExp;
+        /** Pattern used to detect a second kind of face (f vertex/uvs vertex/uvs vertex/uvs) */
+        static FacePattern2: RegExp;
+        /** Pattern used to detect a third kind of face (f vertex/uvs/normal vertex/uvs/normal vertex/uvs/normal) */
+        static FacePattern3: RegExp;
+        /** Pattern used to detect a fourth kind of face (f vertex//normal vertex//normal vertex//normal)*/
+        static FacePattern4: RegExp;
+        /** Pattern used to detect a fifth kind of face (f -vertex/-uvs/-normal -vertex/-uvs/-normal -vertex/-uvs/-normal) */
+        static FacePattern5: RegExp;
+        private _loadingOptions;
+        private _positions;
+        private _normals;
+        private _uvs;
+        private _colors;
+        private _meshesFromObj;
+        private _handledMesh;
+        private _indicesForBabylon;
+        private _wrappedPositionForBabylon;
+        private _wrappedUvsForBabylon;
+        private _wrappedColorsForBabylon;
+        private _wrappedNormalsForBabylon;
+        private _tuplePosNorm;
+        private _curPositionInIndices;
+        private _hasMeshes;
+        private _unwrappedPositionsForBabylon;
+        private _unwrappedColorsForBabylon;
+        private _unwrappedNormalsForBabylon;
+        private _unwrappedUVForBabylon;
+        private _triangles;
+        private _materialNameFromObj;
+        private _objMeshName;
+        private _increment;
+        private _isFirstMaterial;
+        private _grayColor;
+        private _materialToUse;
+        private _babylonMeshesArray;
+        /**
+         * Creates a new SolidParser
+         * @param materialToUse defines the array to fill with the list of materials to use (it will be filled by the parse function)
+         * @param babylonMeshesArray defines the array to fill with the list of loaded meshes (it will be filled by the parse function)
+         * @param loadingOptions defines the loading options to use
+         */
+        constructor(materialToUse: string[], babylonMeshesArray: Array<Mesh>, loadingOptions: OBJLoadingOptions);
+        /**
+         * Search for obj in the given array.
+         * This function is called to check if a couple of data already exists in an array.
+         *
+         * If found, returns the index of the founded tuple index. Returns -1 if not found
+         * @param arr Array<{ normals: Array<number>, idx: Array<number> }>
+         * @param obj Array<number>
+         * @returns {boolean}
+         */
+        private _isInArray;
+        private _isInArrayUV;
+        /**
+         * This function set the data for each triangle.
+         * Data are position, normals and uvs
+         * If a tuple of (position, normal) is not set, add the data into the corresponding array
+         * If the tuple already exist, add only their indice
+         *
+         * @param indicePositionFromObj Integer The index in positions array
+         * @param indiceUvsFromObj Integer The index in uvs array
+         * @param indiceNormalFromObj Integer The index in normals array
+         * @param positionVectorFromOBJ Vector3 The value of position at index objIndice
+         * @param textureVectorFromOBJ Vector3 The value of uvs
+         * @param normalsVectorFromOBJ Vector3 The value of normals at index objNormale
+         */
+        private _setData;
+        /**
+         * Transform Vector() and BABYLON.Color() objects into numbers in an array
+         */
+        private _unwrapData;
+        /**
+         * Create triangles from polygons
+         * It is important to notice that a triangle is a polygon
+         * We get 5 patterns of face defined in OBJ File :
+         * facePattern1 = ["1","2","3","4","5","6"]
+         * facePattern2 = ["1/1","2/2","3/3","4/4","5/5","6/6"]
+         * facePattern3 = ["1/1/1","2/2/2","3/3/3","4/4/4","5/5/5","6/6/6"]
+         * facePattern4 = ["1//1","2//2","3//3","4//4","5//5","6//6"]
+         * facePattern5 = ["-1/-1/-1","-2/-2/-2","-3/-3/-3","-4/-4/-4","-5/-5/-5","-6/-6/-6"]
+         * Each pattern is divided by the same method
+         * @param face Array[String] The indices of elements
+         * @param v Integer The variable to increment
+         */
+        private _getTriangles;
+        /**
+         * Create triangles and push the data for each polygon for the pattern 1
+         * In this pattern we get vertice positions
+         * @param face
+         * @param v
+         */
+        private _setDataForCurrentFaceWithPattern1;
+        /**
+         * Create triangles and push the data for each polygon for the pattern 2
+         * In this pattern we get vertice positions and uvsu
+         * @param face
+         * @param v
+         */
+        private _setDataForCurrentFaceWithPattern2;
+        /**
+         * Create triangles and push the data for each polygon for the pattern 3
+         * In this pattern we get vertice positions, uvs and normals
+         * @param face
+         * @param v
+         */
+        private _setDataForCurrentFaceWithPattern3;
+        /**
+         * Create triangles and push the data for each polygon for the pattern 4
+         * In this pattern we get vertice positions and normals
+         * @param face
+         * @param v
+         */
+        private _setDataForCurrentFaceWithPattern4;
+        private _setDataForCurrentFaceWithPattern5;
+        private _addPreviousObjMesh;
+        private _optimizeNormals;
+        /**
+         * Function used to parse an OBJ string
+         * @param meshesNames defines the list of meshes to load (all if not defined)
+         * @param data defines the OBJ string
+         * @param scene defines the hosting scene
+         * @param assetContainer defines the asset container to load data in
+         * @param onFileToLoadFound defines a callback that will be called if a MTL file is found
+         */
+        parse(meshesNames: any, data: string, scene: Scene, assetContainer: Nullable<AssetContainer>, onFileToLoadFound: (fileToLoad: string) => void): void;
+    }
+}
+declare module "babylonjs-loaders/OBJ/objFileLoader" {
+    import { Vector2 } from "babylonjs/Maths/math.vector";
+    import { ISceneLoaderPluginAsync, ISceneLoaderProgressEvent, ISceneLoaderPluginFactory, ISceneLoaderPlugin, ISceneLoaderAsyncResult } from "babylonjs/Loading/sceneLoader";
+    import { AssetContainer } from "babylonjs/assetContainer";
+    import { Scene } from "babylonjs/scene";
+    import { OBJLoadingOptions } from "babylonjs-loaders/OBJ/objLoadingOptions";
     /**
      * OBJ file type loader.
      * This is a babylon scene loader plugin.
@@ -2764,41 +2921,15 @@ declare module "babylonjs-loaders/OBJ/objFileLoader" {
          * Defines the extension the plugin is able to load.
          */
         extensions: string;
-        /** @hidden */
-        obj: RegExp;
-        /** @hidden */
-        group: RegExp;
-        /** @hidden */
-        mtllib: RegExp;
-        /** @hidden */
-        usemtl: RegExp;
-        /** @hidden */
-        smooth: RegExp;
-        /** @hidden */
-        vertexPattern: RegExp;
-        /** @hidden */
-        normalPattern: RegExp;
-        /** @hidden */
-        uvPattern: RegExp;
-        /** @hidden */
-        facePattern1: RegExp;
-        /** @hidden */
-        facePattern2: RegExp;
-        /** @hidden */
-        facePattern3: RegExp;
-        /** @hidden */
-        facePattern4: RegExp;
-        /** @hidden */
-        facePattern5: RegExp;
-        private _forAssetContainer;
-        private _meshLoadOptions;
+        private _assetContainer;
+        private _loadingOptions;
         /**
          * Creates loader for .OBJ files
          *
-         * @param meshLoadOptions options for loading and parsing OBJ/MTL files.
+         * @param loadingOptions options for loading and parsing OBJ/MTL files.
          */
-        constructor(meshLoadOptions?: MeshLoadOptions);
-        private static get currentMeshLoadOptions();
+        constructor(loadingOptions?: OBJLoadingOptions);
+        private static get DefaultLoadingOptions();
         /**
          * Calls synchronously the MTL file attached to this obj.
          * Load function or importMesh function don't enable to load 2 files in the same time asynchronously.
@@ -2806,9 +2937,8 @@ declare module "babylonjs-loaders/OBJ/objFileLoader" {
          * In consequence it is impossible to get material information in your HTML file
          *
          * @param url The URL of the MTL file
-         * @param rootUrl
+         * @param rootUrl defines where to load data from
          * @param onSuccess Callback function to be called when the MTL file is loaded
-         * @private
          */
         private _loadMTL;
         /**
@@ -2854,24 +2984,23 @@ declare module "babylonjs-loaders/OBJ/objFileLoader" {
          * @returns The loaded asset container
          */
         loadAssetContainerAsync(scene: Scene, data: string, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<AssetContainer>;
-        private _optimizeNormals;
         /**
          * Read the OBJ file and create an Array of meshes.
          * Each mesh contains all information given by the OBJ and the MTL file.
          * i.e. vertices positions and indices, optional normals values, optional UV values, optional material
-         *
-         * @param meshesNames
-         * @param scene Scene The scene where are displayed the data
-         * @param data String The content of the obj file
-         * @param rootUrl String The path to the folder
-         * @returns Array<AbstractMesh>
-         * @private
+         * @param meshesNames defines a string or array of strings of the mesh names that should be loaded from the file
+         * @param scene defines the scene where are displayed the data
+         * @param data defines the content of the obj file
+         * @param rootUrl defines the path to the folder
+         * @returns the list of loaded meshes
          */
         private _parseSolid;
     }
 }
 declare module "babylonjs-loaders/OBJ/index" {
     export * from "babylonjs-loaders/OBJ/mtlFileLoader";
+    export * from "babylonjs-loaders/OBJ/objLoadingOptions";
+    export * from "babylonjs-loaders/OBJ/solidParser";
     export * from "babylonjs-loaders/OBJ/objFileLoader";
 }
 declare module "babylonjs-loaders/STL/stlFileLoader" {
@@ -2905,6 +3034,12 @@ declare module "babylonjs-loaders/STL/stlFileLoader" {
          * we'll convert to string if it looks like it's an ASCII .stl
          */
         extensions: ISceneLoaderPluginExtensions;
+        /**
+         * Defines if Y and Z axes are swapped or not when loading an STL file.
+         * The default is false to maintain backward compatibility. When set to
+         * true, coordinates from the STL file are used without change.
+         */
+        static DO_NOT_ALTER_FILE_COORDINATES: boolean;
         /**
          * Import meshes into a scene.
          * @param meshesNames An array of mesh names, a single mesh name, or empty string for all meshes that filter what meshes are imported
@@ -3103,7 +3238,7 @@ declare module BABYLON {
     /** @hidden */
     export interface IGLTFLoader extends IDisposable {
         readonly state: Nullable<GLTFLoaderState>;
-        importMeshAsync: (meshesNames: any, scene: Scene, forAssetContainer: boolean, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string) => Promise<ISceneLoaderAsyncResult>;
+        importMeshAsync: (meshesNames: any, scene: Scene, container: Nullable<AssetContainer>, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string) => Promise<ISceneLoaderAsyncResult>;
         loadAsync: (scene: Scene, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string) => Promise<void>;
     }
     /**
@@ -3181,8 +3316,12 @@ declare module BABYLON {
          */
         loadAllMaterials: boolean;
         /**
-         * Function called before loading a url referenced by the asset.
+         * If true, load the color (gamma encoded) textures into sRGB buffers (if supported by the GPU), which will yield more accurate results when sampling the texture. Defaults to true.
          */
+        useSRGBBuffers: boolean;
+        /**
+        * Function called before loading a url referenced by the asset.
+        */
         preprocessUrlAsync: (url: string) => Promise<string>;
         /**
          * Observable raised when the loader creates a mesh after parsing the glTF properties of the mesh.
@@ -3301,9 +3440,7 @@ declare module BABYLON {
          */
         dispose(): void;
         /** @hidden */
-        requestFile(scene: Scene, url: string, onSuccess: (data: any, request?: WebRequest) => void, onProgress?: (ev: ISceneLoaderProgressEvent) => void, useArrayBuffer?: boolean, onError?: (error: any) => void): IFileRequest;
-        /** @hidden */
-        readFile(scene: Scene, file: File, onSuccess: (data: any) => void, onProgress?: (ev: ISceneLoaderProgressEvent) => any, useArrayBuffer?: boolean, onError?: (error: any) => void): IFileRequest;
+        loadFile(scene: Scene, fileOrUrl: File | string, onSuccess: (data: any, responseURL?: string) => void, onProgress?: (ev: ISceneLoaderProgressEvent) => void, useArrayBuffer?: boolean, onError?: (request?: WebRequest, exception?: LoadFileError) => void): IFileRequest;
         /** @hidden */
         importMeshAsync(meshesNames: any, scene: Scene, data: any, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<ISceneLoaderAsyncResult>;
         /** @hidden */
@@ -3333,9 +3470,7 @@ declare module BABYLON {
          */
         whenCompleteAsync(): Promise<void>;
         /** @hidden */
-        _loadFile(url: string, scene: Scene, onSuccess: (data: string | ArrayBuffer) => void, useArrayBuffer?: boolean, onError?: (request?: WebRequest) => void): IFileRequest;
-        /** @hidden */
-        _requestFile(url: string, scene: Scene, onSuccess: (data: string | ArrayBuffer, request?: WebRequest) => void, useArrayBuffer?: boolean, onError?: (error: RequestFileError) => void, onOpened?: (request: WebRequest) => void): IFileRequest;
+        _loadFile(scene: Scene, fileOrUrl: File | string, onSuccess: (data: string | ArrayBuffer) => void, useArrayBuffer?: boolean, onError?: (request?: WebRequest) => void, onOpened?: (request: WebRequest) => void): IFileRequest;
         private _onProgress;
         private _validate;
         private _getLoader;
@@ -3760,7 +3895,7 @@ declare module BABYLON.GLTF1 {
         importOnlyMeshes: boolean;
         importMeshesNames?: string[];
         dummyNodes: Node[];
-        forAssetContainer: boolean;
+        assetContainer: Nullable<AssetContainer>;
     }
     /** @hidden */
     export interface INodeToRoot {
@@ -3862,13 +3997,13 @@ declare module BABYLON.GLTF1 {
         * Imports one or more meshes from a loaded gltf file and adds them to the scene
         * @param meshesNames a string or array of strings of the mesh names that should be loaded from the file
         * @param scene the scene the meshes should be added to
-        * @param forAssetContainer defines if the entities must be stored in the scene
+        * @param assetContainer defines the asset container to use (can be null)
         * @param data gltf data containing information of the meshes in a loaded file
         * @param rootUrl root url to load from
         * @param onProgress event that fires when loading progress has occured
         * @returns a promise containg the loaded meshes, particles, skeletons and animations
         */
-        importMeshAsync(meshesNames: any, scene: Scene, forAssetContainer: boolean, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void): Promise<ISceneLoaderAsyncResult>;
+        importMeshAsync(meshesNames: any, scene: Scene, assetContainer: Nullable<AssetContainer>, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void): Promise<ISceneLoaderAsyncResult>;
         private _loadAsync;
         /**
         * Imports all objects from a loaded gltf file and adds them to the scene
@@ -4324,7 +4459,7 @@ declare module BABYLON.GLTF2 {
         /** @hidden */
         _completePromises: Promise<any>[];
         /** @hidden */
-        _forAssetContainer: boolean;
+        _assetContainer: Nullable<AssetContainer>;
         /** Storage */
         _babylonLights: Light[];
         /** @hidden */
@@ -4387,7 +4522,7 @@ declare module BABYLON.GLTF2 {
         /** @hidden */
         dispose(): void;
         /** @hidden */
-        importMeshAsync(meshesNames: any, scene: Scene, forAssetContainer: boolean, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<ISceneLoaderAsyncResult>;
+        importMeshAsync(meshesNames: any, scene: Scene, container: Nullable<AssetContainer>, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<ISceneLoaderAsyncResult>;
         /** @hidden */
         loadAsync(scene: Scene, data: IGLTFLoaderData, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<void>;
         private _loadAsync;
@@ -4539,7 +4674,7 @@ declare module BABYLON.GLTF2 {
         /** @hidden */
         _loadTextureAsync(context: string, texture: ITexture, assign?: (babylonTexture: BaseTexture) => void): Promise<BaseTexture>;
         /** @hidden */
-        _createTextureAsync(context: string, sampler: ISampler, image: IImage, assign?: (babylonTexture: BaseTexture) => void, textureLoaderOptions?: any): Promise<BaseTexture>;
+        _createTextureAsync(context: string, sampler: ISampler, image: IImage, assign?: (babylonTexture: BaseTexture) => void, textureLoaderOptions?: any, useSRGBBuffer?: boolean): Promise<BaseTexture>;
         private _loadSampler;
         /**
          * Loads a glTF image.
@@ -4703,6 +4838,7 @@ declare module BABYLON.GLTF2.Loader.Extensions {
      * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Vendor/EXT_meshopt_compression)
      *
      * This extension uses a WebAssembly decoder module from https://github.com/zeux/meshoptimizer/tree/master/js
+     * @since 5.0.0
      */
     export class EXT_meshopt_compression implements IGLTFLoaderExtension {
         /**
@@ -4713,12 +4849,7 @@ declare module BABYLON.GLTF2.Loader.Extensions {
          * Defines whether this extension is enabled.
          */
         enabled: boolean;
-        /**
-         * Path to decoder module; defaults to https://preview.babylonjs.com/meshopt_decoder.js
-         */
-        static DecoderPath: string;
         private _loader;
-        private _decoderPromise?;
         /** @hidden */
         constructor(loader: GLTFLoader);
         /** @hidden */
@@ -4882,7 +5013,6 @@ declare module BABYLON.GLTF2.Loader.Extensions {
     /**
      * [Specification](https://github.com/KhronosGroup/glTF/blob/master/extensions/2.0/Khronos/KHR_materials_sheen/README.md)
      * [Playground Sample](https://www.babylonjs-playground.com/frame.html#BNIZX6#4)
-     * !!! Experimental Extension Subject to Changes !!!
      */
     export class KHR_materials_sheen implements IGLTFLoaderExtension {
         /**
@@ -4909,8 +5039,7 @@ declare module BABYLON.GLTF2.Loader.Extensions {
 }
 declare module BABYLON.GLTF2.Loader.Extensions {
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1719)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_specular)
      */
     export class KHR_materials_specular implements IGLTFLoaderExtension {
         /**
@@ -4937,8 +5066,7 @@ declare module BABYLON.GLTF2.Loader.Extensions {
 }
 declare module BABYLON.GLTF2.Loader.Extensions {
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1718)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_ior)
      */
     export class KHR_materials_ior implements IGLTFLoaderExtension {
         /**
@@ -5096,8 +5224,8 @@ declare module BABYLON.GLTF2.Loader.Extensions {
 }
 declare module BABYLON.GLTF2.Loader.Extensions {
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1726)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_volume)
+     * @since 5.0.0
      */
     export class KHR_materials_volume implements IGLTFLoaderExtension {
         /**
@@ -5143,8 +5271,7 @@ declare module BABYLON.GLTF2.Loader.Extensions {
 }
 declare module BABYLON.GLTF2.Loader.Extensions {
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1751)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_texture_basisu)
      */
     export class KHR_texture_basisu implements IGLTFLoaderExtension {
         /** The name of this extension. */
@@ -5184,8 +5311,8 @@ declare module BABYLON.GLTF2.Loader.Extensions {
 }
 declare module BABYLON.GLTF2.Loader.Extensions {
     /**
-     * [Proposed Specification](https://github.com/KhronosGroup/glTF/pull/1893)
-     * !!! Experimental Extension Subject to Changes !!!
+     * [Specification](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_xmp_json_ld)
+     * @since 5.0.0
      */
     export class KHR_xmp_json_ld implements IGLTFLoaderExtension {
         /**
@@ -5384,9 +5511,9 @@ declare module BABYLON {
          * @param scene defines the scene the material will be created in
          * @param data defines the mtl data to parse
          * @param rootUrl defines the rooturl to use in order to load relative dependencies
-         * @param forAssetContainer defines if the material should be registered in the scene
+         * @param assetContainer defines the asset container to store the material in (can be null)
          */
-        parseMTL(scene: Scene, data: string | ArrayBuffer, rootUrl: string, forAssetContainer: boolean): void;
+        parseMTL(scene: Scene, data: string | ArrayBuffer, rootUrl: string, assetContainer: Nullable<AssetContainer>): void;
         /**
          * Gets the texture for the material.
          *
@@ -5404,11 +5531,11 @@ declare module BABYLON {
     /**
      * Options for loading OBJ/MTL files
      */
-    type MeshLoadOptions = {
+    export type OBJLoadingOptions = {
         /**
          * Defines if UVs are optimized by default during load.
          */
-        OptimizeWithUV: boolean;
+        optimizeWithUV: boolean;
         /**
          * Defines custom scaling of UV coordinates of loaded meshes.
          */
@@ -5416,33 +5543,185 @@ declare module BABYLON {
         /**
          * Invert model on y-axis (does a model scaling inversion)
          */
-        InvertY: boolean;
+        invertY: boolean;
         /**
          * Invert Y-Axis of referenced textures on load
          */
-        InvertTextureY: boolean;
+        invertTextureY: boolean;
         /**
          * Include in meshes the vertex colors available in some OBJ files.  This is not part of OBJ standard.
          */
-        ImportVertexColors: boolean;
+        importVertexColors: boolean;
         /**
          * Compute the normals for the model, even if normals are present in the file.
          */
-        ComputeNormals: boolean;
+        computeNormals: boolean;
         /**
          * Optimize the normals for the model. Lighting can be uneven if you use OptimizeWithUV = true because new vertices can be created for the same location if they pertain to different faces.
          * Using OptimizehNormals = true will help smoothing the lighting by averaging the normals of those vertices.
          */
-        OptimizeNormals: boolean;
+        optimizeNormals: boolean;
         /**
          * Skip loading the materials even if defined in the OBJ file (materials are ignored).
          */
-        SkipMaterials: boolean;
+        skipMaterials: boolean;
         /**
          * When a material fails to load OBJ loader will silently fail and onSuccess() callback will be triggered.
          */
-        MaterialLoadingFailsSilently: boolean;
+        materialLoadingFailsSilently: boolean;
     };
+}
+declare module BABYLON {
+    /**
+     * Class used to load mesh data from OBJ content
+     */
+    export class SolidParser {
+        /** Object descriptor */
+        static ObjectDescriptor: RegExp;
+        /** Group descriptor */
+        static GroupDescriptor: RegExp;
+        /** Material lib descriptor */
+        static MtlLibGroupDescriptor: RegExp;
+        /** Use a material descriptor */
+        static UseMtlDescriptor: RegExp;
+        /** Smooth descriptor */
+        static SmoothDescriptor: RegExp;
+        /** Pattern used to detect a vertex */
+        static VertexPattern: RegExp;
+        /** Pattern used to detect a normal */
+        static NormalPattern: RegExp;
+        /** Pattern used to detect a UV set */
+        static UVPattern: RegExp;
+        /** Pattern used to detect a first kind of face (f vertex vertex vertex) */
+        static FacePattern1: RegExp;
+        /** Pattern used to detect a second kind of face (f vertex/uvs vertex/uvs vertex/uvs) */
+        static FacePattern2: RegExp;
+        /** Pattern used to detect a third kind of face (f vertex/uvs/normal vertex/uvs/normal vertex/uvs/normal) */
+        static FacePattern3: RegExp;
+        /** Pattern used to detect a fourth kind of face (f vertex//normal vertex//normal vertex//normal)*/
+        static FacePattern4: RegExp;
+        /** Pattern used to detect a fifth kind of face (f -vertex/-uvs/-normal -vertex/-uvs/-normal -vertex/-uvs/-normal) */
+        static FacePattern5: RegExp;
+        private _loadingOptions;
+        private _positions;
+        private _normals;
+        private _uvs;
+        private _colors;
+        private _meshesFromObj;
+        private _handledMesh;
+        private _indicesForBabylon;
+        private _wrappedPositionForBabylon;
+        private _wrappedUvsForBabylon;
+        private _wrappedColorsForBabylon;
+        private _wrappedNormalsForBabylon;
+        private _tuplePosNorm;
+        private _curPositionInIndices;
+        private _hasMeshes;
+        private _unwrappedPositionsForBabylon;
+        private _unwrappedColorsForBabylon;
+        private _unwrappedNormalsForBabylon;
+        private _unwrappedUVForBabylon;
+        private _triangles;
+        private _materialNameFromObj;
+        private _objMeshName;
+        private _increment;
+        private _isFirstMaterial;
+        private _grayColor;
+        private _materialToUse;
+        private _babylonMeshesArray;
+        /**
+         * Creates a new SolidParser
+         * @param materialToUse defines the array to fill with the list of materials to use (it will be filled by the parse function)
+         * @param babylonMeshesArray defines the array to fill with the list of loaded meshes (it will be filled by the parse function)
+         * @param loadingOptions defines the loading options to use
+         */
+        constructor(materialToUse: string[], babylonMeshesArray: Array<Mesh>, loadingOptions: OBJLoadingOptions);
+        /**
+         * Search for obj in the given array.
+         * This function is called to check if a couple of data already exists in an array.
+         *
+         * If found, returns the index of the founded tuple index. Returns -1 if not found
+         * @param arr Array<{ normals: Array<number>, idx: Array<number> }>
+         * @param obj Array<number>
+         * @returns {boolean}
+         */
+        private _isInArray;
+        private _isInArrayUV;
+        /**
+         * This function set the data for each triangle.
+         * Data are position, normals and uvs
+         * If a tuple of (position, normal) is not set, add the data into the corresponding array
+         * If the tuple already exist, add only their indice
+         *
+         * @param indicePositionFromObj Integer The index in positions array
+         * @param indiceUvsFromObj Integer The index in uvs array
+         * @param indiceNormalFromObj Integer The index in normals array
+         * @param positionVectorFromOBJ Vector3 The value of position at index objIndice
+         * @param textureVectorFromOBJ Vector3 The value of uvs
+         * @param normalsVectorFromOBJ Vector3 The value of normals at index objNormale
+         */
+        private _setData;
+        /**
+         * Transform Vector() and BABYLON.Color() objects into numbers in an array
+         */
+        private _unwrapData;
+        /**
+         * Create triangles from polygons
+         * It is important to notice that a triangle is a polygon
+         * We get 5 patterns of face defined in OBJ File :
+         * facePattern1 = ["1","2","3","4","5","6"]
+         * facePattern2 = ["1/1","2/2","3/3","4/4","5/5","6/6"]
+         * facePattern3 = ["1/1/1","2/2/2","3/3/3","4/4/4","5/5/5","6/6/6"]
+         * facePattern4 = ["1//1","2//2","3//3","4//4","5//5","6//6"]
+         * facePattern5 = ["-1/-1/-1","-2/-2/-2","-3/-3/-3","-4/-4/-4","-5/-5/-5","-6/-6/-6"]
+         * Each pattern is divided by the same method
+         * @param face Array[String] The indices of elements
+         * @param v Integer The variable to increment
+         */
+        private _getTriangles;
+        /**
+         * Create triangles and push the data for each polygon for the pattern 1
+         * In this pattern we get vertice positions
+         * @param face
+         * @param v
+         */
+        private _setDataForCurrentFaceWithPattern1;
+        /**
+         * Create triangles and push the data for each polygon for the pattern 2
+         * In this pattern we get vertice positions and uvsu
+         * @param face
+         * @param v
+         */
+        private _setDataForCurrentFaceWithPattern2;
+        /**
+         * Create triangles and push the data for each polygon for the pattern 3
+         * In this pattern we get vertice positions, uvs and normals
+         * @param face
+         * @param v
+         */
+        private _setDataForCurrentFaceWithPattern3;
+        /**
+         * Create triangles and push the data for each polygon for the pattern 4
+         * In this pattern we get vertice positions and normals
+         * @param face
+         * @param v
+         */
+        private _setDataForCurrentFaceWithPattern4;
+        private _setDataForCurrentFaceWithPattern5;
+        private _addPreviousObjMesh;
+        private _optimizeNormals;
+        /**
+         * Function used to parse an OBJ string
+         * @param meshesNames defines the list of meshes to load (all if not defined)
+         * @param data defines the OBJ string
+         * @param scene defines the hosting scene
+         * @param assetContainer defines the asset container to load data in
+         * @param onFileToLoadFound defines a callback that will be called if a MTL file is found
+         */
+        parse(meshesNames: any, data: string, scene: Scene, assetContainer: Nullable<AssetContainer>, onFileToLoadFound: (fileToLoad: string) => void): void;
+    }
+}
+declare module BABYLON {
     /**
      * OBJ file type loader.
      * This is a babylon scene loader plugin.
@@ -5496,41 +5775,15 @@ declare module BABYLON {
          * Defines the extension the plugin is able to load.
          */
         extensions: string;
-        /** @hidden */
-        obj: RegExp;
-        /** @hidden */
-        group: RegExp;
-        /** @hidden */
-        mtllib: RegExp;
-        /** @hidden */
-        usemtl: RegExp;
-        /** @hidden */
-        smooth: RegExp;
-        /** @hidden */
-        vertexPattern: RegExp;
-        /** @hidden */
-        normalPattern: RegExp;
-        /** @hidden */
-        uvPattern: RegExp;
-        /** @hidden */
-        facePattern1: RegExp;
-        /** @hidden */
-        facePattern2: RegExp;
-        /** @hidden */
-        facePattern3: RegExp;
-        /** @hidden */
-        facePattern4: RegExp;
-        /** @hidden */
-        facePattern5: RegExp;
-        private _forAssetContainer;
-        private _meshLoadOptions;
+        private _assetContainer;
+        private _loadingOptions;
         /**
          * Creates loader for .OBJ files
          *
-         * @param meshLoadOptions options for loading and parsing OBJ/MTL files.
+         * @param loadingOptions options for loading and parsing OBJ/MTL files.
          */
-        constructor(meshLoadOptions?: MeshLoadOptions);
-        private static get currentMeshLoadOptions();
+        constructor(loadingOptions?: OBJLoadingOptions);
+        private static get DefaultLoadingOptions();
         /**
          * Calls synchronously the MTL file attached to this obj.
          * Load function or importMesh function don't enable to load 2 files in the same time asynchronously.
@@ -5538,9 +5791,8 @@ declare module BABYLON {
          * In consequence it is impossible to get material information in your HTML file
          *
          * @param url The URL of the MTL file
-         * @param rootUrl
+         * @param rootUrl defines where to load data from
          * @param onSuccess Callback function to be called when the MTL file is loaded
-         * @private
          */
         private _loadMTL;
         /**
@@ -5586,18 +5838,15 @@ declare module BABYLON {
          * @returns The loaded asset container
          */
         loadAssetContainerAsync(scene: Scene, data: string, rootUrl: string, onProgress?: (event: ISceneLoaderProgressEvent) => void, fileName?: string): Promise<AssetContainer>;
-        private _optimizeNormals;
         /**
          * Read the OBJ file and create an Array of meshes.
          * Each mesh contains all information given by the OBJ and the MTL file.
          * i.e. vertices positions and indices, optional normals values, optional UV values, optional material
-         *
-         * @param meshesNames
-         * @param scene Scene The scene where are displayed the data
-         * @param data String The content of the obj file
-         * @param rootUrl String The path to the folder
-         * @returns Array<AbstractMesh>
-         * @private
+         * @param meshesNames defines a string or array of strings of the mesh names that should be loaded from the file
+         * @param scene defines the scene where are displayed the data
+         * @param data defines the content of the obj file
+         * @param rootUrl defines the path to the folder
+         * @returns the list of loaded meshes
          */
         private _parseSolid;
     }
@@ -5626,6 +5875,12 @@ declare module BABYLON {
          * we'll convert to string if it looks like it's an ASCII .stl
          */
         extensions: ISceneLoaderPluginExtensions;
+        /**
+         * Defines if Y and Z axes are swapped or not when loading an STL file.
+         * The default is false to maintain backward compatibility. When set to
+         * true, coordinates from the STL file are used without change.
+         */
+        static DO_NOT_ALTER_FILE_COORDINATES: boolean;
         /**
          * Import meshes into a scene.
          * @param meshesNames An array of mesh names, a single mesh name, or empty string for all meshes that filter what meshes are imported

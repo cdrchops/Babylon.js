@@ -14,6 +14,7 @@ import { TransformNode } from '../Meshes/transformNode';
 import { StandardMaterial } from '../Materials/standardMaterial';
 import { PointerEventTypes, PointerInfo } from '../Events/pointerEvents';
 import { LinesMesh } from '../Meshes/linesMesh';
+import { PointerDragBehavior } from "../Behaviors/Meshes/pointerDragBehavior";
 
 /**
  * Cache built by each axis. Used for managing state between all elements of gizmo for enhanced UI
@@ -31,6 +32,8 @@ export interface GizmoAxisCache {
     disableMaterial: StandardMaterial;
     /** Used to indicate Active state of the Gizmo */
     active: boolean;
+    /** DragBehavior */
+    dragBehavior: PointerDragBehavior;
 }
 /**
  * Renders gizmos on top of an existing scene which provide controls for position, rotation, etc.
@@ -167,10 +170,9 @@ export class Gizmo implements IDisposable {
     }
 
     /**
-     * poseture that the gizmo will be display
-     * * When set null, default value will be used (Quaternion(0, 0, 0, 1))
+     * posture that the gizmo will be display
+     * When set null, default value will be used (Quaternion(0, 0, 0, 1))
      */
-
     public get customRotationQuaternion(): Nullable<Quaternion> {
         return this._customRotationQuaternion;
     }
@@ -233,13 +235,12 @@ export class Gizmo implements IDisposable {
      * computes the rotation/scaling/position of the transform once the Node world matrix has changed.
      * @param value Node, TransformNode or mesh
      */
-    protected _matrixChanged()
-    {
+    protected _matrixChanged() {
         if (!this._attachedNode) {
             return;
         }
 
-        if  ((<Camera>this._attachedNode)._isCamera) {
+        if ((<Camera>this._attachedNode)._isCamera) {
             var camera = this._attachedNode as Camera;
             var worldMatrix;
             var worldMatrixUC;
@@ -263,11 +264,11 @@ export class Gizmo implements IDisposable {
             worldMatrixUC.decompose(this._tempVector2, this._tempQuaternion, this._tempVector);
 
             var inheritsTargetCamera = this._attachedNode.getClassName() === "FreeCamera"
-            || this._attachedNode.getClassName() === "FlyCamera"
-            || this._attachedNode.getClassName() === "ArcFollowCamera"
-            || this._attachedNode.getClassName() === "TargetCamera"
-            || this._attachedNode.getClassName() === "TouchCamera"
-            || this._attachedNode.getClassName() === "UniversalCamera";
+                || this._attachedNode.getClassName() === "FlyCamera"
+                || this._attachedNode.getClassName() === "ArcFollowCamera"
+                || this._attachedNode.getClassName() === "TargetCamera"
+                || this._attachedNode.getClassName() === "TouchCamera"
+                || this._attachedNode.getClassName() === "UniversalCamera";
 
             if (inheritsTargetCamera) {
                 var targetCamera = this._attachedNode as TargetCamera;
@@ -319,6 +320,21 @@ export class Gizmo implements IDisposable {
     }
 
     /**
+     * refresh gizmo mesh material
+     * @param material material to apply
+     */
+    protected _setGizmoMeshMaterial(gizmoMeshes: Mesh[], material: StandardMaterial) {
+        if (gizmoMeshes) {
+            gizmoMeshes.forEach((m: Mesh) => {
+                m.material = material;
+                if ((<LinesMesh>m).color) {
+                    (<LinesMesh>m).color = material.diffuseColor;
+                }
+            });
+        }
+    }
+
+    /**
      * Subscribes to pointer up, down, and hover events. Used for responsive gizmos.
      * @param gizmoLayer The utility layer the gizmo will be added to
      * @param gizmoAxisCache Gizmo axis definition used for reactive gizmo UI
@@ -336,7 +352,7 @@ export class Gizmo implements IDisposable {
                     gizmoAxisCache.forEach((cache) => {
                         if (cache.colliderMeshes && cache.gizmoMeshes) {
                             const isHovered = (cache.colliderMeshes?.indexOf((pointerInfo?.pickInfo?.pickedMesh as Mesh)) != -1);
-                            const material = isHovered || cache.active ? cache.hoverMaterial : cache.material;
+                            const material = cache.dragBehavior.enabled ? (isHovered || cache.active ? cache.hoverMaterial : cache.material) : cache.disableMaterial;
                             cache.gizmoMeshes.forEach((m: Mesh) => {
                                 m.material = material;
                                 if ((m as LinesMesh).color) {
@@ -356,7 +372,7 @@ export class Gizmo implements IDisposable {
                         statusMap!.active = true;
                         gizmoAxisCache.forEach((cache) => {
                             const isHovered = (cache.colliderMeshes?.indexOf((pointerInfo?.pickInfo?.pickedMesh as Mesh)) != -1);
-                            const material = isHovered || cache.active ? cache.hoverMaterial : cache.disableMaterial;
+                            const material = ((isHovered || cache.active) && cache.dragBehavior.enabled) ? cache.hoverMaterial : cache.disableMaterial;
                             cache.gizmoMeshes.forEach((m: Mesh) => {
                                 m.material = material;
                                 if ((m as LinesMesh).color) {
@@ -373,7 +389,7 @@ export class Gizmo implements IDisposable {
                         cache.active = false;
                         dragging = false;
                         cache.gizmoMeshes.forEach((m: Mesh) => {
-                            m.material = cache.material;
+                            m.material = cache.dragBehavior.enabled ? cache.material : cache.disableMaterial;
                             if ((m as LinesMesh).color) {
                                 (m as LinesMesh).color = cache.material.diffuseColor;
                             }

@@ -2,12 +2,12 @@ import { Nullable } from '../types';
 import { InternalTexture } from './Textures/internalTexture';
 import { RenderTargetTexture } from './Textures/renderTargetTexture';
 import { ThinEngine } from '../Engines/thinEngine';
-import { VertexBuffer } from '../Meshes/buffer';
+import { VertexBuffer } from '../Buffers/buffer';
 import { Viewport } from '../Maths/math.viewport';
 import { Constants } from '../Engines/constants';
-import { Observable } from '../Misc/observable';
+import { Observable, Observer } from '../Misc/observable';
 import { Effect } from './effect';
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { DrawWrapper } from "./drawWrapper";
 
 // Prevents ES6 Crash if not imported.
@@ -38,10 +38,11 @@ export class EffectRenderer {
         indices: [0, 1, 2, 0, 2, 3],
     };
 
-    private _vertexBuffers: {[key: string]: VertexBuffer};
+    private _vertexBuffers: { [key: string]: VertexBuffer };
     private _indexBuffer: DataBuffer;
 
     private _fullscreenViewport = new Viewport(0, 0, 1, 1);
+    private _onContextRestoredObserver: Nullable<Observer<ThinEngine>>;
 
     /**
      * Creates an effect renderer
@@ -58,6 +59,15 @@ export class EffectRenderer {
             [VertexBuffer.PositionKind]: new VertexBuffer(engine, options.positions!, VertexBuffer.PositionKind, false, false, 2),
         };
         this._indexBuffer = engine.createIndexBuffer(options.indices!);
+
+        this._onContextRestoredObserver = engine.onContextRestoredObservable.add(() => {
+            this._indexBuffer = engine.createIndexBuffer(options.indices!);
+
+            for (const key in this._vertexBuffers) {
+                const vertexBuffer = <VertexBuffer>this._vertexBuffers[key];
+                vertexBuffer._rebuild();
+            }
+        });
     }
 
     /**
@@ -105,7 +115,7 @@ export class EffectRenderer {
         this.engine.drawElementsType(Constants.MATERIAL_TriangleFillMode, 0, 6);
     }
 
-    private isRenderTargetTexture(texture: InternalTexture | RenderTargetTexture): texture is RenderTargetTexture  {
+    private isRenderTargetTexture(texture: InternalTexture | RenderTargetTexture): texture is RenderTargetTexture {
         return (texture as RenderTargetTexture).renderList !== undefined;
     }
 
@@ -152,6 +162,11 @@ export class EffectRenderer {
 
         if (this._indexBuffer) {
             this.engine._releaseBuffer(this._indexBuffer);
+        }
+
+        if (this._onContextRestoredObserver) {
+            this.engine.onContextRestoredObservable.remove(this._onContextRestoredObserver);
+            this._onContextRestoredObserver = null;
         }
     }
 }
@@ -224,6 +239,8 @@ export class EffectWrapper {
     /** @hidden */
     public _drawWrapper: DrawWrapper;
 
+    private _onContextRestoredObserver: Nullable<Observer<ThinEngine>>;
+
     /**
      * Creates an effect to be renderer
      * @param creationOptions options to create the effect
@@ -285,6 +302,12 @@ export class EffectWrapper {
                 undefined,
                 creationOptions.onCompiled,
             );
+
+            this._onContextRestoredObserver = creationOptions.engine.onContextRestoredObservable.add(() => {
+                this.effect._pipelineContext = null; // because _prepareEffect will try to dispose this pipeline before recreating it and that would lead to webgl errors
+                this.effect._wasPreviouslyReady = false;
+                this.effect._prepareEffect();
+            });
         }
     }
 
@@ -292,6 +315,10 @@ export class EffectWrapper {
     * Disposes of the effect wrapper
     */
     public dispose() {
+        if (this._onContextRestoredObserver) {
+            this.effect.getEngine().onContextRestoredObservable.remove(this._onContextRestoredObserver);
+            this._onContextRestoredObserver = null;
+        }
         this.effect.dispose();
     }
 }

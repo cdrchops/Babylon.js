@@ -4,7 +4,7 @@ import { Vector3, Vector2 } from "../Maths/math.vector";
 import { Color4 } from "../Maths/math.color";
 import { Engine } from "../Engines/engine";
 import { IGetSetVerticesData, VertexData } from "../Meshes/mesh.vertexData";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { SubMesh } from "../Meshes/subMesh";
 import { AbstractMesh } from "../Meshes/abstractMesh";
 import { Effect } from "../Materials/effect";
@@ -13,8 +13,9 @@ import { BoundingInfo } from "../Culling/boundingInfo";
 import { Constants } from "../Engines/constants";
 import { Tools } from "../Misc/tools";
 import { Tags } from "../Misc/tags";
-import { DataBuffer } from "./dataBuffer";
+import { DataBuffer } from "../Buffers/dataBuffer";
 import { extractMinAndMax } from "../Maths/math.functions";
+import { AbstractScene } from "../abstractScene";
 
 declare type Mesh = import("../Meshes/mesh").Mesh;
 
@@ -73,6 +74,9 @@ export class Geometry implements IGetSetVerticesData {
     /** @hidden */
     public _positions: Nullable<Vector3[]>;
     private _positionsCache: Vector3[] = [];
+
+    /** @hidden */
+    public _parentContainer: Nullable<AbstractScene> = null;
 
     /**
      *  Gets or sets the Bias Vector to apply on the bounding elements (box/sphere), the max extend is computed as v += v * bias.x + bias.y, the min is computed as v -= v * bias.x + bias.y
@@ -263,10 +267,11 @@ export class Geometry implements IGetSetVerticesData {
      * Affect a vertex buffer to the geometry. the vertexBuffer.getKind() function is used to determine where to store the data
      * @param buffer defines the vertex buffer to use
      * @param totalVertices defines the total number of vertices for position kind (could be null)
+     * @param disposeExistingBuffer disposes the existing buffer, if any (default: true)
      */
-    public setVerticesBuffer(buffer: VertexBuffer, totalVertices: Nullable<number> = null): void {
+    public setVerticesBuffer(buffer: VertexBuffer, totalVertices: Nullable<number> = null, disposeExistingBuffer = true): void {
         var kind = buffer.getKind();
-        if (this._vertexBuffers[kind]) {
+        if (this._vertexBuffers[kind] && disposeExistingBuffer) {
             this._vertexBuffers[kind].dispose();
         }
 
@@ -366,7 +371,7 @@ export class Geometry implements IGetSetVerticesData {
     }
 
     /** @hidden */
-    public _bind(effect: Nullable<Effect>, indexToBind?: Nullable<DataBuffer>, overrideVertexBuffers?: { [kind: string]: Nullable<VertexBuffer>}, overrideVertexArrayObjects?: {[key: string]: WebGLVertexArrayObject}): void {
+    public _bind(effect: Nullable<Effect>, indexToBind?: Nullable<DataBuffer>, overrideVertexBuffers?: { [kind: string]: Nullable<VertexBuffer> }, overrideVertexArrayObjects?: { [key: string]: WebGLVertexArrayObject }): void {
         if (!effect) {
             return;
         }
@@ -579,12 +584,7 @@ export class Geometry implements IGetSetVerticesData {
         if (!forceCopy && (!copyWhenShared || this._meshes.length === 1)) {
             return orig;
         } else {
-            var len = orig.length;
-            var copy = [];
-            for (var i = 0; i < len; i++) {
-                copy.push(orig[i]);
-            }
-            return copy;
+            return Tools.Slice(orig);
         }
     }
 
@@ -659,6 +659,7 @@ export class Geometry implements IGetSetVerticesData {
 
         // must be done before setting vertexBuffers because of mesh._createGlobalSubMesh()
         mesh._geometry = this;
+        mesh._internalAbstractMeshDataInfo._positions = null;
 
         this._scene.pushGeometry(this);
 
@@ -923,6 +924,14 @@ export class Geometry implements IGetSetVerticesData {
         this._boundingInfo = null;
 
         this._scene.removeGeometry(this);
+        if (this._parentContainer) {
+            const index = this._parentContainer.geometries.indexOf(this);
+            if (index > -1) {
+                this._parentContainer.geometries.splice(index, 1);
+            }
+            this._parentContainer = null;
+        }
+
         this._isDisposed = true;
     }
 
@@ -1142,7 +1151,7 @@ export class Geometry implements IGetSetVerticesData {
         // Geometry
         var geometryId = parsedGeometry.geometryId;
         if (geometryId) {
-            var geometry = scene.getGeometryByID(geometryId);
+            var geometry = scene.getGeometryById(geometryId);
             if (geometry) {
                 geometry.applyToMesh(mesh);
             }
@@ -1367,7 +1376,7 @@ export class Geometry implements IGetSetVerticesData {
         }
         let noInfluenceBoneIndex = 0.0;
         if (parsedGeometry.skeletonId > -1) {
-            let skeleton = mesh.getScene().getLastSkeletonByID(parsedGeometry.skeletonId);
+            let skeleton = mesh.getScene().getLastSkeletonById(parsedGeometry.skeletonId);
 
             if (!skeleton) {
                 return;
@@ -1440,7 +1449,7 @@ export class Geometry implements IGetSetVerticesData {
      * @returns the new geometry object
      */
     public static Parse(parsedVertexData: any, scene: Scene, rootUrl: string): Nullable<Geometry> {
-        if (scene.getGeometryByID(parsedVertexData.id)) {
+        if (scene.getGeometryById(parsedVertexData.id)) {
             return null; // null since geometry could be something else than a box...
         }
 

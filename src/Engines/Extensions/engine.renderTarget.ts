@@ -35,7 +35,7 @@ declare module "../../Engines/thinEngine" {
     }
 }
 
-ThinEngine.prototype.createRenderTargetTexture = function(this: ThinEngine, size: RenderTargetTextureSize, options: boolean | RenderTargetCreationOptions): InternalTexture {
+ThinEngine.prototype.createRenderTargetTexture = function (this: ThinEngine, size: RenderTargetTextureSize, options: boolean | RenderTargetCreationOptions): InternalTexture {
     const fullOptions = new RenderTargetCreationOptions();
     if (options !== undefined && typeof options === "object") {
         fullOptions.generateMipMaps = options.generateMipMaps;
@@ -134,7 +134,7 @@ ThinEngine.prototype.createRenderTargetTexture = function(this: ThinEngine, size
     return texture;
 };
 
-ThinEngine.prototype.createDepthStencilTexture = function(size: RenderTargetTextureSize, options: DepthTextureCreationOptions): InternalTexture {
+ThinEngine.prototype.createDepthStencilTexture = function (size: RenderTargetTextureSize, options: DepthTextureCreationOptions): InternalTexture {
     if (options.isCube) {
         let width = (<{ width: number, height: number }>size).width || <number>size;
         return this._createDepthStencilCubeTexture(width, options);
@@ -144,7 +144,7 @@ ThinEngine.prototype.createDepthStencilTexture = function(size: RenderTargetText
     }
 };
 
-ThinEngine.prototype._createDepthStencilTexture = function(size: RenderTargetTextureSize, options: DepthTextureCreationOptions): InternalTexture {
+ThinEngine.prototype._createDepthStencilTexture = function (size: RenderTargetTextureSize, options: DepthTextureCreationOptions): InternalTexture {
     const gl = this._gl;
     const layers = (<{ width: number, height: number, layers?: number }>size).layers || 0;
     const target = layers !== 0 ? gl.TEXTURE_2D_ARRAY : gl.TEXTURE_2D;
@@ -163,7 +163,7 @@ ThinEngine.prototype._createDepthStencilTexture = function(size: RenderTargetTex
 
     this._bindTextureDirectly(target, internalTexture, true);
 
-    this._setupDepthStencilTexture(internalTexture, size, internalOptions.generateStencil, internalOptions.bilinearFiltering, internalOptions.comparisonFunction);
+    this._setupDepthStencilTexture(internalTexture, size, internalOptions.generateStencil, internalOptions.comparisonFunction === 0 ? false : internalOptions.bilinearFiltering, internalOptions.comparisonFunction);
 
     const type = internalOptions.generateStencil ? gl.UNSIGNED_INT_24_8 : gl.UNSIGNED_INT;
     const internalFormat = internalOptions.generateStencil ? gl.DEPTH_STENCIL : gl.DEPTH_COMPONENT;
@@ -180,6 +180,8 @@ ThinEngine.prototype._createDepthStencilTexture = function(size: RenderTargetTex
     }
 
     this._bindTextureDirectly(target, null);
+
+    this._internalTexturesCache.push(internalTexture);
 
     return internalTexture;
 };

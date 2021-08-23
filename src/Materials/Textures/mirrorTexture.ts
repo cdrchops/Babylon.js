@@ -158,11 +158,11 @@ export class MirrorTexture extends RenderTargetTexture {
         const engine = this.getScene()!.getEngine();
 
         this.onBeforeBindObservable.add(() => {
-            engine._debugPushGroup(`mirror generation for ${name}`, 1);
+            engine._debugPushGroup?.(`mirror generation for ${name}`, 1);
         });
 
         this.onAfterUnbindObservable.add(() => {
-            engine._debugPopGroup(1);
+            engine._debugPopGroup?.(1);
         });
 
         let saveClipPlane: Nullable<Plane>;
@@ -183,7 +183,7 @@ export class MirrorTexture extends RenderTargetTexture {
 
         this.onAfterRenderObservable.add(() => {
             scene.updateTransformMatrix();
-            scene.getEngine().cullBackFaces = true;
+            scene.getEngine().cullBackFaces = null;
             scene._mirroredCameraPosition = null;
 
             scene.clipPlane = saveClipPlane;
@@ -196,7 +196,7 @@ export class MirrorTexture extends RenderTargetTexture {
         if (this._blurKernelX && this._blurKernelY) {
             var engine = (<Scene>this.getScene()).getEngine();
 
-            var textureType = engine.getCaps().textureFloatRender ? Constants.TEXTURETYPE_FLOAT : Constants.TEXTURETYPE_HALF_FLOAT;
+            var textureType = engine.getCaps().textureFloatRender && engine.getCaps().textureFloatLinearFiltering ? Constants.TEXTURETYPE_FLOAT : Constants.TEXTURETYPE_HALF_FLOAT;
 
             this._blurX = new BlurPostProcess("horizontal blur", new Vector2(1.0, 0), this._blurKernelX, this._blurRatio, null, Texture.BILINEAR_SAMPLINGMODE, engine, false, textureType);
             this._blurX.autoClear = false;

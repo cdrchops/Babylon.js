@@ -1,7 +1,7 @@
 import { Logger } from "../Misc/logger";
 import { Scene } from "../scene";
 import { Vector3, Vector2 } from "../Maths/math.vector";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { Mesh } from "../Meshes/mesh";
 import { VertexData } from "../Meshes/mesh.vertexData";
 import { Engine } from "../Engines/engine";
@@ -329,7 +329,7 @@ export class PolygonMeshBuilder {
             const p2: IndexedVector2 = points.elements[(i + 2) % points.elements.length];
 
             let vc = new Vector3(-(p1.y - p.y), 0, p1.x - p.x);
-            let vp = new Vector3(-(p.y - p0.y), 0,  p.x - p0.x);
+            let vp = new Vector3(-(p.y - p0.y), 0, p.x - p0.x);
             let vn = new Vector3(-(p2.y - p1.y), 0, p2.x - p1.x);
 
             if (!flip) {

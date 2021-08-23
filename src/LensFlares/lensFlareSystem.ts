@@ -5,7 +5,7 @@ import { Matrix, Vector3 } from "../Maths/math.vector";
 import { Scalar } from "../Maths/math.scalar";
 import { EngineStore } from "../Engines/engineStore";
 import { AbstractMesh } from "../Meshes/abstractMesh";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { Ray } from "../Culling/ray";
 import { Material } from "../Materials/material";
 import { LensFlare } from "./lensFlare";
@@ -14,7 +14,7 @@ import { Constants } from "../Engines/constants";
 import "../Shaders/lensFlare.fragment";
 import "../Shaders/lensFlare.vertex";
 import { _DevTools } from '../Misc/devTools';
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { Color3 } from '../Maths/math.color';
 import { Viewport } from '../Maths/math.viewport';
 import { DrawWrapper } from "../Materials/drawWrapper";
@@ -110,6 +110,16 @@ export class LensFlareSystem {
         this._vertexBuffers[VertexBuffer.PositionKind] = new VertexBuffer(engine, vertices, VertexBuffer.PositionKind, false, false, 2);
 
         // Indices
+        this._createIndexBuffer();
+
+        // Effects
+        this._drawWrapper.effect = engine.createEffect("lensFlare",
+            [VertexBuffer.PositionKind],
+            ["color", "viewportMatrix"],
+            ["textureSampler"], "");
+    }
+
+    private _createIndexBuffer(): void {
         var indices = [];
         indices.push(0);
         indices.push(1);
@@ -119,13 +129,7 @@ export class LensFlareSystem {
         indices.push(2);
         indices.push(3);
 
-        this._indexBuffer = engine.createIndexBuffer(indices);
-
-        // Effects
-        this._drawWrapper.effect = engine.createEffect("lensFlare",
-            [VertexBuffer.PositionKind],
-            ["color", "viewportMatrix"],
-            ["textureSampler"], "");
+        this._indexBuffer = this._scene.getEngine().createIndexBuffer(indices);
     }
 
     /**
@@ -354,6 +358,17 @@ export class LensFlareSystem {
     }
 
     /**
+     * Rebuilds the lens flare system
+     */
+    public rebuild(): void {
+        this._createIndexBuffer();
+
+        for (const key in this._vertexBuffers) {
+            this._vertexBuffers[key]?._rebuild();
+        }
+    }
+
+    /**
      * Dispose and release the lens flare with its associated resources.
      */
     public dispose(): void {
@@ -385,7 +400,7 @@ export class LensFlareSystem {
      * @returns the parsed system
      */
     public static Parse(parsedLensFlareSystem: any, scene: Scene, rootUrl: string): LensFlareSystem {
-        var emitter = scene.getLastEntryByID(parsedLensFlareSystem.emitterId);
+        var emitter = scene.getLastEntryById(parsedLensFlareSystem.emitterId);
 
         var name = parsedLensFlareSystem.name || "lensFlareSystem#" + parsedLensFlareSystem.emitterId;
 

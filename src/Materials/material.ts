@@ -22,12 +22,14 @@ import { ShadowDepthWrapper } from './shadowDepthWrapper';
 import { MaterialHelper } from './materialHelper';
 import { IMaterialContext } from "../Engines/IMaterialContext";
 import { DrawWrapper } from "./drawWrapper";
+import { MaterialStencilState } from "./materialStencilState";
+import { Scene } from "../scene";
+import { AbstractScene } from "../abstractScene";
 
 declare type PrePassRenderer = import("../Rendering/prePassRenderer").PrePassRenderer;
 declare type Mesh = import("../Meshes/mesh").Mesh;
 declare type Animation = import("../Animations/animation").Animation;
 declare type InstancedMesh = import('../Meshes/instancedMesh').InstancedMesh;
-declare type Scene = import("../scene").Scene;
 
 declare var BABYLON: any;
 
@@ -213,6 +215,7 @@ export class Material implements IAnimatable {
     /**
      * Gets or sets user defined metadata
      */
+    @serialize()
     public metadata: any = null;
 
     /**
@@ -241,7 +244,7 @@ export class Material implements IAnimatable {
     /**
      * If the material can be rendered to several textures with MRT extension
      */
-    public get canRenderToMRT() : boolean {
+    public get canRenderToMRT(): boolean {
         // By default, shaders are not compatible with MRTs
         // Base classes should override that if their shader supports MRT
         return false;
@@ -284,7 +287,7 @@ export class Material implements IAnimatable {
     protected _backFaceCulling = true;
 
     /**
-     * Sets the back-face culling state
+     * Sets the culling state (true to enable culling, false to disable)
      */
     public set backFaceCulling(value: boolean) {
         if (this._backFaceCulling === value) {
@@ -295,15 +298,39 @@ export class Material implements IAnimatable {
     }
 
     /**
-     * Gets the back-face culling state
+     * Gets the culling state
      */
     public get backFaceCulling(): boolean {
         return this._backFaceCulling;
     }
 
     /**
-     * Stores the value for side orientation
+     * Specifies if back or front faces should be culled (when culling is enabled)
      */
+    @serialize("cullBackFaces")
+    protected _cullBackFaces = true;
+
+    /**
+     * Sets the type of faces that should be culled (true for back faces, false for front faces)
+     */
+    public set cullBackFaces(value: boolean) {
+        if (this._cullBackFaces === value) {
+            return;
+        }
+        this._cullBackFaces = value;
+        this.markAsDirty(Material.TextureDirtyFlag);
+    }
+
+    /**
+     * Gets the type of faces that should be culled
+     */
+    public get cullBackFaces(): boolean {
+        return this._cullBackFaces;
+    }
+
+    /**
+    * Stores the value for side orientation
+    */
     @serialize()
     public sideOrientation: number;
 
@@ -404,14 +431,14 @@ export class Material implements IAnimatable {
         return this._onUnBindObservable;
     }
 
-    protected _onEffectCreatedObservable: Nullable<Observable<{ effect: Effect, subMesh: Nullable<SubMesh>}>>;
+    protected _onEffectCreatedObservable: Nullable<Observable<{ effect: Effect, subMesh: Nullable<SubMesh> }>>;
 
     /**
     * An event triggered when the effect is (re)created
     */
-    public get onEffectCreatedObservable(): Observable<{ effect: Effect, subMesh: Nullable<SubMesh>}> {
+    public get onEffectCreatedObservable(): Observable<{ effect: Effect, subMesh: Nullable<SubMesh> }> {
         if (!this._onEffectCreatedObservable) {
-            this._onEffectCreatedObservable = new Observable<{effect: Effect, subMesh: Nullable<SubMesh>}>();
+            this._onEffectCreatedObservable = new Observable<{ effect: Effect, subMesh: Nullable<SubMesh> }>();
         }
 
         return this._onEffectCreatedObservable;
@@ -616,6 +643,11 @@ export class Material implements IAnimatable {
     }
 
     /**
+     * Gives access to the stencil properties of the material
+     */
+    public readonly stencil = new MaterialStencilState();
+
+    /**
      * @hidden
      * Stores the effects for the material
      */
@@ -668,6 +700,9 @@ export class Material implements IAnimatable {
 
     /** @hidden */
     public meshMap: Nullable<{ [id: string]: AbstractMesh | undefined }> = null;
+
+    /** @hidden */
+    public _parentContainer: Nullable<AbstractScene> = null;
 
     /**
      * Creates a material instance
@@ -829,7 +864,7 @@ export class Material implements IAnimatable {
      */
     protected get _disableAlphaBlending(): boolean {
         return (this._transparencyMode === Material.MATERIAL_OPAQUE ||
-                this._transparencyMode === Material.MATERIAL_ALPHATEST);
+            this._transparencyMode === Material.MATERIAL_ALPHATEST);
     }
 
     /**
@@ -916,7 +951,7 @@ export class Material implements IAnimatable {
         var reverse = orientation === Material.ClockWiseSideOrientation;
 
         engine.enableEffect(effect ? effect : this._getDrawWrapper());
-        engine.setState(this.backFaceCulling, this.zOffset, false, reverse);
+        engine.setState(this.backFaceCulling, this.zOffset, false, reverse, this.cullBackFaces, this.stencil);
 
         return reverse;
     }
@@ -977,7 +1012,7 @@ export class Material implements IAnimatable {
      */
     public bindEyePosition(effect: Effect, variableName?: string): void {
         if (!this._useUBO) {
-            MaterialHelper.BindEyePosition(effect, this._scene, variableName);
+            this._scene.bindEyePosition(effect, variableName);
         } else {
             this._needToBindSceneUbo = true;
         }
@@ -992,7 +1027,7 @@ export class Material implements IAnimatable {
         if (this._needToBindSceneUbo) {
             if (effect) {
                 this._needToBindSceneUbo = false;
-                MaterialHelper.FinalizeSceneUbo(this.getScene());
+                this._scene.finalizeSceneUbo();
                 MaterialHelper.BindSceneUniformBuffer(effect, this.getScene().getSceneUniformBuffer());
             }
         }
@@ -1393,6 +1428,14 @@ export class Material implements IAnimatable {
         // Remove from scene
         scene.removeMaterial(this);
 
+        if (this._parentContainer) {
+            const index = this._parentContainer.materials.indexOf(this);
+            if (index > -1) {
+                this._parentContainer.materials.splice(index, 1);
+            }
+            this._parentContainer = null;
+        }
+
         if (notBoundToMesh !== true) {
             // Remove from meshes
             if (this.meshMap) {
@@ -1425,6 +1468,8 @@ export class Material implements IAnimatable {
 
             this._drawWrapper.effect = null;
         }
+
+        this.metadata = null;
 
         // Callback
         this.onDisposeObservable.notifyObservers(this);
@@ -1465,7 +1510,11 @@ export class Material implements IAnimatable {
      * @returns the serialized material object
      */
     public serialize(): any {
-        return SerializationHelper.Serialize(this);
+        const serializationObject = SerializationHelper.Serialize(this);
+
+        serializationObject.stencil = this.stencil.serialize();
+
+        return serializationObject;
     }
 
     /**

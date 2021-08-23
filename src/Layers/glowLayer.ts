@@ -3,7 +3,7 @@ import { Nullable } from "../types";
 import { Camera } from "../Cameras/camera";
 import { Scene } from "../scene";
 import { Vector2 } from "../Maths/math.vector";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { SubMesh } from "../Meshes/subMesh";
 import { AbstractMesh } from "../Meshes/abstractMesh";
 import { Mesh } from "../Meshes/mesh";
@@ -35,7 +35,7 @@ declare module "../abstractScene" {
     }
 }
 
-AbstractScene.prototype.getGlowLayerByName = function(name: string): Nullable<GlowLayer> {
+AbstractScene.prototype.getGlowLayerByName = function (name: string): Nullable<GlowLayer> {
     for (var index = 0; index < this.effectLayers.length; index++) {
         if (this.effectLayers[index].name === name && this.effectLayers[index].getEffectName() === GlowLayer.EffectName) {
             return (<any>this.effectLayers[index]) as GlowLayer;
@@ -529,6 +529,10 @@ export class GlowLayer extends EffectLayer {
      */
     public referenceMeshToUseItsOwnMaterial(mesh: AbstractMesh): void {
         this._meshesUsingTheirOwnMaterials.push(mesh.uniqueId);
+
+        mesh.onDisposeObservable.add(() => {
+            this._disposeMesh(mesh as Mesh);
+        });
     }
 
     /**
@@ -577,7 +581,7 @@ export class GlowLayer extends EffectLayer {
 
         if (this._includedOnlyMeshes.length) {
             for (index = 0; index < this._includedOnlyMeshes.length; index++) {
-                var mesh = this._scene.getMeshByUniqueID(this._includedOnlyMeshes[index]);
+                var mesh = this._scene.getMeshByUniqueId(this._includedOnlyMeshes[index]);
                 if (mesh) {
                     serializationObject.includedMeshes.push(mesh.id);
                 }
@@ -589,7 +593,7 @@ export class GlowLayer extends EffectLayer {
 
         if (this._excludedMeshes.length) {
             for (index = 0; index < this._excludedMeshes.length; index++) {
-                var mesh = this._scene.getMeshByUniqueID(this._excludedMeshes[index]);
+                var mesh = this._scene.getMeshByUniqueId(this._excludedMeshes[index]);
                 if (mesh) {
                     serializationObject.excludedMeshes.push(mesh.id);
                 }
@@ -612,7 +616,7 @@ export class GlowLayer extends EffectLayer {
 
         // Excluded meshes
         for (index = 0; index < parsedGlowLayer.excludedMeshes.length; index++) {
-            var mesh = scene.getMeshByID(parsedGlowLayer.excludedMeshes[index]);
+            var mesh = scene.getMeshById(parsedGlowLayer.excludedMeshes[index]);
             if (mesh) {
                 gl.addExcludedMesh(<Mesh>mesh);
             }
@@ -620,7 +624,7 @@ export class GlowLayer extends EffectLayer {
 
         // Included meshes
         for (index = 0; index < parsedGlowLayer.includedMeshes.length; index++) {
-            var mesh = scene.getMeshByID(parsedGlowLayer.includedMeshes[index]);
+            var mesh = scene.getMeshById(parsedGlowLayer.includedMeshes[index]);
             if (mesh) {
                 gl.addIncludedOnlyMesh(<Mesh>mesh);
             }

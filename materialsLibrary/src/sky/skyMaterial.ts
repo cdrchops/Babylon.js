@@ -6,7 +6,7 @@ import { BaseTexture } from "babylonjs/Materials/Textures/baseTexture";
 import { MaterialDefines } from "babylonjs/Materials/materialDefines";
 import { MaterialHelper } from "babylonjs/Materials/materialHelper";
 import { PushMaterial } from "babylonjs/Materials/pushMaterial";
-import { VertexBuffer } from "babylonjs/Meshes/buffer";
+import { VertexBuffer } from "babylonjs/Buffers/buffer";
 import { AbstractMesh } from "babylonjs/Meshes/abstractMesh";
 import { SubMesh } from "babylonjs/Meshes/subMesh";
 import { Mesh } from "babylonjs/Meshes/mesh";
@@ -110,7 +110,7 @@ export class SkyMaterial extends PushMaterial {
      * Defines an offset vector used to get a horizon offset.
      * @example skyMaterial.cameraOffset.y = camera.globalPosition.y // Set horizon relative to 0 on the Y axis
      */
-    @serialize()
+    @serializeAsVector3()
     public cameraOffset: Vector3 = Vector3.Zero();
 
     /**
@@ -189,6 +189,10 @@ export class SkyMaterial extends PushMaterial {
 
         // Attribs
         MaterialHelper.PrepareDefinesForAttributes(mesh, defines, true, false);
+
+        if (defines.IMAGEPROCESSINGPOSTPROCESS !== scene.imageProcessingConfiguration.applyByPostProcess) {
+            defines.markAsMiscDirty();
+        }
 
         // Get correct effect
         if (defines.isDirty) {

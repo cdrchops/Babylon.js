@@ -1,5 +1,10 @@
 /** @hidden */
 export enum PowerPreference {
+    SRGB = "srgb"
+}
+
+/** @hidden */
+export enum PowerPreference {
     LowPower = "low-power",
     HighPerformance = "high-performance"
 }
@@ -47,7 +52,7 @@ export enum TextureUsage {
     CopyDst = 2,
     Sampled = 4,
     Storage = 8,
-    OutputAttachment = 16
+    RenderAttachment = 16
 }
 
 /** @hidden */
@@ -125,7 +130,7 @@ export enum TextureFormat {
 
     // BC compressed formats usable if "texture-compression-bc" is both
     // supported by the device/user agent and enabled in requestDevice.
-    BC1RGBAUNorm = "bc1-rgba-unorm",
+    BC1RGBAUnorm = "bc1-rgba-unorm",
     BC1RGBAUnormSRGB = "bc1-rgba-unorm-srgb",
     BC2RGBAUnorm = "bc2-rgba-unorm",
     BC2RGBAUnormSRGB = "bc2-rgba-unorm-srgb",
@@ -250,17 +255,17 @@ export enum ColorWrite {
 export enum BlendFactor {
     Zero = "zero",
     One = "one",
-    SrcColor = "src-color",
-    OneMinusSrcColor = "one-minus-src-color",
+    Src = "src",
+    OneMinusSrc = "one-minus-src",
     SrcAlpha = "src-alpha",
     OneMinusSrcAlpha = "one-minus-src-alpha",
-    DstColor = "dst-color",
-    OneMinusDstColor = "one-minus-dst-color",
+    Dst = "dst",
+    OneMinusDst = "one-minus-dst",
     DstAlpha = "dst-alpha",
     OneMinusDstAlpha = "one-minus-dst-alpha",
     SrcAlphaSaturated = "src-alpha-saturated",
-    BlendColor = "blend-color",
-    OneMinusBlendColor = "one-minus-blend-color"
+    Constant = "constant",
+    OneMinusConstant = "one-minus-constant"
 }
 
 /** @hidden */
@@ -355,6 +360,12 @@ export enum PipelineStatisticName {
     ClipperPrimitivesOut = "clipper-primitives-out",
     FragmentShaderInvocations = "fragment-shader-invocations",
     ComputeShaderInvocations = "compute-shader-invocations"
+}
+
+/** @hidden */
+export enum CanvasCompositingAlphaMode {
+    Opaque = "opaque",
+    Premultiplied = "premultiplied"
 }
 
 /** @hidden */

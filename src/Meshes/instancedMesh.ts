@@ -10,17 +10,17 @@ import { Skeleton } from "../Bones/skeleton";
 import { DeepCopier } from "../Misc/deepCopier";
 import { TransformNode } from './transformNode';
 import { Light } from '../Lights/light';
-import { VertexBuffer } from './buffer';
+import { VertexBuffer } from '../Buffers/buffer';
 import { BoundingInfo } from '../Culling/boundingInfo';
 import { Tools } from '../Misc/tools';
 
 Mesh._instancedMeshFactory = (name: string, mesh: Mesh): InstancedMesh => {
-    let instance = new InstancedMesh(name, mesh);
+    const instance = new InstancedMesh(name, mesh);
 
     if (mesh.instancedBuffers) {
         instance.instancedBuffers = {};
 
-        for (var key in mesh.instancedBuffers) {
+        for (const key in mesh.instancedBuffers) {
             instance.instancedBuffers[key] = mesh.instancedBuffers[key];
         }
     }
@@ -34,9 +34,14 @@ Mesh._instancedMeshFactory = (name: string, mesh: Mesh): InstancedMesh => {
 export class InstancedMesh extends AbstractMesh {
     private _sourceMesh: Mesh;
     private _currentLOD: Mesh;
+    private _billboardWorldMatrix: Matrix;
 
     /** @hidden */
     public _indexInSourceMeshInstanceArray = -1;
+    /** @hidden */
+    public _distanceToCamera: number = 0;
+    /** @hidden */
+    public _previousWorldMatrix: Nullable<Matrix>;
 
     constructor(name: string, source: Mesh) {
         super(name, source.getScene());
@@ -289,15 +294,16 @@ export class InstancedMesh extends AbstractMesh {
      * This method recomputes and sets a new BoundingInfo to the mesh unless it is locked.
      * This means the mesh underlying bounding box and sphere are recomputed.
      * @param applySkeleton defines whether to apply the skeleton before computing the bounding info
+     * @param applyMorph  defines whether to apply the morph target before computing the bounding info
      * @returns the current mesh
      */
-    public refreshBoundingInfo(applySkeleton: boolean = false): InstancedMesh {
+    public refreshBoundingInfo(applySkeleton: boolean = false, applyMorph: boolean = false): InstancedMesh {
         if (this._boundingInfo && this._boundingInfo.isLocked) {
             return this;
         }
 
         const bias = this._sourceMesh.geometry ? this._sourceMesh.geometry.boundingBias : null;
-        this._refreshBoundingInfo(this._sourceMesh._getPositionData(applySkeleton), bias);
+        this._refreshBoundingInfo(this._sourceMesh._getPositionData(applySkeleton, applyMorph), bias);
         return this;
     }
 
@@ -354,14 +360,17 @@ export class InstancedMesh extends AbstractMesh {
 
     public getWorldMatrix(): Matrix {
         if (this._currentLOD && this._currentLOD.billboardMode !== TransformNode.BILLBOARDMODE_NONE && this._currentLOD._masterMesh !== this) {
+            if (!this._billboardWorldMatrix) {
+                this._billboardWorldMatrix = new Matrix();
+            }
             let tempMaster = this._currentLOD._masterMesh;
             this._currentLOD._masterMesh = this;
             TmpVectors.Vector3[7].copyFrom(this._currentLOD.position);
             this._currentLOD.position.set(0, 0, 0);
-            TmpVectors.Matrix[0].copyFrom(this._currentLOD.computeWorldMatrix(true));
+            this._billboardWorldMatrix.copyFrom(this._currentLOD.computeWorldMatrix(true));
             this._currentLOD.position.copyFrom(TmpVectors.Vector3[7]);
             this._currentLOD._masterMesh = tempMaster;
-            return TmpVectors.Matrix[0];
+            return this._billboardWorldMatrix;
         }
 
         return super.getWorldMatrix();
@@ -432,7 +441,7 @@ export class InstancedMesh extends AbstractMesh {
      *
      * Returns the clone.
      */
-    public clone(name: string, newParent: Nullable<Node>= null, doNotCloneChildren?: boolean): InstancedMesh {
+    public clone(name: string, newParent: Nullable<Node> = null, doNotCloneChildren?: boolean): InstancedMesh {
         var result = this._sourceMesh.createInstance(name);
 
         // Deep copy
@@ -502,11 +511,11 @@ declare module "./mesh" {
 
         /** @hidden */
         _userInstancedBuffersStorage: {
-            data: {[key: string]: Float32Array},
-            sizes: {[key: string]: number},
-            vertexBuffers: {[key: string]: Nullable<VertexBuffer>},
-            strides: {[key: string]: number},
-            vertexArrayObjects?: {[key: string]: WebGLVertexArrayObject}
+            data: { [key: string]: Float32Array },
+            sizes: { [key: string]: number },
+            vertexBuffers: { [key: string]: Nullable<VertexBuffer> },
+            strides: { [key: string]: number },
+            vertexArrayObjects?: { [key: string]: WebGLVertexArrayObject }
         };
     }
 }
@@ -517,13 +526,13 @@ declare module "./abstractMesh" {
          * Object used to store instanced buffers defined by user
          * @see https://doc.babylonjs.com/how_to/how_to_use_instances#custom-buffers
          */
-        instancedBuffers: {[key: string]: any};
+        instancedBuffers: { [key: string]: any };
     }
 }
 
 Mesh.prototype.edgesShareWithInstances = false;
 
-Mesh.prototype.registerInstancedBuffer = function(kind: string, stride: number): void {
+Mesh.prototype.registerInstancedBuffer = function (kind: string, stride: number): void {
     // Remove existing one
     this._userInstancedBuffersStorage?.vertexBuffers[kind]?.dispose();
 
@@ -559,7 +568,7 @@ Mesh.prototype.registerInstancedBuffer = function(kind: string, stride: number):
     this._invalidateInstanceVertexArrayObject();
 };
 
-Mesh.prototype._processInstancedBuffers = function(visibleInstances: InstancedMesh[], renderSelf: boolean) {
+Mesh.prototype._processInstancedBuffers = function (visibleInstances: InstancedMesh[], renderSelf: boolean) {
     let instanceCount = visibleInstances.length;
 
     for (var kind in this.instancedBuffers) {
@@ -622,7 +631,7 @@ Mesh.prototype._processInstancedBuffers = function(visibleInstances: InstancedMe
     }
 };
 
-Mesh.prototype._invalidateInstanceVertexArrayObject = function() {
+Mesh.prototype._invalidateInstanceVertexArrayObject = function () {
     if (!this._userInstancedBuffersStorage || this._userInstancedBuffersStorage.vertexArrayObjects === undefined) {
         return;
     }
@@ -634,7 +643,7 @@ Mesh.prototype._invalidateInstanceVertexArrayObject = function() {
     this._userInstancedBuffersStorage.vertexArrayObjects = {};
 };
 
-Mesh.prototype._disposeInstanceSpecificData = function() {
+Mesh.prototype._disposeInstanceSpecificData = function () {
     if (this._instanceDataStorage.instancesBuffer) {
         this._instanceDataStorage.instancesBuffer.dispose();
         this._instanceDataStorage.instancesBuffer = null;

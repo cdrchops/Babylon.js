@@ -80,8 +80,8 @@ export class RenderTargetTexture extends Texture {
 
             var result = oldPush.apply(array, items);
 
-            if (wasEmpty && this.getScene()) {
-                this.getScene()!.meshes.forEach((mesh) => {
+            if (wasEmpty) {
+                this.getScene()?.meshes.forEach((mesh) => {
                     mesh._markSubMeshesAsLightDirty();
                 });
             }
@@ -94,7 +94,7 @@ export class RenderTargetTexture extends Texture {
             var deleted = oldSplice.apply(array, [index, deleteCount]);
 
             if (array.length === 0) {
-                this.getScene()!.meshes.forEach((mesh) => {
+                this.getScene()?.meshes.forEach((mesh) => {
                     mesh._markSubMeshesAsLightDirty();
                 });
             }
@@ -235,6 +235,8 @@ export class RenderTargetTexture extends Texture {
     protected _sizeRatio: Nullable<number>;
     /** @hidden */
     public _generateMipMaps: boolean;
+    /** @hidden */
+    public _cleared = false;
     protected _renderingManager: RenderingManager;
     /** @hidden */
     public _waitingRenderList?: string[];
@@ -244,6 +246,7 @@ export class RenderTargetTexture extends Texture {
     protected _textureMatrix: Matrix;
     protected _samples = 1;
     protected _renderTargetOptions: RenderTargetCreationOptions;
+    private _canRescale = true;
     /**
      * Gets render target creation options that were used.
      */
@@ -311,8 +314,10 @@ export class RenderTargetTexture extends Texture {
      * @param format The internal format of the buffer in the RTT (RED, RG, RGB, RGBA, ALPHA...)
      * @param delayAllocation if the texture allocation should be delayed (default: false)
      * @param samples sample count to use when creating the RTT
+     * @param creationFlags specific flags to use when creating the texture (Constants.TEXTURE_CREATIONFLAG_STORAGE for storage textures, for eg)
      */
-    constructor(name: string, size: number | { width: number, height: number, layers?: number } | { ratio: number }, scene: Nullable<Scene>, generateMipMaps?: boolean, doNotChangeAspectRatio: boolean = true, type: number = Constants.TEXTURETYPE_UNSIGNED_INT, isCube = false, samplingMode = Texture.TRILINEAR_SAMPLINGMODE, generateDepthBuffer = true, generateStencilBuffer = false, isMulti = false, format = Constants.TEXTUREFORMAT_RGBA, delayAllocation = false, samples?: number) {
+    constructor(name: string, size: number | { width: number, height: number, layers?: number } | { ratio: number }, scene: Nullable<Scene>, generateMipMaps?: boolean, doNotChangeAspectRatio: boolean = true, type: number = Constants.TEXTURETYPE_UNSIGNED_INT,
+        isCube = false, samplingMode = Texture.TRILINEAR_SAMPLINGMODE, generateDepthBuffer = true, generateStencilBuffer = false, isMulti = false, format = Constants.TEXTUREFORMAT_RGBA, delayAllocation = false, samples?: number, creationFlags?: number) {
         super(null, scene, !generateMipMaps, undefined, samplingMode, undefined, undefined, undefined, undefined, format);
         scene = this.getScene();
         if (!scene) {
@@ -348,7 +353,8 @@ export class RenderTargetTexture extends Texture {
             samplingMode: this.samplingMode,
             generateDepthBuffer: generateDepthBuffer,
             generateStencilBuffer: generateStencilBuffer,
-            samples: samples,
+            samples,
+            creationFlags,
         };
 
         if (this.samplingMode === Texture.NEAREST_SAMPLINGMODE) {
@@ -572,10 +578,17 @@ export class RenderTargetTexture extends Texture {
     }
 
     /**
+     * Don't allow this render target texture to rescale. Mainly used to prevent rescaling by the scene optimizer.
+     */
+    public disableRescaling() {
+        this._canRescale = false;
+    }
+
+    /**
      * Get if the texture can be rescaled or not.
      */
     public get canRescale(): boolean {
-        return true;
+        return this._canRescale;
     }
 
     /**
@@ -659,7 +672,7 @@ export class RenderTargetTexture extends Texture {
             this.renderList = [];
             for (var index = 0; index < this._waitingRenderList.length; index++) {
                 var id = this._waitingRenderList[index];
-                let mesh = scene.getMeshByID(id);
+                let mesh = scene.getMeshById(id);
                 if (mesh) {
                     this.renderList.push(mesh);
                 }
@@ -696,20 +709,13 @@ export class RenderTargetTexture extends Texture {
 
         // Set custom projection.
         // Needs to be before binding to prevent changing the aspect ratio.
-        let camera: Nullable<Camera>;
-        if (this.activeCamera) {
-            camera = this.activeCamera;
-            engine.setViewport(this.activeCamera.viewport, this.getRenderWidth(), this.getRenderHeight());
+        let camera: Nullable<Camera> = this.activeCamera ?? scene.activeCamera;
 
-            if (this.activeCamera !== scene.activeCamera) {
-                scene.setTransformMatrix(this.activeCamera.getViewMatrix(), this.activeCamera.getProjectionMatrix(true));
+        if (camera) {
+            if (camera !== scene.activeCamera) {
+                scene.setTransformMatrix(camera.getViewMatrix(), camera.getProjectionMatrix(true));
             }
-        }
-        else {
-            camera = scene.activeCamera;
-            if (camera) {
-                engine.setViewport(camera.viewport, this.getRenderWidth(), this.getRenderHeight());
-            }
+            engine.setViewport(camera.viewport, this.getRenderWidth(), this.getRenderHeight());
         }
 
         this._defaultRenderListPrepared = false;
@@ -779,7 +785,7 @@ export class RenderTargetTexture extends Texture {
                 }
 
                 if (!mesh._internalAbstractMeshDataInfo._currentLODIsUpToDate && scene.activeCamera) {
-                    mesh._internalAbstractMeshDataInfo._currentLOD = scene.customLODSelector ? scene.customLODSelector(mesh, scene.activeCamera) : mesh.getLOD(scene.activeCamera);
+                    mesh._internalAbstractMeshDataInfo._currentLOD = scene.customLODSelector ? scene.customLODSelector(mesh, this.activeCamera || scene.activeCamera) : mesh.getLOD(this.activeCamera || scene.activeCamera);
                     mesh._internalAbstractMeshDataInfo._currentLODIsUpToDate = true;
                 }
                 if (!mesh._internalAbstractMeshDataInfo._currentLOD) {
@@ -887,7 +893,7 @@ export class RenderTargetTexture extends Texture {
             return;
         }
 
-        engine._debugPushGroup(`render to face #${faceIndex} layer #${layer}`, 1);
+        engine._debugPushGroup?.(`render to face #${faceIndex} layer #${layer}`, 1);
 
         // Bind
         this._prepareFrame(scene, faceIndex, layer, useCameraPostProcess);
@@ -899,79 +905,83 @@ export class RenderTargetTexture extends Texture {
             this.onBeforeRenderObservable.notifyObservers(faceIndex);
         }
 
-        // Get the list of meshes to render
-        let currentRenderList: Nullable<Array<AbstractMesh>> = null;
-        let defaultRenderList = this.renderList ? this.renderList : scene.getActiveMeshes().data;
-        let defaultRenderListLength = this.renderList ? this.renderList.length : scene.getActiveMeshes().length;
+        const fastPath = engine.snapshotRendering && engine.snapshotRenderingMode === Constants.SNAPSHOTRENDERING_FAST;
 
-        if (this.getCustomRenderList) {
-            currentRenderList = this.getCustomRenderList(this.is2DArray ? layer : faceIndex, defaultRenderList, defaultRenderListLength);
-        }
+        if (!fastPath) {
+            // Get the list of meshes to render
+            let currentRenderList: Nullable<Array<AbstractMesh>> = null;
+            let defaultRenderList = this.renderList ? this.renderList : scene.getActiveMeshes().data;
+            let defaultRenderListLength = this.renderList ? this.renderList.length : scene.getActiveMeshes().length;
 
-        if (!currentRenderList) {
-            // No custom render list provided, we prepare the rendering for the default list, but check
-            // first if we did not already performed the preparation before so as to avoid re-doing it several times
-            if (!this._defaultRenderListPrepared) {
-                this._prepareRenderingManager(defaultRenderList, defaultRenderListLength, camera, !this.renderList);
-                this._defaultRenderListPrepared = true;
+            if (this.getCustomRenderList) {
+                currentRenderList = this.getCustomRenderList(this.is2DArray ? layer : faceIndex, defaultRenderList, defaultRenderListLength);
             }
-            currentRenderList = defaultRenderList;
-        } else {
-            // Prepare the rendering for the custom render list provided
-            this._prepareRenderingManager(currentRenderList, currentRenderList.length, camera, false);
-        }
 
-        // Before clear
-        for (let step of scene._beforeRenderTargetClearStage) {
-            step.action(this, faceIndex, layer);
-        }
+            if (!currentRenderList) {
+                // No custom render list provided, we prepare the rendering for the default list, but check
+                // first if we did not already performed the preparation before so as to avoid re-doing it several times
+                if (!this._defaultRenderListPrepared) {
+                    this._prepareRenderingManager(defaultRenderList, defaultRenderListLength, camera, !this.renderList);
+                    this._defaultRenderListPrepared = true;
+                }
+                currentRenderList = defaultRenderList;
+            } else {
+                // Prepare the rendering for the custom render list provided
+                this._prepareRenderingManager(currentRenderList, currentRenderList.length, camera, false);
+            }
 
-        // Clear
-        if (this.onClearObservable.hasObservers()) {
-            this.onClearObservable.notifyObservers(engine);
-        } else {
-            engine.clear(this.clearColor || scene.clearColor, true, true, true);
-        }
+            // Before clear
+            for (let step of scene._beforeRenderTargetClearStage) {
+                step.action(this, faceIndex, layer);
+            }
 
-        if (!this._doNotChangeAspectRatio) {
-            scene.updateTransformMatrix(true);
-        }
+            // Clear
+            if (this.onClearObservable.hasObservers()) {
+                this.onClearObservable.notifyObservers(engine);
+            } else {
+                engine.clear(this.clearColor || scene.clearColor, true, true, true);
+            }
 
-        // Before Camera Draw
-        for (let step of scene._beforeRenderTargetDrawStage) {
-            step.action(this, faceIndex, layer);
-        }
+            if (!this._doNotChangeAspectRatio) {
+                scene.updateTransformMatrix(true);
+            }
 
-        // Render
-        this._renderingManager.render(this.customRenderFunction, currentRenderList, this.renderParticles, this.renderSprites);
+            // Before Camera Draw
+            for (let step of scene._beforeRenderTargetDrawStage) {
+                step.action(this, faceIndex, layer);
+            }
 
-        // After Camera Draw
-        for (let step of scene._afterRenderTargetDrawStage) {
-            step.action(this, faceIndex, layer);
-        }
+            // Render
+            this._renderingManager.render(this.customRenderFunction, currentRenderList, this.renderParticles, this.renderSprites);
 
-        const saveGenerateMipMaps = this._texture.generateMipMaps;
+            // After Camera Draw
+            for (let step of scene._afterRenderTargetDrawStage) {
+                step.action(this, faceIndex, layer);
+            }
 
-        this._texture.generateMipMaps = false;  // if left true, the mipmaps will be generated (if this._texture.generateMipMaps = true) when the first post process binds its own RTT: by doing so it will unbind the current RTT,
-                                                // which will trigger a mipmap generation. We don't want this because it's a wasted work, we will do an unbind of the current RTT at the end of the process (see unbindFrameBuffer) which will
-                                                // trigger the generation of the final mipmaps
+            const saveGenerateMipMaps = this._texture.generateMipMaps;
 
-        if (this._postProcessManager) {
-            this._postProcessManager._finalizeFrame(false, this._texture, faceIndex, this._postProcesses, this.ignoreCameraViewport);
-        }
-        else if (useCameraPostProcess) {
-            scene.postProcessManager._finalizeFrame(false, this._texture, faceIndex);
-        }
+            this._texture.generateMipMaps = false;  // if left true, the mipmaps will be generated (if this._texture.generateMipMaps = true) when the first post process binds its own RTT: by doing so it will unbind the current RTT,
+            // which will trigger a mipmap generation. We don't want this because it's a wasted work, we will do an unbind of the current RTT at the end of the process (see unbindFrameBuffer) which will
+            // trigger the generation of the final mipmaps
 
-        this._texture.generateMipMaps = saveGenerateMipMaps;
+            if (this._postProcessManager) {
+                this._postProcessManager._finalizeFrame(false, this._texture, faceIndex, this._postProcesses, this.ignoreCameraViewport);
+            }
+            else if (useCameraPostProcess) {
+                scene.postProcessManager._finalizeFrame(false, this._texture, faceIndex);
+            }
 
-        if (!this._doNotChangeAspectRatio) {
-            scene.updateTransformMatrix(true);
-        }
+            this._texture.generateMipMaps = saveGenerateMipMaps;
 
-        // Dump ?
-        if (dumpForDebug) {
-            Tools.DumpFramebuffer(this.getRenderWidth(), this.getRenderHeight(), engine);
+            if (!this._doNotChangeAspectRatio) {
+                scene.updateTransformMatrix(true);
+            }
+
+            // Dump ?
+            if (dumpForDebug) {
+                Tools.DumpFramebuffer(this.getRenderWidth(), this.getRenderHeight(), engine);
+            }
         }
 
         // Unbind
@@ -981,7 +991,7 @@ export class RenderTargetTexture extends Texture {
             engine.generateMipMapsForCubemap(this._texture);
         }
 
-        engine._debugPopGroup(1);
+        engine._debugPopGroup?.(1);
     }
 
     /**
@@ -1171,6 +1181,6 @@ export class RenderTargetTexture extends Texture {
     }
 }
 
-Texture._CreateRenderTargetTexture = (name: string, renderTargetSize: number, scene: Scene, generateMipMaps: boolean) => {
+Texture._CreateRenderTargetTexture = (name: string, renderTargetSize: number, scene: Scene, generateMipMaps: boolean, creationFlags?: number) => {
     return new RenderTargetTexture(name, renderTargetSize, scene, generateMipMaps);
 };

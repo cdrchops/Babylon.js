@@ -4,7 +4,7 @@ import { Nullable } from 'babylonjs/types'
 import { Observer } from 'babylonjs/Misc/observable';
 import { Color3 } from 'babylonjs/Maths/math.color';
 
-export const Eyedropper : IToolData = {
+export const Eyedropper: IToolData = {
     name: 'Eyedropper',
     type: class {
         getParameters: () => IToolParameters;
@@ -15,35 +15,36 @@ export const Eyedropper : IToolData = {
             this.getParameters = getParameters;
         }
 
-        pick(pointerInfo : PointerInfo) {
-            const {canvas2D, setMetadata, getMouseCoordinates} = this.getParameters();
+        pick(pointerInfo: PointerInfo) {
+            const { canvas2D, setMetadata, getMouseCoordinates } = this.getParameters();
             const ctx = canvas2D.getContext('2d');
-            const {x, y} = getMouseCoordinates(pointerInfo);
+            const { x, y } = getMouseCoordinates(pointerInfo);
             const pixel = ctx!.getImageData(x, y, 1, 1).data;
             setMetadata({
                 color: Color3.FromInts(pixel[0], pixel[1], pixel[2]).toHexString(),
                 alpha: pixel[3] / 255
             });
         }
-        
-        setup () {
+
+        setup() {
             this.pointerObserver = this.getParameters().scene.onPointerObservable.add((pointerInfo) => {
                 if (pointerInfo.pickInfo?.hit) {
-                    if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
+                    if (pointerInfo.type === PointerEventTypes.POINTERDOWN && (pointerInfo.event.buttons === 1) && this.getParameters().interactionEnabled()) {
                         this.isPicking = true;
                         this.pick(pointerInfo);
                     }
-                    if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.isPicking) {
-                        this.pick(pointerInfo);
-                    }
-                    if (pointerInfo.type === PointerEventTypes.POINTERUP) {
-                        this.isPicking = false;
+                    if (this.isPicking) {
+                        if (pointerInfo.event.buttons !== 1 || !this.getParameters().interactionEnabled()) {
+                            this.isPicking = false;
+                        } else {
+                            this.pick(pointerInfo);
+                        }
                     }
                 }
             });
             this.isPicking = false;
         }
-        cleanup () {
+        cleanup() {
             if (this.pointerObserver) {
                 this.getParameters().scene.onPointerObservable.remove(this.pointerObserver);
             }

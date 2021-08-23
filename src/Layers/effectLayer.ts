@@ -9,7 +9,7 @@ import { ISize } from "../Maths/math.size";
 import { Color4 } from '../Maths/math.color';
 import { Engine } from "../Engines/engine";
 import { EngineStore } from "../Engines/engineStore";
-import { VertexBuffer } from "../Meshes/buffer";
+import { VertexBuffer } from "../Buffers/buffer";
 import { SubMesh } from "../Meshes/subMesh";
 import { AbstractMesh } from "../Meshes/abstractMesh";
 import { Mesh } from "../Meshes/mesh";
@@ -25,7 +25,7 @@ import { Constants } from "../Engines/constants";
 import "../Shaders/glowMapGeneration.fragment";
 import "../Shaders/glowMapGeneration.vertex";
 import { _DevTools } from '../Misc/devTools';
-import { DataBuffer } from '../Meshes/dataBuffer';
+import { DataBuffer } from '../Buffers/dataBuffer';
 import { EffectFallbacks } from '../Materials/effectFallbacks';
 import { DrawWrapper } from "../Materials/drawWrapper";
 
@@ -457,6 +457,9 @@ export abstract class EffectLayer {
                     defines.push("#define ALPHATEST");
                     defines.push("#define ALPHATESTVALUE 0.4");
                 }
+                if (!diffuseTexture.gammaSpace) {
+                    defines.push("#define DIFFUSE_ISLINEAR");
+                }
             }
 
             var opacityTexture = (material as any).opacityTexture;
@@ -485,6 +488,9 @@ export abstract class EffectLayer {
             else if (mesh.isVerticesDataPresent(VertexBuffer.UVKind)) {
                 defines.push("#define EMISSIVEUV1");
                 uv1 = true;
+            }
+            if (!emissiveTexture.gammaSpace) {
+                defines.push("#define EMISSIVE_ISLINEAR");
             }
         }
 
@@ -710,7 +716,7 @@ export abstract class EffectLayer {
         }
 
         const reverse = sideOrientation === Material.ClockWiseSideOrientation;
-        engine.setState(material.backFaceCulling, material.zOffset, undefined, reverse);
+        engine.setState(material.backFaceCulling, material.zOffset, undefined, reverse, material.cullBackFaces);
 
         // Managing instances
         var batch = renderingMesh._getInstancesRenderList(subMesh._id, !!replacementMesh);
@@ -736,7 +742,9 @@ export abstract class EffectLayer {
             const effect = this._effectLayerMapGenerationDrawWrapper.effect!;
 
             engine.enableEffect(this._effectLayerMapGenerationDrawWrapper);
-            renderingMesh._bind(subMesh, effect, Material.TriangleFillMode);
+            if (!hardwareInstancedRendering) {
+                renderingMesh._bind(subMesh, effect, Material.TriangleFillMode);
+            }
 
             effect.setMatrix("viewProjection", scene.getTransformMatrix());
 

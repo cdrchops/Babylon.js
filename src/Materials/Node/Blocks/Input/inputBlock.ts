@@ -13,9 +13,8 @@ import { _TypeStore } from '../../../../Misc/typeStore';
 import { Color3, Color4, TmpColors } from '../../../../Maths/math';
 import { AnimatedInputBlockTypes } from './animatedInputBlockTypes';
 import { Observable } from '../../../../Misc/observable';
-import { MaterialHelper } from '../../../../Materials/materialHelper';
 
-const remapAttributeName: { [name: string]: string }  = {
+const remapAttributeName: { [name: string]: string } = {
     "position2d": "position",
     "particle_uv": "vUV",
     "particle_color": "vColor",
@@ -23,14 +22,14 @@ const remapAttributeName: { [name: string]: string }  = {
     "particle_positionw": "vPositionW",
 };
 
-const attributeInFragmentOnly: { [name: string]: boolean }  = {
+const attributeInFragmentOnly: { [name: string]: boolean } = {
     "particle_uv": true,
     "particle_color": true,
     "particle_texturemask": true,
     "particle_positionw": true,
 };
 
-const attributeAsUniform: { [name: string]: boolean }  = {
+const attributeAsUniform: { [name: string]: boolean } = {
     "particle_texturemask": true,
 };
 
@@ -118,6 +117,10 @@ export class InputBlock extends NodeMaterialBlock {
                         return this._type;
                     case "uv":
                     case "uv2":
+                    case "uv3":
+                    case "uv4":
+                    case "uv5":
+                    case "uv6":
                     case "position2d":
                     case "particle_uv":
                         this._type = NodeMaterialBlockConnectionPointTypes.Vector2;
@@ -156,6 +159,9 @@ export class InputBlock extends NodeMaterialBlock {
                         return this._type;
                     case NodeMaterialSystemValues.DeltaTime:
                         this._type = NodeMaterialBlockConnectionPointTypes.Float;
+                        return this._type;
+                    case NodeMaterialSystemValues.CameraParameters:
+                        this._type = NodeMaterialBlockConnectionPointTypes.Vector4;
                         return this._type;
                 }
             }
@@ -583,13 +589,18 @@ export class InputBlock extends NodeMaterialBlock {
                     effect.setMatrix(variableName, scene.getTransformMatrix());
                     break;
                 case NodeMaterialSystemValues.CameraPosition:
-                    MaterialHelper.BindEyePosition(effect, scene, variableName, true);
+                    scene.bindEyePosition(effect, variableName, true);
                     break;
                 case NodeMaterialSystemValues.FogColor:
                     effect.setColor3(variableName, scene.fogColor);
                     break;
                 case NodeMaterialSystemValues.DeltaTime:
                     effect.setFloat(variableName, scene.deltaTime / 1000.0);
+                case NodeMaterialSystemValues.CameraPosition:
+                    if (scene.activeCamera) {
+                        effect.setFloat4(variableName, scene.getEngine().hasOriginBottomLeft ? -1 : 1, scene.activeCamera.minZ, scene.activeCamera.maxZ, 1 / scene.activeCamera.maxZ);
+                    }
+                    break;
             }
             return;
         }
@@ -656,10 +667,10 @@ export class InputBlock extends NodeMaterialBlock {
         let variableName = this._codeVariableName;
 
         if (this.isAttribute) {
-            return `${variableName}.setAsAttribute("${this.name}");\r\n`;
+            return super._dumpPropertiesCode() + `${variableName}.setAsAttribute("${this.name}");\r\n`;
         }
         if (this.isSystemValue) {
-            return `${variableName}.setAsSystemValue(BABYLON.NodeMaterialSystemValues.${NodeMaterialSystemValues[this._systemValue!]});\r\n`;
+            return super._dumpPropertiesCode() + `${variableName}.setAsSystemValue(BABYLON.NodeMaterialSystemValues.${NodeMaterialSystemValues[this._systemValue!]});\r\n`;
         }
         if (this.isUniform) {
             const codes: string[] = [];
@@ -723,9 +734,9 @@ export class InputBlock extends NodeMaterialBlock {
 
             codes.push('');
 
-            return codes.join(';\r\n');
+            return super._dumpPropertiesCode() + codes.join(';\r\n');
         }
-        return "";
+        return super._dumpPropertiesCode();
     }
 
     public dispose() {
