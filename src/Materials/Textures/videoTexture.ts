@@ -54,6 +54,11 @@ export class VideoTexture extends Texture {
      */
     public readonly video: HTMLVideoElement;
 
+    /**
+     * The actual video
+     */
+    public actualVideo: any;
+
     private _onUserActionRequestedObservable: Nullable<Observable<Texture>> = null;
 
     /**
@@ -186,6 +191,8 @@ export class VideoTexture extends Texture {
         else if (videoHasEnoughData) {
             this._createInternalTexture();
         }
+
+        this.actualVideo = this.video;
     }
 
     /**
@@ -401,7 +408,19 @@ export class VideoTexture extends Texture {
      * @returns The created video texture as a promise
      */
     public static CreateFromStreamAsync(scene: Scene, stream: MediaStream, constraints: any): Promise<VideoTexture> {
-        var video = scene.getEngine().createVideoElement(constraints);
+        return this.CreateFromStreamAsyncWithId(scene, stream, constraints, "");
+    }
+
+    /**
+     * Creates a video texture straight from a stream.
+     * @param scene Define the scene the texture should be created in
+     * @param stream Define the stream the texture should be created from
+     * @param constraints video constraints
+     * @param videoElementId id of tag element
+     * @returns The created video texture as a promise
+     */
+    public static CreateFromStreamAsyncWithId(scene: Scene, stream: MediaStream, constraints: any, videoElementId: string): Promise<VideoTexture> {
+        var video = scene.getEngine().createVideoElementById(constraints, videoElementId);
 
         if (scene.getEngine()._badOS) {
             // Yes... I know and I hope to remove it soon...
@@ -470,8 +489,7 @@ export class VideoTexture extends Texture {
             return navigator.mediaDevices.getUserMedia({
                 video: constraints,
                 audio: audioConstaints
-            })
-                .then((stream) => {
+            }).then((stream) => {
                     return this.CreateFromStreamAsync(scene, stream, constraints);
                 });
         }
@@ -500,6 +518,77 @@ export class VideoTexture extends Texture {
                     },
                     (stream: any) => {
                         return this.CreateFromStreamAsync(scene, stream, constraints);
+                    },
+                    function(e: MediaStreamError) {
+                        Logger.Error(e.name);
+                    }
+                );
+            }
+        }
+
+        return Promise.reject("No support for userMedia on this device");
+    }
+
+    /**
+     * Creates a video texture straight from your WebCam video feed.
+     * @param scene Define the scene the texture should be created in
+     * @param constraints Define the constraints to use to create the web cam feed from WebRTC
+     * @param audioConstaints Define the audio constraints to use to create the web cam feed from WebRTC
+     * @returns The created video texture as a promise
+     */
+    public static CreateFromWebCamAsyncWithId(
+        scene: Scene,
+        constraints: {
+            minWidth: number;
+            maxWidth: number;
+            minHeight: number;
+            maxHeight: number;
+            deviceId: string;
+        } & MediaTrackConstraints,
+        audioConstaints: boolean | MediaTrackConstraints = false,
+        videoElementId: string
+    ): Promise<VideoTexture> {
+        var constraintsDeviceId;
+        if (constraints && constraints.deviceId) {
+            constraintsDeviceId = {
+                exact: constraints.deviceId,
+            };
+        }
+
+        if (navigator.mediaDevices) {
+            return navigator.mediaDevices.getUserMedia({
+                    video: constraints,
+                    audio: audioConstaints
+                })
+                .then((stream) => {
+                    return this.CreateFromStreamAsyncWithId(scene, stream, constraints, videoElementId);
+                });
+        }
+        else {
+            navigator.getUserMedia =
+                navigator.getUserMedia ||
+                navigator.webkitGetUserMedia ||
+                navigator.mozGetUserMedia ||
+                navigator.msGetUserMedia;
+
+            if (navigator.getUserMedia) {
+                navigator.getUserMedia(
+                    {
+                        video: {
+                            deviceId: constraintsDeviceId,
+                            width: {
+                                min: (constraints && constraints.minWidth) || 256,
+                                max: (constraints && constraints.maxWidth) || 640,
+                            },
+                            height: {
+                                min: (constraints && constraints.minHeight) || 256,
+                                max: (constraints && constraints.maxHeight) || 480,
+                            },
+                        },
+                        audio: audioConstaints
+                    },
+                    (stream: any) => {
+                        return this.CreateFromStreamAsyncWithId(scene, stream, constraints, videoElementId);
                     },
                     function (e: MediaStreamError) {
                         Logger.Error(e.name);
