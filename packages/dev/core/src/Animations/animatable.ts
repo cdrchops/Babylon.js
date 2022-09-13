@@ -858,7 +858,7 @@ Scene.prototype.stopAllAnimations = function (): void {
         for (let i = 0; i < this._activeAnimatables.length; i++) {
             this._activeAnimatables[i].stop();
         }
-        this._activeAnimatables = [];
+        this._activeAnimatables.length = 0;
     }
 
     for (const group of this.animationGroups) {
@@ -952,10 +952,13 @@ Scene.prototype._processLateAnimationBindingsForMatrices = function (holder: {
             const currentQuaternion = TmpVectors.Quaternion[1];
 
             runtimeAnimation.currentValue.decompose(currentScaling, currentQuaternion, currentPosition);
+
             currentScaling.scaleAndAddToRef(scale, finalScaling);
-            currentQuaternion.scaleAndAddToRef(scale, finalQuaternion);
+            currentQuaternion.scaleAndAddToRef(Quaternion.Dot(finalQuaternion, currentQuaternion) > 0 ? scale : -scale, finalQuaternion);
             currentPosition.scaleAndAddToRef(scale, finalPosition);
         }
+
+        finalQuaternion.normalize();
     }
 
     // Add up the additive animations
@@ -1085,7 +1088,9 @@ Scene.prototype._processLateAnimationBindings = function (): void {
             const holder = target._lateAnimationHolders[path];
             const originalAnimation: RuntimeAnimation = holder.animations[0];
             const originalValue = holder.originalValue;
-
+            if (originalValue === undefined || originalValue === null) {
+                continue;
+            }
             const matrixDecomposeMode = Animation.AllowMatrixDecomposeForInterpolation && originalValue.m; // ie. data is matrix
 
             let finalValue: any = target[path];

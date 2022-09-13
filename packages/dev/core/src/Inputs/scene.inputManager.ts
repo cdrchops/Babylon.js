@@ -220,7 +220,7 @@ export class InputManager {
         }
 
         if (pickResult) {
-            const type = evt.type === "wheel" || evt.type === "mousewheel" || evt.type === "DOMMouseScroll" ? PointerEventTypes.POINTERWHEEL : PointerEventTypes.POINTERMOVE;
+            const type = evt.inputIndex >= PointerInput.MouseWheelX && evt.inputIndex <= PointerInput.MouseWheelZ ? PointerEventTypes.POINTERWHEEL : PointerEventTypes.POINTERMOVE;
 
             if (scene.onPointerMove) {
                 scene.onPointerMove(evt, pickResult, type);
@@ -345,7 +345,7 @@ export class InputManager {
             }
         } else {
             for (const step of scene._pointerDownStage) {
-                pickResult = step.action(this._unTranslatedPointerX, this._unTranslatedPointerY, pickResult, evt);
+                pickResult = step.action(this._unTranslatedPointerX, this._unTranslatedPointerY, pickResult, evt, false);
             }
         }
 
@@ -431,7 +431,7 @@ export class InputManager {
         } else {
             if (!clickInfo.ignore) {
                 for (const step of scene._pointerUpStage) {
-                    pickResult = step.action(this._unTranslatedPointerX, this._unTranslatedPointerY, pickResult, evt);
+                    pickResult = step.action(this._unTranslatedPointerX, this._unTranslatedPointerY, pickResult, evt, clickInfo.doubleClick);
                 }
             }
         }
@@ -660,7 +660,7 @@ export class InputManager {
                 this._checkPrePointerObservable(
                     null,
                     evt as IPointerEvent,
-                    evt.type === "wheel" || evt.type === "mousewheel" || evt.type === "DOMMouseScroll" ? PointerEventTypes.POINTERWHEEL : PointerEventTypes.POINTERMOVE
+                    evt.inputIndex >= PointerInput.MouseWheelX && evt.inputIndex <= PointerInput.MouseWheelZ ? PointerEventTypes.POINTERWHEEL : PointerEventTypes.POINTERMOVE
                 )
             ) {
                 return;
@@ -798,10 +798,6 @@ export class InputManager {
                     }
                 }
 
-                if (!this._pointerCaptures[evt.pointerId] && evt.buttons > 0) {
-                    return;
-                }
-
                 this._pointerCaptures[evt.pointerId] = false;
                 if (!scene.cameraToUseForPointers && !scene.activeCamera) {
                     return;
@@ -877,7 +873,13 @@ export class InputManager {
         this._deviceSourceManager.onDeviceConnectedObservable.add((deviceSource) => {
             if (deviceSource.deviceType === DeviceType.Mouse) {
                 deviceSource.onInputChangedObservable.add((eventData) => {
-                    if (eventData.inputIndex === PointerInput.LeftClick || eventData.inputIndex === PointerInput.MiddleClick || eventData.inputIndex === PointerInput.RightClick) {
+                    if (
+                        eventData.inputIndex === PointerInput.LeftClick ||
+                        eventData.inputIndex === PointerInput.MiddleClick ||
+                        eventData.inputIndex === PointerInput.RightClick ||
+                        eventData.inputIndex === PointerInput.BrowserBack ||
+                        eventData.inputIndex === PointerInput.BrowserForward
+                    ) {
                         if (attachDown && deviceSource.getInput(eventData.inputIndex) === 1) {
                             this._onPointerDown(eventData);
                         } else if (attachUp && deviceSource.getInput(eventData.inputIndex) === 0) {

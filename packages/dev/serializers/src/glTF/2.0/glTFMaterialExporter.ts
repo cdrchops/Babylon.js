@@ -29,7 +29,6 @@ declare type Material = import("core/Materials/material").Material;
 declare type StandardMaterial = import("core/Materials/standardMaterial").StandardMaterial;
 declare type PBRBaseMaterial = import("core/Materials/PBR/pbrBaseMaterial").PBRBaseMaterial;
 declare type PBRMaterial = import("core/Materials/PBR/pbrMaterial").PBRMaterial;
-declare type PBRMetallicRoughnessMaterial = import("core/Materials/PBR/pbrMetallicRoughnessMaterial").PBRMetallicRoughnessMaterial;
 
 /**
  * Interface for storing specular glossiness factors
@@ -1085,7 +1084,7 @@ export class _GLTFMaterialExporter {
      * Extracts a texture from a Babylon texture into file data and glTF data
      * @param babylonTexture Babylon texture to extract
      * @param mimeType Mime Type of the babylonTexture
-     * @return glTF texture info, or null if the texture format is not supported
+     * @returns glTF texture info, or null if the texture format is not supported
      */
     public _exportTextureAsync(babylonTexture: BaseTexture, mimeType: ImageMimeType): Promise<Nullable<ITextureInfo>> {
         const extensionPromise = this._exporter._extensionsPreExportTextureAsync("exporter", babylonTexture as Texture, mimeType);

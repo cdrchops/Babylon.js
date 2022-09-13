@@ -1,14 +1,14 @@
-import { Vector2 } from "core/Maths/math.vector";
+import type { Vector2 } from "core/Maths/math.vector";
 import { Observable } from "core/Misc/observable";
-import { Nullable } from "core/types";
-import { FrameNodePort } from "./frameNodePort";
-import { GraphFrame } from "./graphFrame";
-import { GraphNode } from "./graphNode";
-import { INodeContainer } from "./interfaces/nodeContainer";
-import { INodeData } from "./interfaces/nodeData";
-import { IPortData } from "./interfaces/portData";
-import { ISelectionChangedOptions } from "./interfaces/selectionChangedOptions";
-import { NodePort } from "./nodePort";
+import type { Nullable } from "core/types";
+import type { FrameNodePort } from "./frameNodePort";
+import type { GraphFrame } from "./graphFrame";
+import type { GraphNode } from "./graphNode";
+import type { INodeContainer } from "./interfaces/nodeContainer";
+import type { INodeData } from "./interfaces/nodeData";
+import type { IPortData } from "./interfaces/portData";
+import type { ISelectionChangedOptions } from "./interfaces/selectionChangedOptions";
+import type { NodePort } from "./nodePort";
 
 export class StateManager {
     data: any;
@@ -29,7 +29,7 @@ export class StateManager {
     onGridSizeChanged = new Observable<void>();
     onNewBlockRequiredObservable = new Observable<{ type: string; targetX: number; targetY: number; needRepositioning?: boolean }>();
 
-    exportData: (data: any) => string;
+    exportData: (data: any, frame?: Nullable<GraphFrame>) => string;
     isElbowConnectionAllowed: (nodeA: FrameNodePort | NodePort, nodeB: FrameNodePort | NodePort) => boolean;
     applyNodePortDesign: (data: IPortData, element: HTMLElement, img: HTMLImageElement) => void;
 
@@ -37,5 +37,5 @@ export class StateManager {
 
     getEditorDataMap: () => { [key: number]: number };
 
-    createDefaultInputData: (rootData: any, portData: IPortData, nodeContainer: INodeContainer) => { data: INodeData; name: string };
+    createDefaultInputData: (rootData: any, portData: IPortData, nodeContainer: INodeContainer) => Nullable<{ data: INodeData; name: string }>;
 }

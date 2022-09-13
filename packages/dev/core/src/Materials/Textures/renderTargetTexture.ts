@@ -21,6 +21,8 @@ import type { IRenderTargetTexture, RenderTargetWrapper } from "../../Engines/re
 import "../../Engines/Extensions/engine.renderTarget";
 import "../../Engines/Extensions/engine.renderTargetCube";
 import { Engine } from "../../Engines/engine";
+import { ArrayTools } from "core/Misc/arrayTools";
+import type { INotifyArrayChangeType } from "core/Misc/arrayTools";
 
 declare type Material = import("../material").Material;
 
@@ -58,12 +60,25 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
         return this._renderList;
     }
 
-    public set renderList(value: Nullable<Array<AbstractMesh>>) {
-        this._renderList = value;
+    private _renderListHasChangedObservable = new Observable<INotifyArrayChangeType<AbstractMesh>>();
+    private _renderListHasChangedObserver: Nullable<Observer<INotifyArrayChangeType<AbstractMesh>>> = null;
 
-        if (this._renderList) {
-            this._hookArray(this._renderList);
-        }
+    private _startObservingRenderListEvents() {
+        this._renderListHasChangedObserver = this._renderListHasChangedObservable.add(({ target, previousLength }) => {
+            if (target && previousLength && ((target.length > 0 && previousLength === 0) || (target.length === 0 && previousLength > 0))) {
+                this.getScene()?.meshes.forEach((mesh) => {
+                    mesh._markSubMeshesAsLightDirty();
+                });
+            }
+        });
+    }
+
+    private _stopObservingRenderListEvents() {
+        this._renderListHasChangedObservable.remove(this._renderListHasChangedObserver);
+    }
+
+    public set renderList(value: Nullable<Array<AbstractMesh>>) {
+        this._renderList = ArrayTools.MakeObservableArray(this._renderListHasChangedObservable, value);
     }
 
     /**
@@ -76,36 +91,6 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
      * hold dummy elements!
      */
     public getCustomRenderList: (layerOrFace: number, renderList: Nullable<Immutable<Array<AbstractMesh>>>, renderListLength: number) => Nullable<Array<AbstractMesh>>;
-
-    private _hookArray(array: AbstractMesh[]): void {
-        const oldPush = array.push;
-        array.push = (...items: AbstractMesh[]) => {
-            const wasEmpty = array.length === 0;
-
-            const result = oldPush.apply(array, items);
-
-            if (wasEmpty) {
-                this.getScene()?.meshes.forEach((mesh) => {
-                    mesh._markSubMeshesAsLightDirty();
-                });
-            }
-
-            return result;
-        };
-
-        const oldSplice = array.splice;
-        array.splice = (index: number, deleteCount?: number) => {
-            const deleted = oldSplice.apply(array, [index, deleteCount]);
-
-            if (array.length === 0) {
-                this.getScene()?.meshes.forEach((mesh) => {
-                    mesh._markSubMeshesAsLightDirty();
-                });
-            }
-
-            return deleted;
-        };
-    }
 
     /**
      * Define if particles should be rendered in your texture.
@@ -406,6 +391,8 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
         }
 
         const engine = this.getScene()!.getEngine();
+
+        this._startObservingRenderListEvents();
 
         this._coordinatesMode = Texture.PROJECTION_MODE;
         this.renderList = new Array<AbstractMesh>();
@@ -762,7 +749,7 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
 
     /**
      * This function will check if the render target texture can be rendered (textures are loaded, shaders are compiled)
-     * @return true if all required resources are ready
+     * @returns true if all required resources are ready
      */
     public isReadyForRendering(): boolean {
         return this._render(false, false, true);
@@ -825,10 +812,12 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
         // Set custom projection.
         // Needs to be before binding to prevent changing the aspect ratio.
         const camera: Nullable<Camera> = this.activeCamera ?? scene.activeCamera;
+        const sceneCamera = scene.activeCamera;
 
         if (camera) {
             if (camera !== scene.activeCamera) {
                 scene.setTransformMatrix(camera.getViewMatrix(), camera.getProjectionMatrix(true));
+                scene.activeCamera = camera;
             }
             engine.setViewport(camera.viewport, this.getRenderWidth(), this.getRenderHeight());
         }
@@ -906,7 +895,8 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
 
         engine.currentRenderPassId = currentRenderPassId;
 
-        if (scene.activeCamera) {
+        if (sceneCamera) {
+            scene.activeCamera = sceneCamera;
             // Do not avoid setting uniforms when multiple scenes are active as another camera may have overwrite these
             if (scene.getEngine().scenes.length > 1 || (this.activeCamera && this.activeCamera !== scene.activeCamera)) {
                 scene.setTransformMatrix(scene.activeCamera.getViewMatrix(), scene.activeCamera.getProjectionMatrix(true));
@@ -1291,6 +1281,8 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
         this.onAfterUnbindObservable.clear();
         this.onBeforeBindObservable.clear();
         this.onBeforeRenderObservable.clear();
+
+        this._stopObservingRenderListEvents();
 
         if (this._postProcessManager) {
             this._postProcessManager.dispose();

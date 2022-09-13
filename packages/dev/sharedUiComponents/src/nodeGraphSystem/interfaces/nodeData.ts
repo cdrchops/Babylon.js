@@ -1,4 +1,4 @@
-import { Nullable } from "core/types";
+import type { Nullable } from "core/types";
 import type { IPortData } from "./portData";
 
 export interface INodeData {
@@ -8,7 +8,7 @@ export interface INodeData {
     isInput: boolean;
     comments: string;
 
-    getWarningMessage: () => string;
+    prepareHeaderIcon: (iconDiv: HTMLDivElement, img: HTMLImageElement) => void;
     getClassName: () => string;
     dispose: () => void;
 

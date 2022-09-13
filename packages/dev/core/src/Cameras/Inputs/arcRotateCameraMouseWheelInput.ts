@@ -6,13 +6,13 @@ import type { ICameraInput } from "../../Cameras/cameraInputsManager";
 import { CameraInputTypes } from "../../Cameras/cameraInputsManager";
 import type { PointerInfo } from "../../Events/pointerEvents";
 import { PointerEventTypes } from "../../Events/pointerEvents";
-import { Tools } from "../../Misc/tools";
 import { Plane } from "../../Maths/math.plane";
 import { Vector3, Matrix, TmpVectors } from "../../Maths/math.vector";
 import { Epsilon } from "../../Maths/math.constants";
 import type { IWheelEvent } from "../../Events/deviceInputEvents";
 import { EventConstants } from "../../Events/deviceInputEvents";
 import { Scalar } from "../../Maths/math.scalar";
+import { Tools } from "../../Misc/tools";
 
 /**
  * Firefox uses a different scheme to report scroll distances to other
@@ -78,8 +78,6 @@ export class ArcRotateCameraMouseWheelInput implements ICameraInput<ArcRotateCam
      * @param noPreventDefault Defines whether event caught by the controls should call preventdefault() (https://developer.mozilla.org/en-US/docs/Web/API/Event/preventDefault)
      */
     public attachControl(noPreventDefault?: boolean): void {
-        // was there a second variable defined?
-        // eslint-disable-next-line prefer-rest-params
         noPreventDefault = Tools.BackCompatCameraNoPreventDefault(arguments);
         this._wheel = (p) => {
             //sanity check - this should be a PointerWheel event.
@@ -88,18 +86,9 @@ export class ArcRotateCameraMouseWheelInput implements ICameraInput<ArcRotateCam
             }
             const event = <IWheelEvent>p.event;
             let delta = 0;
-
-            const mouseWheelLegacyEvent = event as any;
-            let wheelDelta = 0;
-
             const platformScale = event.deltaMode === EventConstants.DOM_DELTA_LINE ? ffMultiplier : 1; // If this happens to be set to DOM_DELTA_LINE, adjust accordingly
-            if (event.deltaY !== undefined) {
-                wheelDelta = -(event.deltaY * platformScale);
-            } else if ((<any>event).wheelDeltaY !== undefined) {
-                wheelDelta = -((<any>event).wheelDeltaY * platformScale);
-            } else {
-                wheelDelta = mouseWheelLegacyEvent.wheelDelta;
-            }
+
+            const wheelDelta = -(event.deltaY * platformScale);
 
             if (this.customComputeDeltaFromMouseWheel) {
                 delta = this.customComputeDeltaFromMouseWheel(wheelDelta, this, event);

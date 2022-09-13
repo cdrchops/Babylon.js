@@ -6,8 +6,8 @@ import type { Observer } from "core/Misc/observable";
 import { InputsPropertyTabComponent } from "../../components/propertyTab/inputsPropertyTabComponent";
 import type { InputBlock } from "core/Materials/Node/Blocks/Input/inputBlock";
 import { TextInputLineComponent } from "shared-ui-components/lines/textInputLineComponent";
-import { GraphFrame } from "shared-ui-components/nodeGraphSystem/graphFrame";
-import { NodeMaterialBlock } from "core/Materials/Node/nodeMaterialBlock";
+import type { GraphFrame } from "shared-ui-components/nodeGraphSystem/graphFrame";
+import type { NodeMaterialBlock } from "core/Materials/Node/nodeMaterialBlock";
 import { Color3LineComponent } from "shared-ui-components/lines/color3LineComponent";
 import { ButtonLineComponent } from "shared-ui-components/lines/buttonLineComponent";
 
@@ -56,7 +56,7 @@ export class FramePropertyTabComponent extends React.Component<IFramePropertyTab
                 <div>
                     <LineContainerComponent title="GENERAL">
                         <TextInputLineComponent label="Name" propertyName="name" lockObject={this.props.globalState.lockObject} target={this.props.frame} />
-                        <Color3LineComponent label="Color" target={this.props.frame} propertyName="color"></Color3LineComponent>
+                        <Color3LineComponent lockObject={this.props.globalState.lockObject} label="Color" target={this.props.frame} propertyName="color"></Color3LineComponent>
                         <TextInputLineComponent lockObject={this.props.globalState.lockObject} label="Comments" propertyName="comments" target={this.props.frame} />
                         {!this.props.frame.isCollapsed && (
                             <ButtonLineComponent
@@ -81,7 +81,11 @@ export class FramePropertyTabComponent extends React.Component<IFramePropertyTab
                             }}
                         />
                     </LineContainerComponent>
-                    <InputsPropertyTabComponent globalState={this.props.globalState} inputs={configurableInputBlocks}></InputsPropertyTabComponent>
+                    <InputsPropertyTabComponent
+                        lockObject={this.props.globalState.lockObject}
+                        globalState={this.props.globalState}
+                        inputs={configurableInputBlocks}
+                    ></InputsPropertyTabComponent>
                 </div>
             </div>
         );

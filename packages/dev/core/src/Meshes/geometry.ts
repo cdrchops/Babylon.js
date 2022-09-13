@@ -155,7 +155,6 @@ export class Geometry implements IGetSetVerticesData {
             this.setAllVerticesData(vertexData, updatable);
         } else {
             this._totalVertices = 0;
-            this._indices = [];
         }
 
         if (this._engine.getCaps().vertexArrayObject) {
@@ -479,7 +478,7 @@ export class Geometry implements IGetSetVerticesData {
 
     /**
      * Returns all vertex buffers
-     * @return an object holding all vertex buffers indexed by kind
+     * @returns an object holding all vertex buffers indexed by kind
      */
     public getVertexBuffers(): Nullable<{ [key: string]: VertexBuffer }> {
         if (!this.isReady()) {
@@ -612,7 +611,7 @@ export class Geometry implements IGetSetVerticesData {
 
     /**
      * Gets the index buffer
-     * @return the index buffer
+     * @returns the index buffer
      */
     public getIndexBuffer(): Nullable<DataBuffer> {
         if (!this.isReady()) {
@@ -792,7 +791,7 @@ export class Geometry implements IGetSetVerticesData {
             return;
         }
 
-        scene._addPendingData(this);
+        scene.addPendingData(this);
         scene._loadFile(
             this.delayLoadingFile,
             (data) => {
@@ -805,7 +804,7 @@ export class Geometry implements IGetSetVerticesData {
                 this.delayLoadState = Constants.DELAYLOADSTATE_LOADED;
                 this._delayInfo = [];
 
-                scene._removePendingData(this);
+                scene.removePendingData(this);
 
                 const meshes = this._meshes;
                 const numOfMeshes = meshes.length;
@@ -923,7 +922,7 @@ export class Geometry implements IGetSetVerticesData {
         for (index = 0; index < numOfMeshes; index++) {
             this.releaseForMesh(meshes[index]);
         }
-        this._meshes = [];
+        this._meshes.length = 0;
 
         this._disposeVertexArrayObjects();
 
@@ -1018,7 +1017,7 @@ export class Geometry implements IGetSetVerticesData {
 
     /**
      * Serialize the current geometry info (and not the vertices data) into a JSON object
-     * @return a JSON representation of the current geometry data (without the vertices data)
+     * @returns a JSON representation of the current geometry data (without the vertices data)
      */
     public serialize(): any {
         const serializationObject: any = {};

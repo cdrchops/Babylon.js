@@ -6,8 +6,8 @@ import type { ICameraInput } from "../../Cameras/cameraInputsManager";
 import { CameraInputTypes } from "../../Cameras/cameraInputsManager";
 import type { PointerInfo } from "../../Events/pointerEvents";
 import { PointerEventTypes } from "../../Events/pointerEvents";
-import { Tools } from "../../Misc/tools";
 import type { IWheelEvent } from "../../Events/deviceInputEvents";
+import { Tools } from "../../Misc/tools";
 
 /**
  * Manage the mouse wheel inputs to control a follow camera.
@@ -59,7 +59,6 @@ export class FollowCameraMouseWheelInput implements ICameraInput<FollowCamera> {
      * @param noPreventDefault Defines whether event caught by the controls should call preventdefault() (https://developer.mozilla.org/en-US/docs/Web/API/Event/preventDefault)
      */
     public attachControl(noPreventDefault?: boolean): void {
-        // eslint-disable-next-line prefer-rest-params
         noPreventDefault = Tools.BackCompatCameraNoPreventDefault(arguments);
         this._wheel = (p) => {
             // sanity check - this should be a PointerWheel event.
@@ -69,10 +68,7 @@ export class FollowCameraMouseWheelInput implements ICameraInput<FollowCamera> {
             const event = <IWheelEvent>p.event;
             let delta = 0;
 
-            // Chrome, Safari: event.deltaY
-            // IE: event.wheelDelta
-            // Firefox: event.detail (inverted)
-            const wheelDelta = Math.max(-1, Math.min(1, event.deltaY || (<any>event).wheelDelta || -(<any>event).detail));
+            const wheelDelta = Math.max(-1, Math.min(1, event.deltaY));
             if (this.wheelDeltaPercentage) {
                 console.assert(
                     <number>(<unknown>this.axisControlRadius) + <number>(<unknown>this.axisControlHeight) + <number>(<unknown>this.axisControlRotation) <= 1,

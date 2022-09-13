@@ -51,7 +51,7 @@ export class Skeleton implements IAnimatable {
 
     private _ranges: { [name: string]: Nullable<AnimationRange> } = {};
 
-    private _lastAbsoluteTransformsUpdateId = -1;
+    private _absoluteTransformIsDirty = true;
 
     private _canUseTextureForBones = false;
     private _uniqueId = 0;
@@ -156,7 +156,7 @@ export class Skeleton implements IAnimatable {
 
     /**
      * Gets the current object class name.
-     * @return the class name
+     * @returns the class name
      */
     public getClassName(): string {
         return "Skeleton";
@@ -241,7 +241,7 @@ export class Skeleton implements IAnimatable {
     /**
      * Get bone's index searching by name
      * @param name defines bone's name to search for
-     * @return the indice of the bone. Returns -1 if not found
+     * @returns the indice of the bone. Returns -1 if not found
      */
     public getBoneIndexByName(name: string): number {
         for (let boneIndex = 0, cache = this.bones.length; boneIndex < cache; boneIndex++) {
@@ -452,6 +452,7 @@ export class Skeleton implements IAnimatable {
     /** @hidden */
     public _markAsDirty(): void {
         this._isDirty = true;
+        this._absoluteTransformIsDirty = true;
     }
 
     /**
@@ -509,9 +510,14 @@ export class Skeleton implements IAnimatable {
         if (this._numBonesWithLinkedTransformNode > 0) {
             for (const bone of this.bones) {
                 if (bone._linkedTransformNode) {
-                    // Computing the world matrix also computes the local matrix.
-                    bone._linkedTransformNode.computeWorldMatrix();
-                    bone._matrix = bone._linkedTransformNode._localMatrix;
+                    const node = bone._linkedTransformNode;
+                    bone.position = node.position;
+                    if (node.rotationQuaternion) {
+                        bone.rotationQuaternion = node.rotationQuaternion;
+                    } else {
+                        bone.rotation = node.rotation;
+                    }
+                    bone.scaling = node.scaling;
                 }
             }
         }
@@ -686,7 +692,7 @@ export class Skeleton implements IAnimatable {
      * Releases all resources associated with the current skeleton
      */
     public dispose() {
-        this._meshesWithPoseMatrix = [];
+        this._meshesWithPoseMatrix.length = 0;
 
         // Animations
         this.getScene().stopAnimation(this);
@@ -835,11 +841,9 @@ export class Skeleton implements IAnimatable {
      * @param forceUpdate defines if computation must be done even if cache is up to date
      */
     public computeAbsoluteTransforms(forceUpdate = false): void {
-        const renderId = this._scene.getRenderId();
-
-        if (this._lastAbsoluteTransformsUpdateId != renderId || forceUpdate) {
+        if (this._absoluteTransformIsDirty || forceUpdate) {
             this.bones[0].computeAbsoluteTransforms();
-            this._lastAbsoluteTransformsUpdateId = renderId;
+            this._absoluteTransformIsDirty = false;
         }
     }
 

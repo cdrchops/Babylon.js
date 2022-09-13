@@ -2,7 +2,8 @@ import { NodeMaterialBlock } from "../../nodeMaterialBlock";
 import { NodeMaterialBlockConnectionPointTypes } from "../../Enums/nodeMaterialBlockConnectionPointTypes";
 import type { NodeMaterialBuildState } from "../../nodeMaterialBuildState";
 import { NodeMaterialBlockTargets } from "../../Enums/nodeMaterialBlockTargets";
-import { NodeMaterialConnectionPoint, NodeMaterialConnectionPointDirection } from "../../nodeMaterialBlockConnectionPoint";
+import type { NodeMaterialConnectionPoint } from "../../nodeMaterialBlockConnectionPoint";
+import { NodeMaterialConnectionPointDirection } from "../../nodeMaterialBlockConnectionPoint";
 import { RegisterClass } from "../../../../Misc/typeStore";
 import type { NodeMaterial, NodeMaterialDefines } from "../../nodeMaterial";
 import type { AbstractMesh } from "../../../../Meshes/abstractMesh";
@@ -210,7 +211,10 @@ export class PerturbNormalBlock extends NodeMaterialBlock {
 
         state._emitUniformFromString(this._tangentSpaceParameterName, "vec2");
 
-        const normalSamplerName = (this.normalMapColor.connectedPoint!._ownerBlock as TextureBlock).samplerName;
+        let normalSamplerName = null;
+        if (this.normalMapColor.connectedPoint) {
+            normalSamplerName = (this.normalMapColor.connectedPoint!._ownerBlock as TextureBlock).samplerName;
+        }
         const useParallax = this.viewDirection.isConnected && ((this.useParallaxOcclusion && normalSamplerName) || (!this.useParallaxOcclusion && this.parallaxHeight.isConnected));
 
         const replaceForParallaxInfos = !this.parallaxScale.isConnectedToInputBlock

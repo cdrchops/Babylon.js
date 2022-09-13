@@ -503,6 +503,13 @@ export class TargetCamera extends Camera {
                 rigCamera._cameraRigParams = {};
                 rigCamera.rotationQuaternion = new Quaternion();
             }
+
+            rigCamera.mode = this.mode;
+            rigCamera.orthoLeft = this.orthoLeft;
+            rigCamera.orthoRight = this.orthoRight;
+            rigCamera.orthoTop = this.orthoTop;
+            rigCamera.orthoBottom = this.orthoBottom;
+
             return rigCamera;
         }
         return null;
@@ -565,7 +572,7 @@ export class TargetCamera extends Camera {
 
     /**
      * Gets the current object class name.
-     * @return the class name
+     * @returns the class name
      */
     public getClassName(): string {
         return "TargetCamera";

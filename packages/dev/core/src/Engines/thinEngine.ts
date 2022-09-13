@@ -9,6 +9,7 @@ import type { ShaderProcessingContext } from "./Processors/shaderProcessingOptio
 import type { UniformBuffer } from "../Materials/uniformBuffer";
 import type { Nullable, DataArray, IndicesArray } from "../types";
 import type { EngineCapabilities } from "./engineCapabilities";
+import type { Observer } from "../Misc/observable";
 import { Observable } from "../Misc/observable";
 import { DepthCullingState } from "../States/depthCullingState";
 import { StencilState } from "../States/stencilState";
@@ -45,23 +46,21 @@ import type { IAudioEngineOptions } from "../Audio/Interfaces/IAudioEngineOption
 import type { IStencilState } from "../States/IStencilState";
 import type { InternalTextureCreationOptions, TextureSize } from "../Materials/Textures/textureCreationOptions";
 import { ShaderLanguage } from "../Materials/shaderLanguage";
-
-declare type WebRequest = import("../Misc/webRequest").WebRequest;
-declare type LoadFileError = import("../Misc/fileTools").LoadFileError;
-declare type Observer<T> = import("../Misc/observable").Observer<T>;
-declare type VideoTexture = import("../Materials/Textures/videoTexture").VideoTexture;
-declare type RenderTargetTexture = import("../Materials/Textures/renderTargetTexture").RenderTargetTexture;
-declare type Texture = import("../Materials/Textures/texture").Texture;
-declare type RenderTargetWrapper = import("./renderTargetWrapper").RenderTargetWrapper;
-declare type WebGLRenderTargetWrapper = import("./WebGL/webGLRenderTargetWrapper").WebGLRenderTargetWrapper;
+import type { RenderTargetWrapper } from "./renderTargetWrapper";
+import type { WebGLRenderTargetWrapper } from "./WebGL/webGLRenderTargetWrapper";
+import type { VideoTexture } from "../Materials/Textures/videoTexture";
+import type { RenderTargetTexture } from "../Materials/Textures/renderTargetTexture";
+import type { WebRequest } from "../Misc/webRequest";
+import type { LoadFileError } from "../Misc/fileTools";
+import type { Texture } from "../Materials/Textures/texture";
 
 /**
  * Defines the interface used by objects working like Scene
  * @hidden
  */
 export interface ISceneLike {
-    _addPendingData(data: any): void;
-    _removePendingData(data: any): void;
+    addPendingData(data: any): void;
+    removePendingData(data: any): void;
     offlineProvider: IOfflineProvider;
 }
 
@@ -165,6 +164,11 @@ export interface EngineOptions extends WebGLContextAttributes {
      * This will not influence NativeEngine and WebGPUEngine which set the behavior to true during construction.
      */
     forceSRGBBufferSupportState?: boolean;
+    /**
+     * True if the more expensive but exact conversions should be used for transforming colors to and from linear space within shaders.
+     * Otherwise, the default is to use a cheaper approximation.
+     */
+    useExactSrgbConversions?: boolean;
 }
 
 /**
@@ -196,14 +200,14 @@ export class ThinEngine {
      */
     // Not mixed with Version for tooling purpose.
     public static get NpmPackage(): string {
-        return "babylonjs@5.12.1";
+        return "babylonjs@5.23.0";
     }
 
     /**
      * Returns the current version of the framework
      */
     public static get Version(): string {
-        return "5.12.1";
+        return "5.23.0";
     }
 
     /**
@@ -363,7 +367,7 @@ export class ThinEngine {
     // Private Members
 
     /** @hidden */
-    public _gl: WebGLRenderingContext;
+    public _gl: WebGL2RenderingContext;
     /** @hidden */
     public _webGLVersion = 1.0;
     protected _renderingCanvas: Nullable<HTMLCanvasElement>;
@@ -544,8 +548,12 @@ export class ThinEngine {
 
     private _activeRequests = new Array<IFileRequest>();
 
+    /**
+     * If set to true zooming in and out in the browser will rescale the hardware-scaling correctly.
+     */
+    public adaptToDeviceRatio: boolean = false;
     /** @hidden */
-    private _adaptToDeviceRatio: boolean = false;
+    private _lastDevicePixelRatio: number = 1.0;
 
     /** @hidden */
     public _transformTextureUrl: Nullable<(url: string) => string> = null;
@@ -694,6 +702,14 @@ export class ThinEngine {
         this._snapshotRenderingMode = mode;
     }
 
+    protected _useExactSrgbConversions = false;
+    /**
+     * Gets a boolean indicating if the exact sRGB conversions or faster approximations are used for converting to and from linear space.
+     */
+    public get useExactSrgbConversions(): boolean {
+        return this._useExactSrgbConversions;
+    }
+
     /**
      * Creates a new snapshot at the next frame using the current snapshotRenderingMode
      */
@@ -717,7 +733,7 @@ export class ThinEngine {
      * Create a canvas. This method is overridden by other engines
      * @param width width
      * @param height height
-     * @return ICanvas interface
+     * @returns ICanvas interface
      */
     public createCanvas(width: number, height: number): ICanvas {
         return ThinEngine._CreateCanvas(width, height);
@@ -725,7 +741,7 @@ export class ThinEngine {
 
     /**
      * Create an image to use with canvas
-     * @return IImage interface
+     * @returns IImage interface
      */
     public createCanvasImage(): IImage {
         return document.createElement("img");
@@ -751,7 +767,7 @@ export class ThinEngine {
         this._creationOptions = options;
 
         // Save this off for use in resize().
-        this._adaptToDeviceRatio = adaptToDeviceRatio ?? false;
+        this.adaptToDeviceRatio = adaptToDeviceRatio ?? false;
 
         this._stencilStateComposer.stencilGlobal = this._stencilState;
 
@@ -809,6 +825,10 @@ export class ThinEngine {
 
             if (options.xrCompatible === undefined) {
                 options.xrCompatible = true;
+            }
+
+            if (options.useExactSrgbConversions !== undefined) {
+                this._useExactSrgbConversions = options.useExactSrgbConversions;
             }
 
             this._doNotHandleContextLost = options.doNotHandleContextLost ? true : false;
@@ -924,7 +944,7 @@ export class ThinEngine {
                     throw new Error("The provided canvas is null or undefined.");
                 }
                 try {
-                    this._gl = <WebGLRenderingContext>(canvas.getContext("webgl", options) || canvas.getContext("experimental-webgl", options));
+                    this._gl = <WebGL2RenderingContext>(canvas.getContext("webgl", options) || canvas.getContext("experimental-webgl", options));
                 } catch (e) {
                     throw new Error("WebGL not supported");
                 }
@@ -934,10 +954,10 @@ export class ThinEngine {
                 throw new Error("WebGL not supported");
             }
         } else {
-            this._gl = <WebGLRenderingContext>canvasOrContext;
+            this._gl = <WebGL2RenderingContext>canvasOrContext;
             this._renderingCanvas = this._gl.canvas as HTMLCanvasElement;
 
-            if (this._gl.renderbufferStorageMultisample) {
+            if ((this._gl as any).renderbufferStorageMultisample) {
                 this._webGLVersion = 2.0;
                 this._shaderPlatformName = "WEBGL2";
             } else {
@@ -962,6 +982,7 @@ export class ThinEngine {
 
         const limitDeviceRatio = options.limitDeviceRatio || devicePixelRatio;
         this._hardwareScalingLevel = adaptToDeviceRatio ? 1.0 / Math.min(limitDeviceRatio, devicePixelRatio) : 1.0;
+        this._lastDevicePixelRatio = devicePixelRatio;
         this.resize();
 
         this._isStencilEnable = options.stencil ? true : false;
@@ -1204,7 +1225,7 @@ export class ThinEngine {
             if (this._webGLVersion === 1) {
                 this._gl.getQuery = (<any>this._caps.timerQuery).getQueryEXT.bind(this._caps.timerQuery);
             }
-            this._caps.canUseTimestampForTimerQuery = this._gl.getQuery(this._caps.timerQuery.TIMESTAMP_EXT, this._caps.timerQuery.QUERY_COUNTER_BITS_EXT) > 0;
+            this._caps.canUseTimestampForTimerQuery = (this._gl.getQuery(this._caps.timerQuery.TIMESTAMP_EXT, this._caps.timerQuery.QUERY_COUNTER_BITS_EXT) ?? 0) > 0;
         }
 
         this._caps.maxAnisotropy = this._caps.textureAnisotropicFilterExtension
@@ -1377,6 +1398,7 @@ export class ThinEngine {
             needShaderCodeInlining: false,
             needToAlwaysBindUniformBuffers: false,
             supportRenderPasses: false,
+            supportSpriteInstancing: true,
             _collectUbosUpdatedInFrame: false,
         };
     }
@@ -1729,10 +1751,11 @@ export class ThinEngine {
         let height: number;
 
         // Requery hardware scaling level to handle zoomed-in resizing.
-        if (this._adaptToDeviceRatio) {
+        if (this.adaptToDeviceRatio) {
             const devicePixelRatio = IsWindowObjectExist() ? window.devicePixelRatio || 1.0 : 1.0;
-            const limitDeviceRatio = this._creationOptions.limitDeviceRatio || devicePixelRatio;
-            this._hardwareScalingLevel = this._adaptToDeviceRatio ? 1.0 / Math.min(limitDeviceRatio, devicePixelRatio) : 1.0;
+            const changeRatio = this._lastDevicePixelRatio / devicePixelRatio;
+            this._lastDevicePixelRatio = devicePixelRatio;
+            this._hardwareScalingLevel *= changeRatio;
         }
 
         if (IsWindowObjectExist()) {
@@ -1878,6 +1901,22 @@ export class ThinEngine {
         }
 
         this._stencilStateComposer.stencilMaterial = stencil;
+    }
+
+    /**
+     * Gets a boolean indicating if depth testing is enabled
+     * @returns the current state
+     */
+    public getDepthBuffer(): boolean {
+        return this._depthCullingState.depthTest;
+    }
+
+    /**
+     * Enable or disable depth buffering
+     * @param enable defines the state to set
+     */
+    public setDepthBuffer(enable: boolean): void {
+        this._depthCullingState.depthTest = enable;
     }
 
     /**
@@ -2199,7 +2238,11 @@ export class ThinEngine {
 
         if (changed || this._vaoRecordInProgress) {
             this.bindArrayBuffer(buffer);
-            this._gl.vertexAttribPointer(indx, size, type, normalized, stride, offset);
+            if (type === this._gl.UNSIGNED_INT || type === this._gl.INT) {
+                this._gl.vertexAttribIPointer(indx, size, type, stride, offset);
+            } else {
+                this._gl.vertexAttribPointer(indx, size, type, normalized, stride, offset);
+            }
         }
     }
 
@@ -2287,6 +2330,10 @@ export class ThinEngine {
         overrideVertexBuffers?: { [kind: string]: Nullable<VertexBuffer> }
     ): WebGLVertexArrayObject {
         const vao = this._gl.createVertexArray();
+
+        if (!vao) {
+            throw new Error("Unable to create VAO");
+        }
 
         this._vaoRecordInProgress = true;
 
@@ -2703,6 +2750,11 @@ export class ThinEngine {
             } else {
                 delete defines["USE_REVERSE_DEPTHBUFFER"];
             }
+            if (this.useExactSrgbConversions) {
+                defines["USE_EXACT_SRGB_CONVERSIONS"] = "";
+            } else {
+                delete defines["USE_EXACT_SRGB_CONVERSIONS"];
+            }
             return;
         } else {
             let s = "";
@@ -2714,6 +2766,12 @@ export class ThinEngine {
                     s += "\n";
                 }
                 s += "#define USE_REVERSE_DEPTHBUFFER";
+            }
+            if (this.useExactSrgbConversions) {
+                if (s) {
+                    s += "\n";
+                }
+                s += "#define USE_EXACT_SRGB_CONVERSIONS";
             }
             return s;
         }
@@ -3525,7 +3583,7 @@ export class ThinEngine {
      * This can help preventing texture load conflict due to name collision.
      */
     public clearInternalTexturesCache() {
-        this._internalTexturesCache = [];
+        this._internalTexturesCache.length = 0;
     }
 
     /**
@@ -3876,7 +3934,7 @@ export class ThinEngine {
         }
 
         if (scene) {
-            scene._addPendingData(texture);
+            scene.addPendingData(texture);
         }
         texture.url = url;
         texture.generateMipMaps = !noMipmap;
@@ -3900,7 +3958,7 @@ export class ThinEngine {
 
         const onInternalError = (message?: string, exception?: any) => {
             if (scene) {
-                scene._removePendingData(texture);
+                scene.removePendingData(texture);
             }
 
             if (url === originalUrl) {
@@ -4668,7 +4726,7 @@ export class ThinEngine {
 
         // this.resetTextureCache();
         if (scene) {
-            scene._removePendingData(texture);
+            scene.removePendingData(texture);
         }
 
         texture.onLoadedObservable.notifyObservers(texture);
@@ -4705,7 +4763,7 @@ export class ThinEngine {
         if (!texture._hardwareTexture) {
             //  this.resetTextureCache();
             if (scene) {
-                scene._removePendingData(texture);
+                scene.removePendingData(texture);
             }
 
             return;
@@ -4789,6 +4847,20 @@ export class ThinEngine {
     ): Nullable<WebGLRenderbuffer> {
         const gl = this._gl;
         const renderBuffer = gl.createRenderbuffer();
+        return this._updateRenderBuffer(renderBuffer, width, height, samples, internalFormat, msInternalFormat, attachment, unbindBuffer);
+    }
+
+    public _updateRenderBuffer(
+        renderBuffer: Nullable<WebGLRenderbuffer>,
+        width: number,
+        height: number,
+        samples: number,
+        internalFormat: number,
+        msInternalFormat: number,
+        attachment: number,
+        unbindBuffer = true
+    ): Nullable<WebGLRenderbuffer> {
+        const gl = this._gl;
 
         gl.bindRenderbuffer(gl.RENDERBUFFER, renderBuffer);
 
@@ -5238,7 +5310,7 @@ export class ThinEngine {
 
         // Unbind
         this.unbindAllAttributes();
-        this._boundUniforms = [];
+        this._boundUniforms = {};
 
         // Events
         if (IsWindowObjectExist()) {
@@ -5254,7 +5326,7 @@ export class ThinEngine {
 
         this._workingCanvas = null;
         this._workingContext = null;
-        this._currentBufferPointers = [];
+        this._currentBufferPointers.length = 0;
         this._renderingCanvas = null;
         this._currentProgram = null;
         this._boundRenderFunction = null;
@@ -5800,7 +5872,7 @@ export class ThinEngine {
     /**
      * Find the next highest power of two.
      * @param x Number to start search from.
-     * @return Next highest power of two.
+     * @returns Next highest power of two.
      */
     public static CeilingPOT(x: number): number {
         x--;
@@ -5816,7 +5888,7 @@ export class ThinEngine {
     /**
      * Find the next lowest power of two.
      * @param x Number to start search from.
-     * @return Next lowest power of two.
+     * @returns Next lowest power of two.
      */
     public static FloorPOT(x: number): number {
         x = x | (x >> 1);
@@ -5830,7 +5902,7 @@ export class ThinEngine {
     /**
      * Find the nearest power of two.
      * @param x Number to start search from.
-     * @return Next nearest power of two.
+     * @returns Next nearest power of two.
      */
     public static NearestPOT(x: number): number {
         const c = ThinEngine.CeilingPOT(x);

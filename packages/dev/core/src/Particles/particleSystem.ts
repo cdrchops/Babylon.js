@@ -1306,8 +1306,8 @@ export class ParticleSystem extends BaseParticleSystem implements IDisposable, I
      * Remove all active particles
      */
     public reset(): void {
-        this._stockParticles = [];
-        this._particles = [];
+        this._stockParticles.length = 0;
+        this._particles.length = 0;
     }
 
     /**
@@ -2011,7 +2011,7 @@ export class ParticleSystem extends BaseParticleSystem implements IDisposable, I
 
     /**
      * Is this system ready to be used/rendered
-     * @return true if the system is ready
+     * @returns true if the system is ready
      */
     public isReady(): boolean {
         if (!this.emitter || (this._imageProcessingConfiguration && !this._imageProcessingConfiguration.isReady()) || !this.particleTexture || !this.particleTexture.isReady()) {

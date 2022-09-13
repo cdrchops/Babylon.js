@@ -5,8 +5,6 @@ import { Tools } from "core/Misc/tools";
 import { LineContainerComponent } from "../../sharedComponents/lineContainerComponent";
 import { CheckBoxLineComponent } from "../../sharedComponents/checkBoxLineComponent";
 import { Texture } from "core/Materials/Textures/texture";
-import { SliderLineComponent } from "../../sharedComponents/sliderLineComponent";
-import { FloatLineComponent } from "../../sharedComponents/floatLineComponent";
 import { CubeTexture } from "core/Materials/Textures/cubeTexture";
 import { ReflectionTextureBlock } from "core/Materials/Node/Blocks/Dual/reflectionTextureBlock";
 import { ReflectionBlock } from "core/Materials/Node/Blocks/PBR/reflectionBlock";
@@ -16,12 +14,14 @@ import { CurrentScreenBlock } from "core/Materials/Node/Blocks/Dual/currentScree
 import { ParticleTextureBlock } from "core/Materials/Node/Blocks/Particle/particleTextureBlock";
 import { GeneralPropertyTabComponent, GenericPropertyTabComponent } from "./genericNodePropertyComponent";
 import { NodeMaterialModes } from "core/Materials/Node/Enums/nodeMaterialModes";
-import { NodeMaterialBlock } from "core/Materials/Node/nodeMaterialBlock";
-import { GlobalState } from "../../globalState";
+import type { NodeMaterialBlock } from "core/Materials/Node/nodeMaterialBlock";
+import type { GlobalState } from "../../globalState";
 import { TextInputLineComponent } from "shared-ui-components/lines/textInputLineComponent";
-import { IPropertyComponentProps } from "shared-ui-components/nodeGraphSystem/interfaces/propertyComponentProps";
+import type { IPropertyComponentProps } from "shared-ui-components/nodeGraphSystem/interfaces/propertyComponentProps";
 import { ButtonLineComponent } from "shared-ui-components/lines/buttonLineComponent";
 import { OptionsLineComponent } from "shared-ui-components/lines/optionsLineComponent";
+import { FloatLineComponent } from "shared-ui-components/lines/floatLineComponent";
+import { SliderLineComponent } from "shared-ui-components/lines/sliderLineComponent";
 
 type ReflectionTexture = ReflectionTextureBlock | ReflectionBlock | RefractionBlock;
 
@@ -145,6 +145,9 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
         this._prepareTexture();
 
         const texture = this.textureBlock.texture as BaseTexture;
+        // We need to update the texture name with the url so later on the render
+        // doesn't overwrite the url texture with the name of the texture.
+        texture.name = url;
         if (texture.isCube || this.textureBlock instanceof ReflectionTextureBlock || this.textureBlock instanceof ReflectionBlock || this.textureBlock instanceof RefractionBlock) {
             let extension: string | undefined = undefined;
             if (url.toLowerCase().indexOf(".dds") > 0) {
@@ -334,7 +337,7 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
                     )}
                     {texture && !isInReflectionMode && !isFrozenTexture && (
                         <FloatLineComponent
-                            globalState={this.props.stateManager.data as GlobalState}
+                            lockObject={this.props.stateManager.lockObject}
                             label="Offset U"
                             target={texture}
                             propertyName="uOffset"
@@ -345,7 +348,7 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
                     )}
                     {texture && !isInReflectionMode && !isFrozenTexture && (
                         <FloatLineComponent
-                            globalState={this.props.stateManager.data as GlobalState}
+                            lockObject={this.props.stateManager.lockObject}
                             label="Offset V"
                             target={texture}
                             propertyName="vOffset"
@@ -356,7 +359,7 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
                     )}
                     {texture && !isInReflectionMode && !isFrozenTexture && (
                         <FloatLineComponent
-                            globalState={this.props.stateManager.data as GlobalState}
+                            lockObject={this.props.stateManager.lockObject}
                             label="Scale U"
                             target={texture}
                             propertyName="uScale"
@@ -367,7 +370,7 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
                     )}
                     {texture && !isInReflectionMode && !isFrozenTexture && (
                         <FloatLineComponent
-                            globalState={this.props.stateManager.data as GlobalState}
+                            lockObject={this.props.stateManager.lockObject}
                             label="Scale V"
                             target={texture}
                             propertyName="vScale"
@@ -378,9 +381,9 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
                     )}
                     {texture && !isInReflectionMode && !isFrozenTexture && (
                         <SliderLineComponent
+                            lockObject={this.props.stateManager.lockObject}
                             label="Rotation U"
                             target={texture}
-                            globalState={this.props.stateManager.data as GlobalState}
                             propertyName="uAng"
                             minimum={0}
                             maximum={Math.PI * 2}
@@ -393,9 +396,9 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
                     )}
                     {texture && !isInReflectionMode && !isFrozenTexture && (
                         <SliderLineComponent
+                            lockObject={this.props.stateManager.lockObject}
                             label="Rotation V"
                             target={texture}
-                            globalState={this.props.stateManager.data as GlobalState}
                             propertyName="vAng"
                             minimum={0}
                             maximum={Math.PI * 2}
@@ -408,9 +411,9 @@ export class TexturePropertyTabComponent extends React.Component<IPropertyCompon
                     )}
                     {texture && !isInReflectionMode && !isFrozenTexture && (
                         <SliderLineComponent
+                            lockObject={this.props.stateManager.lockObject}
                             label="Rotation W"
                             target={texture}
-                            globalState={this.props.stateManager.data as GlobalState}
                             propertyName="wAng"
                             minimum={0}
                             maximum={Math.PI * 2}

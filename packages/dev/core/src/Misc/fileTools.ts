@@ -162,7 +162,7 @@ export const LoadImage = (
     let usingObjectURL = false;
 
     if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) {
-        if (typeof Blob !== "undefined") {
+        if (typeof Blob !== "undefined" && typeof URL !== "undefined") {
             url = URL.createObjectURL(new Blob([input], { type: mimeType }));
             usingObjectURL = true;
         } else {
@@ -245,7 +245,22 @@ export const LoadImage = (
     img.addEventListener("error", errorHandler);
 
     const noOfflineSupport = () => {
-        img.src = url;
+        LoadFile(
+            url,
+            (data, _, contentType) => {
+                const type = !mimeType && contentType ? contentType : mimeType;
+                const blob = new Blob([data], { type });
+                const url = URL.createObjectURL(blob);
+                usingObjectURL = true;
+                img.src = url;
+            },
+            undefined,
+            offlineProvider || undefined,
+            true,
+            (request, exception) => {
+                onErrorHandler(exception);
+            }
+        );
     };
 
     const loadFromOfflineSupport = () => {
@@ -259,7 +274,7 @@ export const LoadImage = (
     } else {
         if (url.indexOf("file:") !== -1) {
             const textureName = decodeURIComponent(url.substring(5).toLowerCase());
-            if (FilesInputStore.FilesToLoad[textureName]) {
+            if (FilesInputStore.FilesToLoad[textureName] && typeof URL !== "undefined") {
                 try {
                     let blobURL;
                     try {
@@ -344,7 +359,7 @@ export const ReadFile = (
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export const LoadFile = (
     fileOrUrl: File | string,
-    onSuccess: (data: string | ArrayBuffer, responseURL?: string) => void,
+    onSuccess: (data: string | ArrayBuffer, responseURL?: string, contentType?: Nullable<string>) => void,
     onProgress?: (ev: ProgressEvent) => void,
     offlineProvider?: IOfflineProvider,
     useArrayBuffer?: boolean,
@@ -380,14 +395,16 @@ export const LoadFile = (
     }
 
     // For a Base64 Data URL
-    if (IsBase64DataUrl(url)) {
+    const { match, type } = TestBase64DataUrl(url);
+    if (match) {
         const fileRequest: IFileRequest = {
             onCompleteObservable: new Observable<IFileRequest>(),
             abort: () => () => {},
         };
 
         try {
-            onSuccess(useArrayBuffer ? DecodeBase64UrlToBinary(url) : DecodeBase64UrlToString(url));
+            const data = useArrayBuffer ? DecodeBase64UrlToBinary(url) : DecodeBase64UrlToString(url);
+            onSuccess(data, undefined, type);
         } catch (error) {
             if (onError) {
                 onError(undefined, error);
@@ -406,7 +423,7 @@ export const LoadFile = (
     return RequestFile(
         url,
         (data, request) => {
-            onSuccess(data, request ? request.responseURL : undefined);
+            onSuccess(data, request?.responseURL, request?.getResponseHeader("content-type"));
         },
         onProgress,
         offlineProvider,
@@ -649,17 +666,27 @@ export const IsFileURL = (): boolean => {
 /**
  * Test if the given uri is a valid base64 data url
  * @param uri The uri to test
- * @return True if the uri is a base64 data url or false otherwise
+ * @returns True if the uri is a base64 data url or false otherwise
  * @hidden
  */
 export const IsBase64DataUrl = (uri: string): boolean => {
     return Base64DataUrlRegEx.test(uri);
 };
 
+export const TestBase64DataUrl = (uri: string): { match: boolean; type: string } => {
+    const results = Base64DataUrlRegEx.exec(uri);
+    if (results === null || results.length === 0) {
+        return { match: false, type: "" };
+    } else {
+        const type = results[0].replace("data:", "").replace("base64,", "");
+        return { match: true, type };
+    }
+};
+
 /**
  * Decode the given base64 uri.
  * @param uri The uri to decode
- * @return The decoded base64 data.
+ * @returns The decoded base64 data.
  * @hidden
  */
 export function DecodeBase64UrlToBinary(uri: string): ArrayBuffer {
@@ -669,7 +696,7 @@ export function DecodeBase64UrlToBinary(uri: string): ArrayBuffer {
 /**
  * Decode the given base64 uri into a UTF-8 encoded string.
  * @param uri The uri to decode
- * @return The decoded base64 data.
+ * @returns The decoded base64 data.
  * @hidden
  */
 export const DecodeBase64UrlToString = (uri: string): string => {
